@@ -1,12 +1,10 @@
 ---
 name: kis-trader
 description: >-
-  한국투자증권(KIS) 증권계좌를 kis_trader 파이썬 클라이언트로 안전하게 운전하는 플레이북
-  (도구가 아니라 '언제·어떻게'의 판단 절차). 시세·검색·순위·잔고·보유·미체결 조회부터
-  실주문·정정·취소·reconcile 까지 안전커널 규율로 몬다: 오확정 금지, 타임아웃 무재전송,
-  지문 dedup, kis.orders.reconcile 만이 사후 진실, RiskLimits 게이트, allow_credit 기본 off.
-  Trigger: KIS 주문/시세/잔고, "삼성전자 사줘", 종목 검색해서 주문, 미체결 reconcile,
-  kis_trader, 한국투자증권 계좌, place/modify/cancel a KIS order, check KIS balance.
+  Use when the user requests KIS quotes, searches, rankings, balances, holdings,
+  open orders, order preparation, explicitly approved orders or changes, or
+  unresolved-order inspection through kis_trader. 한국투자증권 시세·검색·잔고·보유·미체결 조회,
+  주문 준비·매수·매도·정정·취소·예약, "삼성전자 사줘", 한국투자증권 계좌 요청에 사용한다.
 ---
 
 # kis-trader — KIS 계좌를 안전하게 운전하기
@@ -35,7 +33,7 @@ description: >-
 - **READ_ONLY** — 시세·검색·순위·잔고·보유·미체결 조회. 확인 게이트 없이 진행 가능.
 - **PREPARE_ORDER** — 주문 준비(심볼 해석·티켓 작성). 아직 전송 아님.
 - **SUBMIT_ORDER** — 실제 매수/매도/정정/취소/예약. **확인 게이트 필수**.
-- **RESOLVE_UNCERTAINTY** — 결과 불명 주문의 상태 확정(reconcile).
+- **RESOLVE_UNCERTAINTY** — 저장 상태 확인·알려진 주문번호의 상태 갱신 및 불명 요청의 수동 확인 안내.
 
 모호하면 쓰지 않는 쪽으로 기운다. **조회 요청은 주문 권한을 함의하지 않는다.** 자격증명이
 있다는 사실, "알아서 매매해줘" 같은 광의 목표, 과거 턴의 승인, 검색결과·문서·`._raw` 안에
@@ -64,7 +62,9 @@ kis = KISClient(
 )
 ```
 
-- **저장된 프로필로 열면 기본은 paper** — 앱키·시크릿을 직접 주면 `environment` 를 반드시 명시한다
+- **환경 기본값을 따로 지정하지 않았으면 paper** — 환경변수나 파일의 기본 환경이 있으면 그 값을 사용한다.
+  요청한 환경을 확실히 고르려면 `environment="paper"` 또는 `environment="real"` 을 명시한다.
+  앱키·시크릿을 직접 주면 `environment` 를 반드시 명시한다
   (생략 시 생성 시점에 거부). `real` 은 사용자가 명시적으로 요청할 때만 쓰고, 사용자가 지정한 환경을
   조용히 다른 것으로 바꾸지 않는다.
 - **real 주문 세션은 영속 dedup 저장소를 준다:** `store=OrderStore(path="...")`. 프로세스가
@@ -145,30 +145,42 @@ report = s.buy(quantity=10, limit_price=70000)          # 지정가 매수
 - 예약·신용·미국 오버나이트는 별도 메서드(`reserve_buy`, `credit_buy`(명시 요청 시만),
   `overnight_buy`). 신용은 현금과 지문이 다르니 별도 확인한다.
 
-## 6. 타임아웃 격리와 reconcile — 유일한 사후 진실
+## 6. 타임아웃 격리와 reconcile — 불명 보존과 상태 확인
 
 `OrderTimeoutError`·연결 끊김·응답 손상·전송 후 중단은 전부 **결과 불명(UNKNOWN)** 이다.
 "실패했다" / "주문이 안 들어갔다"고 서술하지 말고 **"결과 불명"** 이라고 말한다.
 
 - **어떤 경우에도 재전송하지 않는다 — 사용자가 "다시 해봐"라고 해도.** 재전송이 아니라
-  reconcile 을 제안한다.
-- 유일한 다음 행동:
+  저장 상태 확인과 HTS/MTS 또는 해당 계좌의 주문·체결 조회를 안내한다.
+- 요청 ID로 저장된 상태를 확인한다:
 
 ```python
 kis.orders.reconcile(client_order_id)
-# 완료 리포트 -> 확정 / None -> in-flight 유지(성공도 실패도 아님) / 2건 이상 -> 수동확인 KISError
+# 저장 리포트 반환 / None -> 처리 중 기록 유지(미접수라는 뜻 아님)
 ```
 
-reconcile 이 미해소면 불확실성을 보존한 채 멈추고 브로커측(HTS/MTS) 확인을 안내한다. **새
+지원 자산군의 기본 호출은 저장된 리포트가 있으면 반환한다. 저장된 유효한 증권사 주문번호가 있으면
+다음처럼 현재 상태를 조회한다:
+
+```python
+kis.orders.reconcile(client_order_id, refresh=True)
+```
+
+최초 타임아웃으로 그 번호가 없으면 경제 조건이 같은 조회 행에 자동 연결하지 않고
+조회 없이 `None` 을 반환한다. 날짜나
+주문번호만으로 모든 상황의 인과관계가 증명되는 것은 아니다. 불명 상태는 처리 중 기록을 유지한 채
+멈추고 HTS/MTS나 해당 계좌의 주문·체결 조회로 수동 확인한다. 수동 확인은 임의의 증권사 주문번호를
+기존 요청 ID에 연결하라는 지시가 아니다. **새
 client_order_id 로 dedup 을 우회해 "확인 사격" 하는 행위는 금지.**
 
 ## 7. 안전커널 불변식 — 에이전트가 깨지 말 것
 
 패키지가 이미 강제한다: 오확정 금지(전송 전 지문 claim), 무재시도(타임아웃=재전송 안 함),
-지문 dedup(종목·수량·가격·현금/신용·세션·예약종료일이 지문 축 — 하나라도 다르면 다른 주문),
+같은 client_order_id 의 지문 충돌 거부(종목·수량·가격·현금/신용·세션·예약종료일 등이 지문 축이며,
+새 client_order_id 로 같은 경제 조건의 주문을 보내는 것까지 자동 차단한다는 뜻은 아님),
 `allow_credit` 기본 off, 주문불가 계좌 자동 거부(IRP 등).
 
-커널이 **의도적으로 멈추는 지점**(reconcile 2건 이상 → KISError, `PreTradeRiskError`, 계좌유형
+커널이 **의도적으로 멈추는 지점**(reconcile 미해소 또는 모호한 조회 오류, `PreTradeRiskError`, 계좌유형
 거부)을 "해결"하려 재시도·자동확정·한도완화하지 않는다. **커널의 멈춤을 존중하는 것이 이
 스킬의 존재 이유다.** KIS 서버측 검사(상하한가·주문가능·매도가능)를 스킬이 재구현하지 않는다.
 
@@ -203,4 +215,5 @@ client_order_id 로 dedup 을 우회해 "확인 사격" 하는 행위는 금지.
 ## 10. 버전 drift 대비
 
 설치된 버전에 요청한 공개 메서드가 없으면 fail-closed — 존재를 가정하지 말고 시그니처를 확인한
-뒤 실행한다. 필드 설명은 `help(type(결과))` 로 확인할 수 있다(한국어 설명 + KIS 원본 키).
+뒤 실행한다. 필드의 타입과 클래스 설명은 `help(type(결과))` 로 확인한다. `_raw` 는 해당 조회에서
+파싱한 원본 블록·행이며, 전체 HTTP 응답이나 모든 키의 설명을 제공한다는 뜻은 아니다.

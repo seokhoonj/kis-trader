@@ -513,9 +513,9 @@ def fetch_derivative_night_orderable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     symbol: str, side: Side, limit_price: Numeric | None = None,
 ) -> DomesticDerivativeOrderable:
-    """선물옵션 야간(EUREX 연계) 주문가능수량(1콜, output 단일 객체). 주간
+    """선물옵션 야간 주문가능수량(``STTN5105R``, 1콜, output 단일 객체). 주간
     :func:`fetch_derivative_orderable` 과 같은 :class:`DomesticDerivativeOrderable` 로 돌려주되 야간 응답은
-    청산가능수량을 lqd_psbl_qty 로, 그리고 max_ord_psbl_qty 를 추가로 준다(후자는 ``raw`` 로).
+    청산가능수량을 lqd_psbl_qty 로, 그리고 max_ord_psbl_qty 를 추가로 준다(후자는 ``_raw`` 로).
     **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(

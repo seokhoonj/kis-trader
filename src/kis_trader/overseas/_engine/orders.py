@@ -382,19 +382,20 @@ def reconcile(
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
     force_refresh: bool = False,
 ) -> ExecutionReport | None:
-    """미확인 해외 주문의 실제 상태를 체결내역에서 재조회한다 -- **보수적**(도메스틱과 동형).
+    """저장된 해외주식 주문번호(ODNO)로 체결내역을 재조회한다.
 
-    완료 리포트가 있으면 반환. in-flight 면 체결내역을 지문으로 스캔해 정확히 1건이면 확정(단 그 행에
-    쓸 수 있는 ODNO 가 없으면 비종료는 ``None`` 유지 -- order_id=None 리포트의 refresh 교착 방지; 종료
-    체결은 ODNO 없어도 확정), 0건이면
-    ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`. **자동 해제는 절대 하지 않는다.**
-    ODNO 로는 서버 **검색**이 안 돼(KIS 명세) 기본은 지문(종목/매매/수량/단가)으로 맞춘다. 단
-    ``force_refresh`` 재조회로 prior 에 확정 ODNO 가 있으면, 반환된 행의 ``odno`` 로 **로컬 필터링**해
-    그 ODNO(정정/취소 행 제외)로 자기 행을 집어 형제 오귀속을 막는다 -- 지문은 ODNO 없는 타임아웃
-    복구 전용. ``now`` 는 조회 날짜창의 기준시각(주입하면 결정적; 생략 시 현재 KST).
+    기존 리포트가 있고 force_refresh 가 아니면 그대로 반환한다. 저장된 유효 증권사 주문번호가
+    없으면 경제 조건·날짜·시각만으로 초기 요청을 귀속하지 않고 None 을 반환한다. 미확인 기록과
+    같은 ID의 재전송 차단을 유지하며 저장 번호의 레거시 출처는 이 조회가 증명하지 않는다.
 
-    ``force_refresh`` 면 저장된 완료 리포트가 있어도 단락하지 않고 다시 스캔한다(ChangeAction
-    재조회가 원주문의 현재 상태를 캐시가 아니라 브로커에서 확인하려고 쓴다)."""
+    해외 체결내역은 ODNO 서버 검색을 지원하지 않으므로 기존 종목·거래소·날짜창으로 조회한 뒤
+    반환 행의 odno 를 저장 번호와 로컬 비교한다. 정정/취소 행은 제외한다. 0건은 비종료 prior 에
+    대해 None, 종료 prior 는 기존 결과 유지이며 다건은 KISError다. now 는 조회 날짜창의
+    기준시각(주입하면 결정적; 생략 시 현재 KST)이며 창 밖의 주문을 찾는다고 보장하지 않는다.
+
+    오버나이트 체결은 이 정규 체결내역에 담기지 않아 자동 재조회하지 않는다. 비종료 prior 는
+    None 이며 종료 prior 는 기존 결과를 유지한다. force_refresh 도 이 자산별 제한을 우회하지
+    않으므로 전용 계좌 조회나 HTS/MTS에서 수동 확인해야 한다."""
     prior, fingerprint = store.snapshot_for(client_order_id)  # 리포트+지문 원자 스냅샷(세대 일관)
     if prior is not None and not force_refresh:
         return prior
@@ -407,6 +408,10 @@ def reconcile(
             f"client_order_id {client_order_id!r} 의 지문이 즉시주문이 아니다"
             f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
+    # 저장된 유효 증권사 주문번호가 없으면 경제 조건이나 날짜만으로 요청을 귀속하지 않는다.
+    # 미확인 상태와 재전송 차단을 유지하며 HTS/MTS 등에서 수동 확인한다.
+    if prior is None or not (prior.order_id or "").strip().lstrip("0"):
+        return None
     if fingerprint.session == "overnight":
         # 미국 오버나이트 거래 체결은 정규 체결내역(inquire-ccnl)에 담기지 않으므로, 여기서 단일 매칭되는 행은
         # 반드시 '정규 세션' 주문이다 -> 주간 주문을 그 행으로 확정하면 오확정이다. 자동 확정하지 않고
@@ -429,20 +434,11 @@ def reconcile(
         ) from err
     want_odno = normalize_order_number(prior.order_id) if prior is not None and prior.order_id else ""
     if want_odno:
-        # 해외 ccnl 은 ODNO 로 **서버 조회**는 안 되지만 반환된 행에는 ``odno`` 가 실려, prior 의 확정
-        # ODNO 로 **로컬 필터링**은 된다. force_refresh 재조회(ChangeAction 이 원주문 현재상태 확인에 씀)는
-        # 그 ODNO 로 자기 행을 집어, 동일 종목·수량·가격의 형제 행을 이 주문으로 오귀속하지 않게 한다
-        # (형제 ODNO 가 store.record 돼 이후 cancel 이 살아있는 형제를 겨냥하는 phantom 확정 방지). ODNO 로
-        # 집더라도 정정/취소 행(rvse_cncl_dvsn 01/02)은 제외해 원주문 행만 매칭한다(같은 odno 로 돌아오는
-        # 변경 행 오확정 방지). 저장 ODNO 가 전부-0/빈값으로 정규화돼 비면 아래 elif/else: prior 없으면
-        # 지문(타임아웃 복구), prior 있으면 0건 처리(지문 폴백 금지 -- 국내 reconcile 과 대칭).
+        # 저장된 주문번호로 자기 행만 찾는다. 초기 번호 없는 요청은 조회 전에 반환한다.
         matches = [row for row in rows
                    if normalize_order_number(str(row.get("odno", ""))) == want_odno
                    and str(row.get("rvse_cncl_dvsn", "")).strip() not in ("01", "02")]
-    elif prior is None:
-        matches = _filter_matching_ccnl_rows(rows, fingerprint)  # prior 없는 타임아웃 복구 전용
     else:
-        # prior 는 있는데 쓸 수 있는 ODNO 가 없다 -- 지문 폴백 형제 오확정 방지, 0건 -> 종료-prior/None.
         matches = []
     if len(matches) > 1:
         raise KISError(

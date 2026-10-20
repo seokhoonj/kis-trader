@@ -93,10 +93,12 @@ class OverseasDerivative:
         모의 미지원).
 
         **실전투자 전용**(모의투자 미지원)이라 ``environment="paper"`` 세션은 와이어 전에 fail-closed.
-        이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 실제 주문 경로는 실거래이며
-        여기서 라이브 검증할 수 없다(목킹 테스트로만 확인). 계좌 미설정·모의 세션은
+        같은 요청 ID의 재전송 방지와 타임아웃 무재전송 규칙을 적용한다. 계좌 미설정·모의 세션은
         :class:`~kis_trader.errors.KISUsageError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결
-        불명)은 ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다."""
+        불명)은 ``OrderTimeoutError`` 다. 해외선물옵션 타임아웃 주문은 ``kis.orders.reconcile`` 로
+        자동 확인하는 기능을 지원하지 않는다. 재전송하지 말고 HTS/MTS 또는 해외파생 계좌의
+        ``kis.account.today_orders()`` / ``kis.account.daily_fills(start=..., end=...)`` 조회로
+        실제 주문·체결 내역을 수동 확인한다."""
         return self._client._place_order(self._make_order(
             "buy", quantity=quantity, limit_price=limit_price, stop_price=stop_price,
             order_type=order_type, client_order_id=client_order_id,

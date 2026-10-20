@@ -10,12 +10,13 @@ import threading
 
 import pytest
 
-from kis_trader import KISClient
+from kis_trader import KISClient, RiskLimits
 from kis_trader.errors import (
     KISError,
     KISUsageError,
     OrderRejectedError,
     OrderTimeoutError,
+    PreTradeRiskError,
 )
 from kis_trader.transport import RawResponse, TransportTimeoutError
 
@@ -44,9 +45,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, environment="real", account="12345678-01"):
+def _client(transport, *, environment="real", account="12345678-01", risk=None):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     environment=environment, transport=transport)
+                     environment=environment, transport=transport, risk=risk)
 
 
 # --- 취소 ------------------------------------------------------------------
@@ -225,3 +226,64 @@ def test_reserved_change_multi_row_output_fails_closed():
 def test_reserved_change_requires_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_OK), account=None).account.domestic.cancel_reserved_order("42401")
+
+
+@pytest.mark.parametrize("side", ["buy", "sell"])
+@pytest.mark.parametrize("risk", [
+    RiskLimits(max_order_quantity=1),
+    RiskLimits(max_order_notional=100),
+    RiskLimits(max_order_quantity=1, max_order_notional=100),
+])
+def test_reserved_modify_risk_rejects_before_wire(side, risk):
+    fake = FakeTransport(response=_OK)
+    with pytest.raises(PreTradeRiskError):
+        _client(fake, risk=risk).account.domestic.modify_reserved_order(
+            "42401", symbol="005930", side=side, quantity=1000, limit_price=70000,
+        )
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("risk, price", [
+    (RiskLimits(max_order_notional=100), None),
+    (RiskLimits(price_collar_percent=10), 100),
+    (RiskLimits(enforce_tick_size=True), 70001),
+])
+def test_reserved_modify_uncheckable_or_tick_risk_rejects(risk, price):
+    fake = FakeTransport(response=_OK)
+    with pytest.raises(PreTradeRiskError):
+        _client(fake, risk=risk).account.domestic.modify_reserved_order(
+            "42401", symbol="005930", side="buy", quantity=1, limit_price=price,
+        )
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("price", [None, "100"])
+def test_reserved_modify_compliant_risk_uses_full_replacement_wire(price):
+    fake = FakeTransport(response=_OK)
+    risk = RiskLimits(max_order_quantity=2, max_order_notional=None if price is None else 200)
+    result = _client(fake, risk=risk).account.domestic.modify_reserved_order(
+        "42401", symbol="005930", side="sell", quantity="2.0", limit_price=price,
+    )
+    assert result is None
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["tr_id"] == "CTSC0013U"
+    assert fake.calls[0]["body"]["ORD_QTY"] == "2.0"
+    assert fake.calls[0]["body"]["ORD_UNPR"] == ("0" if price is None else "100")
+
+
+def test_reserved_cancel_remains_available_with_breached_or_uncheckable_risk():
+    fake = FakeTransport(response=_OK)
+    risk = RiskLimits(max_order_quantity=1, max_order_notional=1, price_collar_percent=1)
+    _client(fake, risk=risk).account.domestic.cancel_reserved_order("42401")
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["tr_id"] == "CTSC0009U"
+
+
+@pytest.mark.parametrize("risk", [RiskLimits(max_order_quantity=1), RiskLimits(max_order_notional=199)])
+def test_reserved_modify_one_unit_above_configured_cap_rejected(risk):
+    fake = FakeTransport(response=_OK)
+    with pytest.raises(PreTradeRiskError):
+        _client(fake, risk=risk).account.domestic.modify_reserved_order(
+            "42401", symbol="005930", side="buy", quantity=2, limit_price=100,
+        )
+    assert fake.calls == []

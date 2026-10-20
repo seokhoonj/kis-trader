@@ -83,6 +83,7 @@ def _requests_send(
         with _SESSION_LOCK:  # double-checked: 두 스레드가 동시에 None 을 봐도 Session 은 하나만 만든다
             if _SESSION is None:
                 _SESSION = requests.Session()
+    transport_error: KISError | None = None
     try:
         response = _SESSION.request(
             method,
@@ -92,28 +93,25 @@ def _requests_send(
             json=json_body,
             timeout=10,
         )
-    except (requests.Timeout, requests.ConnectionError) as err:
-        raise TransportTimeoutError("KIS HTTP 요청의 결과를 확인할 수 없다.") from err
+    except (requests.Timeout, requests.ConnectionError):
+        transport_error = TransportTimeoutError("KIS HTTP 요청의 결과를 확인할 수 없다.")
     except requests.exceptions.InvalidHeader:
-        # 헤더 값이 유효하지 않다(대개 자격증명/토큰에 CR/LF 등 비정상 문자). requests 의 예외
-        # 메시지는 문제의 헤더 '값' 을 그대로 담으므로, 그 값을 KISError 에 끌고 들어오지 않도록
-        # 'from None' 으로 체인을 끊고 값 없는 메시지만 올린다(자격증명/토큰 유출 방지).
-        raise KISError("KIS HTTP 요청 헤더가 올바르지 않다.") from None
+        transport_error = KISError("KIS HTTP 요청 헤더가 올바르지 않다.")
     except (
         requests.exceptions.URLRequired,
         requests.exceptions.MissingSchema,
         requests.exceptions.InvalidSchema,
         requests.exceptions.InvalidURL,
-    ) as err:
-        # 요청 준비 단계 오류 -- 소켓에 닿기 전이라 'not sent' 가 확실하다. 결과 불명(no-retry)
-        # 신호를 실을 필요 없이 평범한 KISError 로 올린다(사실상 우리 URL 구성 버그, 값에 비밀 없음).
-        raise KISError(f"KIS HTTP 요청을 구성하지 못했다: {err}") from err
-    except requests.RequestException as err:
-        # 그 밖의 전송 계층 오류 -- 여기엔 ChunkedEncodingError/ContentDecodingError(둘 다
-        # ConnectionError 가 아니라 RequestException 직계라 위 첫 분기에 안 걸린다)와
-        # TooManyRedirects/RetryError 등이 포함된다. 응답을 받던/전송됐을 수 있어(sent-unknown)
-        # 결과가 불명하므로, 타임아웃과 같이 재전송 금지 신호로 올려 쓰기 중복을 막는다.
-        raise TransportTimeoutError("KIS HTTP 전송 계층 오류 -- 요청의 결과를 확인할 수 없다.") from err
+    ):
+        # 요청 준비 단계 오류는 전송 전 실패가 확실하므로 결과 불명 신호를 싣지 않는다.
+        transport_error = KISError("KIS HTTP 요청을 구성하지 못했다.")
+    except requests.RequestException:
+        # 응답 처리 중 오류도 이미 전송됐을 수 있으므로 쓰기 재전송을 막는다.
+        transport_error = TransportTimeoutError("KIS HTTP 전송 계층 오류 -- 요청의 결과를 확인할 수 없다.")
+    if transport_error is not None:
+        # 외부 오류는 URL의 계좌 비밀번호나 헤더 자격증명을 담을 수 있다. except 밖에서
+        # 새 오류를 올려 메시지뿐 아니라 __cause__/__context__ 에도 원본을 남기지 않는다.
+        raise transport_error
     # 헤더 키를 소문자로 정규화 -- requests 의 대소문자 무시 맵을 평범한 dict 로 바꾸면서도 tr_cont 등
     # 하위 연속조회가 서버/프록시의 Title-Case 표기에도 매칭되게 한다(페이지네이션 조용한 절단 방지).
     return response.status_code, {k.lower(): v for k, v in response.headers.items()}, response.json()

@@ -135,14 +135,25 @@ def test_reserved_orders_skips_padding_row():
 
 def test_reserved_orders_non_list_output_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": {"rsvn_ord_seq": "1"}}, tr_cont="")
-    with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.domestic.reserved_orders(start="1", end="2")
+    fake = FakeTransport(response=resp)
+    with pytest.raises(KISError) as caught:
+        _client(fake).account.domestic.reserved_orders(start="20220501", end="20220523")
+
+    assert len(fake.calls) == 1
+    assert not isinstance(caught.value, KISUsageError)
+    assert "output" in str(caught.value)
 
 
 def test_reserved_orders_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output": []}, tr_cont="")
-    with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.domestic.reserved_orders(start="1", end="2")
+    fake = FakeTransport(response=resp)
+    with pytest.raises(KISError) as caught:
+        _client(fake).account.domestic.reserved_orders(start="20220501", end="20220523")
+
+    assert len(fake.calls) == 1
+    assert not isinstance(caught.value, KISUsageError)
+    assert caught.value.msg_cd == "E"
+    assert caught.value.rt_cd == "1"
 
 
 @pytest.mark.parametrize("bad", [{"start": "1", "end": "20220523"},

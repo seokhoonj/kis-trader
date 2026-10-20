@@ -1,7 +1,7 @@
 """실시간 동기 래퍼 -- :class:`RealtimeClient`.
 
 async 코어(:class:`~kis_trader.realtime._connection.RealtimeConnection`)를 **백그라운드 스레드의
-전용 이벤트루프**에서 돌리고, 동기 API 로 노출한다: ``subscribe(tr_id, tr_key, on=콜백)`` /
+전용 이벤트루프**에서 돌리고, 동기 API 로 노출한다: ``subscribe(tr_id=tr_id, tr_key=tr_key, on=callback)`` /
 ``stream()`` 이터레이터 / ``start()`` / ``stop()``. 패키지의 나머지(동기 REST)와 결이 같아
 사용자가 asyncio 를 몰라도 된다. async 앱(FastAPI 등)은 코어(:class:`RealtimeConnection`)를
 직접 쓰면 된다.
@@ -103,14 +103,21 @@ class RealtimeClient:
         self._raw_subscriptions: set[tuple[str, str]] = set()
         # stream() 소비자가 없거나 느려도 무한정 자라지 않게 상한을 둔다(콜백 전용 사용자 메모리 누수 방지).
         # 가득 차면 가장 오래된 틱을 버린다(시장데이터는 최신이 중요) -- 정책은 _dispatch 참고.
-        self._queue: queue.Queue[Any] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._queue: queue.Queue[Any] = queue.Queue()
         self._queue_overflow_warned = False
         # 사용자 콜백(on=)은 수신 이벤트루프 스레드가 아니라 전용 디스패치 워커 스레드에서 돌린다 --
         # 느리거나 블로킹하는 콜백이 루프를 고사시켜 KIS PINGPONG/keepalive 응답이 늦어지고 소켓이
         # 끊기는 것을 막는다. stream() 큐와 같은 drop-oldest 상한 정책(시장데이터는 최신이 중요).
-        self._dispatch_queue: queue.Queue[Any] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._dispatch_queue: queue.Queue[Any] = queue.Queue()
         self._dispatch_overflow_warned = False
         self._dispatch_thread: threading.Thread | None = None
+        # 물리 큐는 제어 신호 공간을 남기고 DATA 만 수동 제한한다. 적재/종료를 같은 잠금으로 묶는다.
+        self._queue_lock = threading.Lock()
+        self._stream_ended = False
+        self._dispatch_ended = False
+        # _lock 아래 수신 완료와 그 실행의 구독 소유권을 함께 전이한다. 완료 후 등록은 다음 실행용.
+        self._receive_finished = False
+        self._draining_subscriptions: list[RealtimeSubscription[Any]] = []
         self._running = False
         self._startup_error: BaseException | None = None  # start() 로 전달할 연결/구독 실패
         # 국내 실시간 지역 네임스페이스(공개 표면). 시세축이라 계좌 무관.
@@ -134,7 +141,7 @@ class RealtimeClient:
                 self._callbacks[key].append(on)
             self._desired.add(key)
             future = None
-            if self._running and self._conn is not None:
+            if self._running and not self._receive_finished and self._conn is not None:
                 future = self._submit_wire(self._conn.subscribe(tr_id, tr_key))
         if future is not None:
             future.result(timeout=5.0)
@@ -159,7 +166,7 @@ class RealtimeClient:
             self._subscriptions[key].append(sub)
             if first:
                 self._desired.add(key)
-                if self._running and self._conn is not None:
+                if self._running and not self._receive_finished and self._conn is not None:
                     self._schedule_wire(self._conn.subscribe(tr_id, tr_key))
         return sub
 
@@ -193,7 +200,7 @@ class RealtimeClient:
                 # raw 구독도 포함). raw 가 없을 때만 wire unsubscribe 하고 원하는-집합에서 뺀다.
                 if key not in self._raw_subscriptions:
                     self._desired.discard(key)
-                    if self._running and self._conn is not None:
+                    if self._running and not self._receive_finished and self._conn is not None:
                         self._schedule_wire(self._conn.unsubscribe(sub.tr_id, sub.tr_key))
 
     def unsubscribe(self, *, tr_id: str, tr_key: str) -> None:
@@ -212,7 +219,7 @@ class RealtimeClient:
                 # 보내면 그 틈에 같은 계약의 _open_typed 가 SUBSCRIBE 를 먼저 예약해 UNSUBSCRIBE 가
                 # 뒤에 도착, 살아 있는 타입드 구독이 조용히 굶을 수 있다. _schedule_wire 는 비블로킹·
                 # 락-세이프(루프스레드 재진입 처리·실패는 _on_wire_done 로그).
-                if self._running and self._conn is not None:
+                if self._running and not self._receive_finished and self._conn is not None:
                     self._schedule_wire(self._conn.unsubscribe(tr_id, tr_key))
 
     # -- 수명주기 --
@@ -221,7 +228,8 @@ class RealtimeClient:
 
         연결/초기구독이 실패하면 hang 하지 않고 그 예외를 호출자에게 그대로 raise 한다.
         ``timeout`` 내에 연결이 준비되지 않으면(느린/멎은 연결) :class:`RealtimeError` 를 던진다
-        -- 무한 대기하지 않는다.
+        -- 무한 대기하지 않는다. 이전 수신/콜백 워커가 남아 있으면 재시작을 거부한다.
+        블로킹 콜백을 해제해 이전 워커가 끝난 뒤 다시 호출하라.
         """
         # 가드~_running=True 전체를 수명주기 락 아래 직렬화 -- 동시 start() 2개가 가드를 함께 통과해
         # 수신 스레드를 2개 띄우는 경합을 막는다. _ready.wait 는 timeout 유계이고 수신 스레드는 이
@@ -229,14 +237,23 @@ class RealtimeClient:
         with self._lifecycle_lock:
             if self._running:
                 return
-            # 이전 run 의 스레드가 아직 살아 있으면(예: timeout 정리의 join 마저 늦은 멎은 연결) 새 run 을
+            # 이전 run 의 수신/콜백 스레드가 아직 살아 있으면 새 run 을
             # 띄우지 않는다 -- 띄우면 self._conn/_loop/_queue 를 갈아치워, 뒤늦게 깨어난 옛 스레드가 새 run 의
             # 소켓을 닫고 큐에 stale 센티넬을 넣는다(재시작 revive/clobber). 이전 정리가 끝날 때까지 fail-closed.
-            if self._thread is not None and self._thread.is_alive():
+            if (
+                (self._thread is not None and self._thread.is_alive())
+                or (self._dispatch_thread is not None and self._dispatch_thread.is_alive())
+            ):
                 raise RealtimeError(
-                    "이전 실시간 실행이 아직 종료되지 않았습니다 -- stop() 으로 정리가 끝난 뒤 다시 start() 하세요."
+                    "이전 실시간 수신/콜백 워커가 아직 종료되지 않았습니다 -- "
+                    "블로킹 콜백을 해제하고 이전 워커가 끝난 뒤 다시 start() 하세요."
                 )
             self._startup_error = None
+            with self._lock:
+                self._receive_finished = False
+            with self._queue_lock:
+                self._stream_ended = False
+                self._dispatch_ended = False
             self._ready.clear()  # 재시작 시 이전 set 이 남아 조기 ready 로 오판되지 않게
             self._stop_requested.clear()
             # 재시작: 이전 run 의 잔여 틱/센티넬이 새 stream() 에 낡은 데이터·즉시종료로 새지 않게 큐를 비운다.
@@ -264,8 +281,6 @@ class RealtimeClient:
     def stop(self, *, timeout: float = 5.0) -> None:
         """수신 중단 및 스레드 종료. 백그라운드 루프가 이미 끝났으면 join 만 한다. start() 가 아직
         진행 중이면(_running 전이 전) 이 호출은 no-op 이다 -- 시작 완료 후 다시 부르라."""
-        if not self._running:
-            return
         # 실시간 콜백은 수신/디스패치 백그라운드 스레드에서 돈다 -- 거기서 stop() 을 부르면 자기
         # 스레드를 join 하려다 RuntimeError 또는 self-deadlock 이 난다. fail-closed.
         if threading.current_thread() in (self._thread, self._dispatch_thread):
@@ -273,6 +288,8 @@ class RealtimeClient:
                 "stop() 은 실시간 콜백(수신/디스패치 스레드) 안에서 호출할 수 없습니다 -- "
                 "다른 스레드에서 부르세요."
             )
+        if not self._running:
+            return
         # 상태전이~teardown 은 수명주기 락 아래 -- start() 와 직렬화하고 동시 stop() 2개가 겹쳐
         # 들어와 _conn/_thread 를 중복 정리하지 않게 한다(콜백-스레드 거부는 위에서 락 전에 끝냈다).
         with self._lifecycle_lock:
@@ -280,6 +297,9 @@ class RealtimeClient:
                 return
             self._running = False
             self._stop_requested.set()
+            # 수신 완료 전의 명시적 stop 만 즉시 취소한다. 자연 EOF 뒤라면 이미 분리된 구독은
+            # 디스패치 워커가 남은 메시지를 전달한 후 닫고, 다음 실행용 등록은 건드리지 않는다.
+            self._shutdown_subscriptions()
             stop_error: BaseException | None = None
             if self._conn is not None and self._loop is not None and self._loop.is_running():
                 try:
@@ -395,18 +415,20 @@ class RealtimeClient:
         try:
             await self._conn.__aenter__()
             with self._lock:
-                desired = list(self._desired)
+                desired = [] if self._receive_finished else list(self._desired)
             for tr_id, tr_key in desired:
                 await self._conn.subscribe(tr_id, tr_key)
         except BaseException as exc:  # noqa: BLE001 - 실패를 start() 로 전달(hang 방지)
             self._startup_error = exc
-            await self._conn.close()  # 소켓 누수 방지
-            self._put_sentinel()
-            self._put_dispatch_sentinel()  # 콜백 워커 종료(비블로킹; 단일 생산자 = 이 스레드)
-            # 기동 실패 경로에서도 타입드 구독의 per-sub 큐에 종료 센티넬을 넣는다 -- 안 그러면
-            # start() 전에 만든 구독의 `for tick in sub:` 가 영원히 멎는다.
-            self._shutdown_subscriptions()
-            self._ready.set()
+            try:
+                await self._conn.close()
+            except BaseException:  # 시작 오류를 보존하고 이차 정리 실패는 별도로 기록
+                _logger.warning("실시간 시작 실패 후 연결 정리에도 실패했습니다", exc_info=True)
+            finally:
+                self._shutdown_subscriptions()
+                self._put_sentinel()
+                self._put_dispatch_sentinel()
+                self._ready.set()
             return
         self._ready.set()  # 준비 완료 신호
         try:
@@ -416,10 +438,13 @@ class RealtimeClient:
                 async for message in self._conn:
                     self._dispatch(message)
         finally:
-            await self._conn.close()
-            self._put_sentinel()
-            self._put_dispatch_sentinel()  # 콜백 워커 종료(비블로킹; 단일 생산자 = 이 스레드)
-            self._shutdown_subscriptions()
+            # 먼저 현재 실행의 라우팅을 분리한다. close 를 기다리는 동안 들어오는 등록도 다음 실행용.
+            self._finish_receiving(cancel=self._stop_requested.is_set())
+            try:
+                await self._conn.close()
+            finally:
+                self._put_sentinel()
+                self._put_dispatch_sentinel()
 
     def _dispatch(self, message: RealtimeMessage) -> None:
         """수신 루프(이벤트루프 스레드)에서 호출. stream() 큐에는 즉시 적재해 신선도를 유지하고
@@ -429,29 +454,29 @@ class RealtimeClient:
         # 콜백/타입드 구독 스냅샷은 **수신 시점(루프 스레드)** 에 락 아래서 뜬다 -- 원래 의미(수신 시점
         # 등록분에 전달)를 보존하고, 워커가 처리하기 전에 teardown 이 맵을 비워도 영향받지 않게.
         with self._lock:
+            if self._receive_finished:
+                return  # stop/EOF 뒤에 등록한 다음 실행의 구독으로 옛 프레임을 전달하지 않는다
             callbacks = tuple(self._callbacks.get((message.tr_id, message.tr_key), ()))
             subs = tuple(self._subscriptions.get((message.tr_id, message.tr_key), ()))
         if callbacks or subs:
             self._submit_to_dispatch((message, callbacks, subs))
 
     def _submit_to_dispatch(self, item: Any) -> None:
-        """콜백 디스패치 큐에 적재(비블로킹). 상한 도달 시 가장 오래된 것부터 드롭(_enqueue 와 동일
-        정책) -- 블로킹/느린 콜백이 무한정 메모리를 키우지 않게. ``item`` = (message, callbacks, subs)."""
-        try:
+        """콜백 DATA 를 상한까지 보관하고 초과 시 오래된 것만 드롭한다. 종료 신호는 상한 밖이다."""
+        warn_overflow = False
+        with self._queue_lock:
+            if self._dispatch_ended:
+                return
+            if self._dispatch_queue.qsize() >= _QUEUE_MAXSIZE:
+                try:
+                    self._dispatch_queue.get_nowait()
+                except queue.Empty:
+                    pass
+                if not self._dispatch_overflow_warned:
+                    self._dispatch_overflow_warned = True
+                    warn_overflow = True
             self._dispatch_queue.put_nowait(item)
-            return
-        except queue.Full:
-            pass
-        try:
-            self._dispatch_queue.get_nowait()  # 가장 오래된 것 드롭
-        except queue.Empty:
-            pass
-        try:
-            self._dispatch_queue.put_nowait(item)
-        except queue.Full:
-            pass
-        if not self._dispatch_overflow_warned:
-            self._dispatch_overflow_warned = True
+        if warn_overflow:
             _logger.warning(
                 "realtime 콜백 디스패치 큐가 상한(%d)에 도달 -- on= 콜백이 느리거나 블로킹해 오래된 "
                 "틱을 드롭합니다(콜백에서 블로킹 작업을 피하세요)", _QUEUE_MAXSIZE,
@@ -461,38 +486,38 @@ class RealtimeClient:
         """콜백 전용 워커 루프 -- 디스패치 큐를 FIFO(수신 순서 보존)로 비우며 (tr_id, tr_key) 매칭
         콜백과 타입드 구독에 전달한다. 종료 sentinel 에서 멈춘다. 사용자 콜백 예외는 격리(로깅)한다.
         이 스레드는 이벤트루프와 분리돼 있어, 콜백이 블로킹해도 루프의 keepalive 응답은 막히지 않는다."""
-        while True:
-            item = self._dispatch_queue.get()
-            if item is _DISPATCH_SENTINEL:
-                return
-            message, callbacks, subs = item
-            for callback in callbacks:
-                try:
-                    callback(message)
-                except Exception:
-                    _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
+        try:
+            while True:
+                item = self._dispatch_queue.get()
+                if item is _DISPATCH_SENTINEL:
+                    return
+                message, callbacks, subs = item
+                for callback in callbacks:
+                    try:
+                        callback(message)
+                    except Exception:
+                        _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
+                for sub in subs:
+                    # 콜백 루프와 대칭으로 격리한다 -- 한 구독의 _feed 가 raise 해도 워커 스레드가
+                    # 죽어 모든 콜백/구독 전달이 조용히 영구 중단되지 않게(수신루프/stream 은 계속 산다).
+                    try:
+                        sub._feed(message)
+                    except Exception:
+                        _logger.warning("realtime subscription feed for %s raised", message.tr_id, exc_info=True)
+        finally:
+            # 정상 EOF 는 FIFO 전달을 끝낸 뒤 닫는다. 워커 자체 실패도 현재 실행의 구독을 종료한다.
+            self._finish_receiving(cancel=False)
+            with self._lock:
+                subs, self._draining_subscriptions = self._draining_subscriptions, []
             for sub in subs:
-                # 콜백 루프와 대칭으로 격리한다 -- 한 구독의 _feed 가 raise 해도 워커 스레드가
-                # 죽어 모든 콜백/구독 전달이 조용히 영구 중단되지 않게(수신루프/stream 은 계속 산다).
-                try:
-                    sub._feed(message)
-                except Exception:
-                    _logger.warning("realtime subscription feed for %s raised", message.tr_id, exc_info=True)
+                sub._shutdown()
 
     def _put_dispatch_sentinel(self) -> None:
-        """디스패치 워커 종료 센티넬을 넣는다 -- :meth:`_put_sentinel` 과 동형으로 절대 블록하지
-        않는다. 블로킹 ``put`` 은 블로킹 콜백이 디스패치 큐를 상한에 채운 채 워커가 갇혀 있을 때
-        수신(루프) 스레드를 teardown 중 영원히 멎게 한다. 상한이면 가장 오래된 것부터 버리며 넣는다
-        (단일 생산자 = 이 스레드라 센티넬 뒤에 적재되는 항목이 없어 front-drop 이 센티넬을 못 민다)."""
-        for _ in range(_QUEUE_MAXSIZE + 1):
-            try:
+        """DATA 를 밀어내지 않고 종료 신호를 한 번만 넣는다. 이후 적재는 거부한다."""
+        with self._queue_lock:
+            if not self._dispatch_ended:
+                self._dispatch_ended = True
                 self._dispatch_queue.put_nowait(_DISPATCH_SENTINEL)
-                return
-            except queue.Full:
-                try:
-                    self._dispatch_queue.get_nowait()  # 가장 오래된 것 드롭 후 재시도
-                except queue.Empty:
-                    pass
 
     def _drain_dispatch_queue(self) -> None:
         """디스패치 큐를 비운다(재시작 시 이전 run 의 잔여 틱/센티넬 제거)."""
@@ -503,43 +528,32 @@ class RealtimeClient:
                 return
 
     def _enqueue(self, message: RealtimeMessage) -> None:
-        """stream() 큐에 적재. 상한 도달 시 가장 오래된 틱을 버리고 최신을 넣는다(콜백 전용/느린
-        소비자여도 메모리가 무한정 자라지 않게)."""
-        try:
+        """stream DATA 를 상한까지 보관하고 초과 시 오래된 틱만 버린다. 종료 신호는 상한 밖이다."""
+        warn_overflow = False
+        with self._queue_lock:
+            if self._stream_ended:
+                return
+            if self._queue.qsize() >= _QUEUE_MAXSIZE:
+                try:
+                    self._queue.get_nowait()
+                except queue.Empty:
+                    pass
+                if not self._queue_overflow_warned:
+                    self._queue_overflow_warned = True
+                    warn_overflow = True
             self._queue.put_nowait(message)
-            return
-        except queue.Full:
-            pass
-        try:
-            self._queue.get_nowait()  # 가장 오래된 것 드롭
-        except queue.Empty:
-            pass
-        try:
-            self._queue.put_nowait(message)
-        except queue.Full:
-            pass
-        if not self._queue_overflow_warned:
-            self._queue_overflow_warned = True
+        if warn_overflow:
             _logger.warning(
                 "realtime stream 큐가 상한(%d)에 도달 -- 소비가 느리거나 없어 오래된 틱을 드롭합니다",
                 _QUEUE_MAXSIZE,
             )
 
     def _put_sentinel(self) -> None:
-        """종료 센티넬을 큐에 넣어 stream() 소비자를 깨운다 -- 절대 블록하지 않는다.
-
-        블로킹 ``put`` 은 콜백 전용 소비자(stream() 을 안 비움)에게 큐가 상한에 차 있으면 영원히
-        멎어 stop()/teardown 이 교착한다. 상한이면 가장 오래된 틱을 버리며 넣고(_enqueue 와 동형),
-        극단적 경합으로 못 넣어도 조용히 넘어간다(stream() 은 timeout 으로도 끝난다)."""
-        for _ in range(_QUEUE_MAXSIZE + 1):
-            try:
+        """stream DATA 를 밀어내지 않고 종료 신호를 한 번만 넣는다. 이후 적재는 거부한다."""
+        with self._queue_lock:
+            if not self._stream_ended:
+                self._stream_ended = True
                 self._queue.put_nowait(_STREAM_SENTINEL)
-                return
-            except queue.Full:
-                try:
-                    self._queue.get_nowait()  # 가장 오래된 것 드롭 후 재시도
-                except queue.Empty:
-                    pass
 
     def _call_async(self, coro: Coroutine[Any, Any, Any], *, timeout: float = 5.0) -> None:
         """백그라운드 루프에 코루틴을 제출하고 완료를 기다린다(예외 전파).
@@ -632,17 +646,23 @@ class RealtimeClient:
                 exc_info=exc,
             )
 
-    def _shutdown_subscriptions(self) -> None:
-        """종료 시 열린 타입드 구독을 전부 반복 종료하고 라우팅 맵을 비운다.
-
-        wire unsubscribe 는 하지 않는다(소켓이 이미 닫히는 중). 미종료 구독의 반복
-        (``for tick in sub``)이 sentinel 을 못 받아 영구 블록되는 것을 막고, 라우팅/등록 누수를 없앤다."""
+    def _finish_receiving(self, *, cancel: bool) -> None:
+        """수신 실행의 등록을 한 번 분리한다. 이후 등록은 다음 start 까지 보관한다."""
         with self._lock:
+            if self._receive_finished:
+                return
+            self._receive_finished = True
             subs = [sub for group in self._subscriptions.values() for sub in group]
             self._subscriptions.clear()
-            self._callbacks.clear()   # raw 콜백도 비운다(라우팅 맵과 함께 -- 재시작 시 stale 호출 방지)
-            self._raw_subscriptions.clear()  # raw 소유권도 비운다(_desired 와 함께 -- ghost 재구독 방지)
-            self._desired.clear()     # 원하는-계약 집합도 비운다 -- 핸들이 죽은 뒤 재시작이 ghost 재구독하지 않게
-                                      # (자동 재연결은 conn 내부라 이 경로를 안 타므로 영향 없음)
-        for sub in subs:
-            sub._shutdown()
+            self._callbacks.clear()
+            self._raw_subscriptions.clear()
+            self._desired.clear()
+            if not cancel:
+                self._draining_subscriptions.extend(subs)
+        if cancel:
+            for sub in subs:
+                sub._shutdown()
+
+    def _shutdown_subscriptions(self) -> None:
+        """수신 중인 실행만 즉시 취소한다. 자연 EOF 뒤의 drain/다음 실행용 등록은 보존한다."""
+        self._finish_receiving(cancel=True)

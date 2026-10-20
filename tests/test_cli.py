@@ -217,6 +217,9 @@ class _Orders:
 
 
 class StubKis:
+    def close(self):
+        pass
+
     def __init__(self, account=None, environment="paper", account_view=None):
         self.log: list = []
         self._account = account    # 세션이 해석한 계좌(주문 게이트가 kis._account 로 읽음)
@@ -1233,6 +1236,9 @@ def test_main_order_timeout_exits_seven_with_reconcile(monkeypatch, capsys):
             return _TimeoutHandle()
 
     class _Kis:
+        def close(self):
+            pass
+
         _account = None
         environment = "paper"
         domestic = _Domestic()
@@ -1363,6 +1369,9 @@ def test_order_book_table_is_ladder_and_json_is_raw():
             return _BookHandle()
 
     class _Kis:
+        def close(self):
+            pass
+
         def __init__(self):
             self.domestic = _BookNamespace()
 
@@ -1431,6 +1440,63 @@ def test_build_client_uses_default_profile_env_when_profile_unset(monkeypatch):
     assert kis.environment == "paper"
 
 
+@pytest.mark.parametrize("override", [None, "99998888-02"])
+def test_build_client_keeps_one_snapshot_across_store_allocation(tmp_path, monkeypatch, override):
+    import kis_trader.client as client_module
+    from kis_trader import KISConfig
+    from kis_trader.cli import context
+    KISConfig(profile="general", app_key="FIRSTKEY", app_secret="FIRSTSECRET",
+              account="12345678-01", environment="paper", account_password="0012").save()
+    KISConfig.set_hts_id("first_hts")
+    original_resolve = context.resolve_credentials
+    original_store = context.OrderStore
+    snapshots = []
+    paths = []
+    def resolve(*args, **kwargs):
+        result = original_resolve(*args, **kwargs)
+        snapshots.append(result)
+        return result
+    def allocate(*, path):
+        paths.append(path)
+        KISConfig(profile="general", app_key="SECONDKEY", app_secret="SECONDSECRET",
+                  account="22223333-01", environment="paper", account_password="9999").save()
+        KISConfig.set_hts_id("second_hts")
+        monkeypatch.setenv("KIS_DEFAULT_ENVIRONMENT", "real")
+        monkeypatch.setenv("KIS_DEFAULT_PROFILE", "changed")
+        monkeypatch.setenv("KIS_GENERAL_PAPER_APP_KEY", "ENVCHANGED")
+        return original_store(path=path)
+    monkeypatch.setattr(context, "resolve_credentials", resolve)
+    monkeypatch.setattr(context, "OrderStore", allocate)
+    monkeypatch.setattr(client_module, "_fill_credentials",
+                        lambda *args, **kwargs: pytest.fail("second credential read"))
+    args = ["--profile", "general"]
+    if override:
+        args += ["--account", override]
+    kis = context.build_client(_args(args + ["stock", "quote", "005930"]))
+    assert len(snapshots) == 1
+    assert kis._app_key == "FIRSTKEY"
+    assert kis._app_secret == "FIRSTSECRET"
+    assert kis._hts_id == "first_hts"
+    assert kis._account_password == "0012"
+    assert kis.environment == "paper"
+    assert kis._account == (override or "12345678-01")
+    assert paths == [context.order_store_path(account=kis._account, environment="paper")]
+
+
+def test_build_client_account_free_snapshot_skips_persistent_store(monkeypatch):
+    from kis_trader import KISConfig
+    from kis_trader.cli import context
+    KISConfig(profile="general", app_key="KEY", app_secret="SECRET",
+              environment="paper", account_password="0012").save()
+    KISConfig.set_hts_id("snapshot_hts")
+    monkeypatch.setattr(context, "OrderStore", lambda **kwargs: pytest.fail("persistent store"))
+    kis = context.build_client(_args(["--profile", "general", "stock", "quote", "005930"]))
+    assert kis._account is None
+    assert kis.environment == "paper"
+    assert kis._hts_id == "snapshot_hts"
+    assert kis._account_password == "0012"
+
+
 def test_build_client_missing_credentials_raises_config_error():
     from kis_trader.cli.context import build_client
     with pytest.raises(CliConfigError):  # KIS_* 없음(격리 픽스처) -> exit 3
@@ -1470,6 +1536,9 @@ class _StubDomesticAccount:
 
     def order_history(self, *, start, end, **kwargs):
         self._log.append(("stock_fills", start, end, kwargs)); return ["STOCK_FILLS"]
+
+    def combined_order_history(self, *, start, end, **kwargs):
+        self._log.append(("combined_stock_fills", start, end, kwargs)); return ["COMBINED_STOCK_FILLS"]
 
     def trade_profits(self, *, start, end, **kwargs):
         self._log.append(("trade_profits", start, end, kwargs)); return ["TRADE_PROFITS"]
@@ -1680,8 +1749,8 @@ def test_account_fills_stock_default_forwards_all_arguments(monkeypatch):
     result = account.cmd_fills(object(), _args(
         ["account", "fills", "--start", "20240101", "--end", "20240131",
          "--side", "sell", "--symbol", "005930", "--unfilled-only"]))
-    assert result == ["STOCK_FILLS"]
-    assert log == [("stock_fills", "20240101", "20240131",
+    assert result == ["COMBINED_STOCK_FILLS"]
+    assert log == [("combined_stock_fills", "20240101", "20240131",
                     {"side": "sell", "symbol": "005930", "unfilled_only": True})]
 
 
@@ -1690,7 +1759,7 @@ def test_account_fills_stock_forwards_no_filters_by_default(monkeypatch):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     account.cmd_fills(object(), _args(
         ["account", "fills", "--start", "20240101", "--end", "20240131"]))
-    assert log == [("stock_fills", "20240101", "20240131", {})]
+    assert log == [("combined_stock_fills", "20240101", "20240131", {})]
 
 
 def test_account_fills_stock_older_forwards(monkeypatch):
@@ -2646,3 +2715,133 @@ def test_order_futures_domestic_real_rejects_mismatched_confirm():
     with pytest.raises(CliConfigError, match="--confirm-account"):
         order.cmd_buy(kis, args, is_tty=False)
     assert kis.log == []
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("construct"), KeyboardInterrupt(), SystemExit(9)])
+def test_build_client_constructor_failure_releases_journal(tmp_path, monkeypatch, failure):
+    from kis_trader import KISConfig
+    from kis_trader.cli import context
+    from kis_trader.store import OrderStore
+    KISConfig(profile="general", app_key="K", app_secret="S",
+              account="12345678-01", environment="paper").save()
+    def construct(**kwargs):
+        raise failure
+    monkeypatch.setattr(context, "KISClient", construct)
+    with pytest.raises(type(failure)) as caught:
+        context.build_client(_args(["--profile", "general", "stock", "quote", "005930"]))
+    assert caught.value is failure
+    with OrderStore(path=context.order_store_path(account="12345678-01", environment="paper")):
+        pass
+
+
+@pytest.mark.parametrize("phase", ["success", "command", "interrupt", "eof", "render", "print", "known"])
+def test_main_releases_real_journal_through_output(tmp_path, monkeypatch, phase):
+    from kis_trader import KISClient
+    from kis_trader.store import OrderStore
+    path = tmp_path / "journal.json"
+    store = OrderStore(path=path)
+    kis = KISClient(app_key="K", app_secret="S", environment="paper", store=store)
+    monkeypatch.setattr(cli_main, "build_client", lambda args: kis)
+    failure = {"command": ValueError("command"), "interrupt": KeyboardInterrupt(),
+               "eof": EOFError(), "render": ValueError("render"),
+               "print": BrokenPipeError(), "known": KISError("known")}.get(phase)
+    def command(client, args):
+        if phase in ("command", "interrupt", "eof", "known"):
+            raise failure
+        return "result"
+    def render(*args, **kwargs):
+        with pytest.raises(KISError):
+            OrderStore(path=path)                    # 출력 도중에도 원래 저장소가 잠금을 보유한다
+        if phase == "render":
+            raise failure
+        return "rendered"
+    if phase == "print":
+        def print_failure(*args, **kwargs):
+            raise failure
+        monkeypatch.setattr(cli_main, "print", print_failure, raising=False)
+    args = _args(["stock", "quote", "005930"])
+    args.func = command
+    class Parser:
+        def parse_args(self, argv):
+            return args
+    monkeypatch.setattr(cli_main, "build_parser", Parser)
+    monkeypatch.setattr(cli_main, "render", render)
+    if phase in ("command", "render", "print"):
+        with pytest.raises(type(failure)):
+            cli_main.main([])
+    else:
+        assert cli_main.main([]) == (130 if phase in ("interrupt", "eof") else 5 if phase == "known" else 0)
+    with OrderStore(path=path):
+        pass
+
+
+@pytest.mark.parametrize("outcome,exit_code", [("completed", 0), ("incomplete", 5), ("unknown", 7), ("interrupted", 130)])
+@pytest.mark.parametrize("fmt", ["json", "jsonl", "table"])
+def test_main_twap_preserves_partial_result_and_exit(tmp_path, monkeypatch, capsys, outcome, exit_code, fmt):
+    _freeze_clock(monkeypatch, datetime(2026, 8, 31, 10, 0, tzinfo=_KST_TEST))
+    import json
+
+    from kis_trader.execution import TWAPExecutionResult, TWAPSliceOutcome
+    from kis_trader.report import ExecutionReport, OrderStatus
+    def execute(kis, schedule):
+        entry = schedule.slices[0]
+        report = ExecutionReport(client_order_id="confirmed", order_id="ORDER1", symbol="005930", side="buy",
+            status=OrderStatus.FILLED, filled_quantity=Decimal(entry.quantity),
+            average_price=None, recorded_at=entry.at)
+        pending = outcome in ("unknown", "interrupted")
+        item = TWAPSliceOutcome(entry.at, entry.quantity, None if pending or outcome == "incomplete" else report,
+            "rejected" if outcome == "incomplete" else None, "pending-id" if pending else None)
+        return TWAPExecutionResult(schedule, (item,), interrupted=outcome == "interrupted")
+    kis = StubKis()
+    closed = []
+    from kis_trader.store import OrderStore
+    path = tmp_path / "twap-journal.json"
+    store = OrderStore(path=path)
+    def close():
+        closed.append(True)
+        store.close()
+    kis.close = close
+    monkeypatch.setattr(cli_main, "build_client", lambda args: kis)
+    monkeypatch.setattr(order, "execute_twap", execute)
+    code = cli_main.main(["order", "twap", "005930", "--side", "buy", "--quantity", "9",
+        "--over", "1m", "--slices", "1", "--execute", "paper", "--yes", "--format", fmt])
+    assert code == exit_code
+    assert closed == [True]
+    with OrderStore(path=path):
+        pass
+    output = capsys.readouterr().out
+    if fmt in ("json", "jsonl"):
+        parsed = json.loads(output)
+        payload = parsed["data"] if fmt == "json" else parsed
+        if fmt == "json":
+            assert parsed["ok"] is (outcome == "completed")
+        assert payload["outcome"] == outcome
+        assert payload["interrupted"] is (outcome == "interrupted")
+        assert payload["pending_reconcile_ids"] == (["pending-id"] if outcome in ("unknown", "interrupted") else [])
+        if outcome in ("unknown", "interrupted"):
+            assert payload["shortfall"] == "0"
+            assert payload["pending_quantity"] == "9"
+        if outcome == "completed":
+            assert payload["outcomes"][0]["order_id"] == "ORDER1"
+    else:
+        assert outcome in output
+        if outcome in ("unknown", "interrupted"):
+            assert "pending-id" in output
+
+
+@pytest.mark.parametrize("fmt", ["json", "jsonl", "table"])
+def test_main_twap_dry_run_keeps_preview_success(monkeypatch, capsys, fmt):
+    import json
+    _freeze_clock(monkeypatch, datetime(2026, 8, 31, 10, 0, tzinfo=_KST_TEST))
+    monkeypatch.setattr(cli_main, "build_client", lambda args: StubKis())
+    monkeypatch.setattr(order, "execute_twap", lambda *args: pytest.fail("dry run execution"))
+    assert cli_main.main(["order", "twap", "005930", "--side", "buy", "--quantity", "9",
+        "--over", "1m", "--slices", "1", "--format", fmt]) == 0
+    output = capsys.readouterr().out
+    if fmt in ("json", "jsonl"):
+        parsed = json.loads(output)
+        payload = parsed["data"] if fmt == "json" else parsed
+        assert "note" in payload
+        assert "outcome" not in payload
+        if fmt == "json":
+            assert parsed["ok"] is True

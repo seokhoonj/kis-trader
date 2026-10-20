@@ -262,3 +262,135 @@ def test_trade_profits_demo_rejected():
 def test_reports_require_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp({"output3": _SUM3})), account=None).account.overseas.present_balance()
+
+
+_BALANCE_FIELDS = {
+    "present": {
+        "pchs_amt_smtl_amt": "total_purchase_amount", "evlu_amt_smtl_amt": "total_evaluation_amount",
+        "tot_evlu_pfls_amt": "total_unrealized_pnl", "tot_asst_amt": "total_asset_amount",
+        "evlu_erng_rt1": "evaluation_return_percent",
+    },
+    "settlement": {
+        "pchs_amt_smtl_amt": "total_purchase_amount", "tot_evlu_pfls_amt": "total_unrealized_pnl",
+        "evlu_erng_rt1": "evaluation_return_percent", "tot_dncl_amt": "total_deposit",
+        "wcrc_evlu_amt_smtl": "total_won_evaluation", "tot_asst_amt2": "total_asset_amount",
+        "tot_loan_amt": "total_loan_amount",
+    },
+}
+_OMITTED = object()
+
+
+def _balance_report(fake, endpoint):
+    account = _client(fake).account.overseas
+    if endpoint == "present":
+        return account.present_balance()
+    return account.settlement_balance(basis_date="20250523")
+
+
+def _zero_summary(endpoint, value="0"):
+    return dict.fromkeys(_BALANCE_FIELDS[endpoint], value)
+
+
+@pytest.mark.parametrize("endpoint", ["present", "settlement"])
+@pytest.mark.parametrize("summary", [_OMITTED, None, "", {}, [], [{}]])
+@pytest.mark.parametrize("contents", ["position", "cash_only", "empty"])
+def test_balance_absent_summary_is_unknown_even_without_positions(endpoint, summary, contents):
+    body = {"output1": [_POS] if contents == "position" else [],
+            "output2": [_CRCY] if contents == "cash_only" else []}
+    if summary is not _OMITTED:
+        body["output3"] = summary
+    with pytest.raises(KISError, match="output3"):
+        _balance_report(FakeTransport(response=_resp(body)), endpoint)
+
+
+@pytest.mark.parametrize("endpoint, field", [(endpoint, field) for endpoint in _BALANCE_FIELDS
+                                             for field in _BALANCE_FIELDS[endpoint]])
+@pytest.mark.parametrize("bad_value", [_OMITTED, None, "", "   ", "invalid", "NaN", "Infinity", "-Infinity", True, {}, []])
+def test_balance_each_required_total_must_be_known_finite(endpoint, field, bad_value):
+    summary = _zero_summary(endpoint)
+    if bad_value is _OMITTED:
+        summary.pop(field)
+    else:
+        summary[field] = bad_value
+    with pytest.raises(KISError):
+        _balance_report(FakeTransport(response=_resp({"output3": summary})), endpoint)
+
+
+@pytest.mark.parametrize("endpoint", ["present", "settlement"])
+@pytest.mark.parametrize("value", [0, "0", "0.00"])
+@pytest.mark.parametrize("shape", ["mapping", "list", "tuple"])
+def test_balance_explicit_zero_summary_only_remains_valid(endpoint, value, shape):
+    summary = _zero_summary(endpoint, value)
+    block = summary if shape == "mapping" else [summary] if shape == "list" else (summary,)
+    result = _balance_report(FakeTransport(response=_resp({"output3": block})), endpoint)
+    for attr in _BALANCE_FIELDS[endpoint].values():
+        assert getattr(result, attr) == Decimal(0)
+    assert result.positions == result.currencies == ()
+    assert dict(result._raw) == summary
+
+
+@pytest.mark.parametrize("endpoint", ["present", "settlement"])
+def test_balance_negative_finite_pnl_and_return_preserved(endpoint):
+    summary = _zero_summary(endpoint)
+    summary.update(tot_evlu_pfls_amt="-25.50", evlu_erng_rt1="-1.25")
+    result = _balance_report(FakeTransport(response=_resp({"output3": summary})), endpoint)
+    assert result.total_unrealized_pnl == Decimal("-25.50")
+    assert result.evaluation_return_percent == Decimal("-1.25")
+
+
+@pytest.mark.parametrize("endpoint", ["present", "settlement"])
+@pytest.mark.parametrize("malformed", ["not-object", 7, False, [7], [_SUM3, _SUM3], [_SUM3, 7]])
+@pytest.mark.parametrize("later", [False, True])
+def test_balance_rejects_malformed_summary_on_any_page(endpoint, malformed, later):
+    pages = []
+    if later:
+        pages.append(_resp({"output3": _zero_summary(endpoint)}, tr_cont="M"))
+    pages.append(_resp({"output3": malformed}))
+    fake = FakeTransport(pages=pages)
+    with pytest.raises(KISError, match="output3"):
+        _balance_report(fake, endpoint)
+    assert len(fake.calls) == (2 if later else 1)
+
+
+@pytest.mark.parametrize("endpoint", ["present", "settlement"])
+def test_balance_summary_can_arrive_only_on_last_page(endpoint):
+    pages = [_resp({"output1": [_POS]}, tr_cont="F"),
+             _resp({"output2": [_CRCY], "output3": [{}]}, tr_cont="M"),
+             _resp({"output3": _zero_summary(endpoint)})]
+    fake = FakeTransport(pages=pages)
+    result = _balance_report(fake, endpoint)
+    assert len(fake.calls) == 3
+    assert fake.calls[1]["tr_cont"] == fake.calls[2]["tr_cont"] == "N"
+    assert len(result.positions) == len(result.currencies) == 1
+    assert result.total_purchase_amount == 0
+
+
+@pytest.mark.parametrize("endpoint", ["present", "settlement"])
+@pytest.mark.parametrize("later", [_OMITTED, None, "", {}, [], [{}]])
+def test_balance_later_absence_does_not_overwrite_first_summary(endpoint, later):
+    body = {"output1": [_POS], "output2": [_CRCY]}
+    if later is not _OMITTED:
+        body["output3"] = later
+    fake = FakeTransport(pages=[_resp({"output3": _zero_summary(endpoint)}, tr_cont="F"), _resp(body)])
+    result = _balance_report(fake, endpoint)
+    assert len(fake.calls) == 2
+    assert result.total_purchase_amount == 0
+    assert len(result.positions) == len(result.currencies) == 1
+
+
+@pytest.mark.parametrize("endpoint", ["present", "settlement"])
+def test_balance_partial_first_summary_not_laundered_by_complete_later_summary(endpoint):
+    fake = FakeTransport(pages=[_resp({"output3": {"metadata": "nonempty"}}, tr_cont="M"),
+                               _resp({"output3": _zero_summary(endpoint)})])
+    with pytest.raises(KISError):
+        _balance_report(fake, endpoint)
+    assert len(fake.calls) == 2
+
+
+@pytest.mark.parametrize("endpoint", ["present", "settlement"])
+def test_balance_later_page_failure_never_returns_partial_success(endpoint):
+    failure = RawResponse(rt_cd="1", msg_cd="failure", msg1="synthetic failure", body={})
+    fake = FakeTransport(pages=[_resp({"output3": _zero_summary(endpoint)}, tr_cont="F"), failure])
+    with pytest.raises(KISError):
+        _balance_report(fake, endpoint)
+    assert len(fake.calls) == 2

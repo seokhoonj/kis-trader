@@ -290,7 +290,8 @@ def fetch_present_balance(
     won_basis: bool = True, nation: str = "all", market_code: str = "00", inquiry: str = "all",
 ) -> OverseasPresentBalance:
     """해외주식 체결기준현재잔고 -- 보유 종목(output1)·통화별 예수금(output2)·계좌 요약(output3).
-    실전(CTRP6504R)은 3블록 전부, 모의(VTRP6504R)는 요약만 온다.
+    실전(CTRP6504R)은 3블록 전부, 모의(VTRP6504R)는 요약만 온다. 요약과 필수 합계가
+    모든 페이지에 없거나 손상되면 오류로 거부하며, 확인하지 못한 합계를 0으로 만들지 않는다.
 
     ``won_basis`` 원화(True)/외화(False) 기준, ``nation`` 국가(``"all"``/``"US"``/``"HK"``/``"CN"``/``"JP"``/
     ``"VN"``), ``market_code`` 거래시장코드(KIS 코드표, ``"00"``=전체), ``inquiry`` 조회구분
@@ -331,11 +332,11 @@ def fetch_present_balance(
     return OverseasPresentBalance(
         positions=tuple(_report_position(row) for resp in pages for row in _as_rows(resp.body.get("output1"))),
         currencies=tuple(_currency_balance(row) for resp in pages for row in _as_rows(resp.body.get("output2"))),
-        total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
-        total_evaluation_amount=_decimal_or_zero(summary, "evlu_amt_smtl_amt"),
-        total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
-        total_asset_amount=_decimal_or_zero(summary, "tot_asst_amt"),
-        evaluation_return_percent=_decimal_or_zero(summary, "evlu_erng_rt1"),
+        total_purchase_amount=required_decimal(summary.get("pchs_amt_smtl_amt"), "pchs_amt_smtl_amt"),
+        total_evaluation_amount=required_decimal(summary.get("evlu_amt_smtl_amt"), "evlu_amt_smtl_amt"),
+        total_unrealized_pnl=required_decimal(summary.get("tot_evlu_pfls_amt"), "tot_evlu_pfls_amt"),
+        total_asset_amount=required_decimal(summary.get("tot_asst_amt"), "tot_asst_amt"),
+        evaluation_return_percent=required_decimal(summary.get("evlu_erng_rt1"), "evlu_erng_rt1"),
         _raw=summary,
     )
 
@@ -347,7 +348,8 @@ def fetch_settlement_balance(
 ) -> OverseasSettlementBalance:
     """해외주식 결제기준잔고 -- ``basis_date``(YYYYMMDD) 결제 기준의 보유 종목·통화별 예수금·계좌 요약.
     **모의투자 미지원**. ``won_basis`` 원화(True)/외화(False) 기준, ``inquiry`` 조회구분
-    (``"all"`` 전체/``"general"`` 일반해외주식/``"ministock"`` 미니스탁)."""
+    (``"all"`` 전체/``"general"`` 일반해외주식/``"ministock"`` 미니스탁).
+    계좌 요약과 필수 합계는 있어야 하며 누락·손상을 확인된 0으로 취급하지 않는다."""
     if environment == "paper":
         raise KISUsageError(
             "해외주식 결제기준잔고(inquire-paymt-stdr-balance)는 모의투자 미지원 -- 실전에서만."
@@ -376,13 +378,13 @@ def fetch_settlement_balance(
     return OverseasSettlementBalance(
         positions=tuple(_report_position(row) for resp in pages for row in _as_rows(resp.body.get("output1"))),
         currencies=tuple(_currency_balance(row) for resp in pages for row in _as_rows(resp.body.get("output2"))),
-        total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
-        total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
-        evaluation_return_percent=_decimal_or_zero(summary, "evlu_erng_rt1"),
-        total_deposit=_decimal_or_zero(summary, "tot_dncl_amt"),
-        total_won_evaluation=_decimal_or_zero(summary, "wcrc_evlu_amt_smtl"),
-        total_asset_amount=_decimal_or_zero(summary, "tot_asst_amt2"),
-        total_loan_amount=_decimal_or_zero(summary, "tot_loan_amt"),
+        total_purchase_amount=required_decimal(summary.get("pchs_amt_smtl_amt"), "pchs_amt_smtl_amt"),
+        total_unrealized_pnl=required_decimal(summary.get("tot_evlu_pfls_amt"), "tot_evlu_pfls_amt"),
+        evaluation_return_percent=required_decimal(summary.get("evlu_erng_rt1"), "evlu_erng_rt1"),
+        total_deposit=required_decimal(summary.get("tot_dncl_amt"), "tot_dncl_amt"),
+        total_won_evaluation=required_decimal(summary.get("wcrc_evlu_amt_smtl"), "wcrc_evlu_amt_smtl"),
+        total_asset_amount=required_decimal(summary.get("tot_asst_amt2"), "tot_asst_amt2"),
+        total_loan_amount=required_decimal(summary.get("tot_loan_amt"), "tot_loan_amt"),
         _raw=summary,
     )
 
@@ -494,13 +496,31 @@ def _first_object(block: object) -> Mapping[str, Any]:
 
 
 def _summary_across(pages: list[RawResponse], key: str) -> Mapping[str, Any]:
-    """여러 페이지에 걸쳐 계좌 요약 블록(output3)을 고른다 -- 계좌 단위라 페이지 불변이므로 처음
-    발견한 비어있지 않은 요약을 쓴다(요약이 어느 페이지에 실려와도 잡히게, 없으면 빈 dict)."""
+    """잔고 요약은 객체 또는 단일 객체 배열이어야 한다. 모든 페이지의 형태를 검증한다.
+
+    개별 페이지의 빈 블록은 허용하고 첫 비어있지 않은 요약을 보존한다. 합계 필드를 페이지 간
+    병합하지 않으며, 전체 페이지에서 요약이 없으면 알 수 없는 합계로 거부한다.
+    """
+    summary: Mapping[str, Any] | None = None
     for resp in pages:
-        summary = _first_object(resp.body.get(key))
-        if summary:
-            return summary
-    return {}
+        block = resp.body.get(key)
+        if block is None or (isinstance(block, str) and not block.strip()):
+            continue
+        if isinstance(block, Mapping):
+            candidate = block
+        elif isinstance(block, (list, tuple)):
+            if not block:
+                continue
+            if len(block) != 1 or not isinstance(block[0], Mapping):
+                raise KISError(f"해외 잔고 요약 {key} 는 객체 또는 단일 객체 배열이어야 한다.")
+            candidate = block[0]
+        else:
+            raise KISError(f"해외 잔고 요약 {key} 는 객체 또는 단일 객체 배열이어야 한다.")
+        if candidate and summary is None:
+            summary = candidate
+    if summary is None:
+        raise KISError(f"해외 잔고 응답 전체 페이지에 계좌 요약 {key} 가 없다.")
+    return summary
 
 
 def _report_position(row: Mapping[str, Any]) -> OverseasBalancePosition:

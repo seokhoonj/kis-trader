@@ -1,7 +1,7 @@
 """국내 선물·옵션 주간(DAY) 보수적 재조회 -- kis.orders.reconcile 의 XKFE 경로.
 
-미확인(in-flight) 파생 주문을 일별 체결내역(inquire-ccnl, TTTO5201R)으로 재조회해 지문과
-정확히 1건이면 확정, 0건이면 None(재전송 금지 유지), 2건 이상/스캔 실패는 KISError 로
+저장된 주문번호가 있는 파생 주문을 일별 체결내역(inquire-ccnl, TTTO5201R)으로 재조회해
+정확히 1건이면 갱신, 0건이면 None, 2건 이상/스캔 실패는 KISError 로
 fail-closed 하는지 검증한다. 매칭은 원장 output1 에 실재하는 ``nmpr_type_cd`` 기반이다
 (그 행에는 ``ord_dvsn_cd`` 가 없다). 픽스처는 원장 응답예시 실값을 쓴다.
 """
@@ -14,7 +14,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import KISClient, Order
+from kis_trader import KISClient, Order, OrderStatus
 from kis_trader.domestic._engine import derivative_orders as fo
 from kis_trader.errors import KISError, OrderTimeoutError
 from kis_trader.store import OrderStore
@@ -77,6 +77,15 @@ def _client(transport):
                      environment="real", transport=transport)
 
 
+_ACCEPTED = RawResponse(rt_cd="0", msg_cd="0", msg1="접수", body={"output": {"ODNO": "0000007045"}})
+
+
+def _place_accepted(client, client_order_id, **order_kw):
+    """실제 발주 파서로 접수 주문번호를 저장한 뒤 refresh 경로를 검증한다."""
+    report = client._place_order(_order(client_order_id=client_order_id, **order_kw))
+    assert report.order_id == "0000007045"
+
+
 def _place_timeout(client, client_order_id, **order_kw):
     """발주를 timeout 시켜 in-flight 로 만든다."""
     with pytest.raises(OrderTimeoutError):
@@ -84,12 +93,12 @@ def _place_timeout(client, client_order_id, **order_kw):
 
 
 def test_day_reconcile_confirms_single_match():
-    # timeout 발주 뒤 지정가 매수 1계약 @400.00 지문과 정확히 1건(nmpr_type_cd=01) -> 확정.
+    # 접수 발주 뒤 지정가 매수 1계약 @400.00 지문과 정확히 1건(nmpr_type_cd=01) -> 확정.
     from kis_trader import ExecutionReport, OrderStatus
-    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=_ccnl([_row()]))
+    fake = FakeTransport(on_post=_ACCEPTED, on_get=_ccnl([_row()]))
     client = _client(fake)
-    _place_timeout(client, "day-1")
-    report = client.orders.reconcile("day-1")
+    _place_accepted(client, "day-1")
+    report = client.orders.reconcile("day-1", refresh=True)
     assert isinstance(report, ExecutionReport)
     assert report.order_id == "0000007045"
     assert report.filled_quantity == Decimal(1)
@@ -105,12 +114,14 @@ def test_day_reconcile_confirms_single_match():
 
 def test_day_reconcile_matches_on_nmpr_not_ord_dvsn():
     # 시장가(nmpr_type_cd=02) 주문은 nmpr=02 행에만 맞는다 -- ord_dvsn_cd 부재에도 매칭 성립.
-    fake = FakeTransport(on_post=TransportTimeoutError("t"),
+    fake = FakeTransport(on_post=_ACCEPTED,
                          on_get=_ccnl([_row(nmpr="02", ord_idx="0")]))
     client = _client(fake)
-    _place_timeout(client, "mkt-1", order_type="market", limit_price=None)
-    report = client.orders.reconcile("mkt-1")
+    _place_accepted(client, "mkt-1", order_type="market", limit_price=None)
+    report = client.orders.reconcile("mkt-1", refresh=True)
     assert report is not None and report.order_id == "0000007045"
+    assert fo._filter_matching_day_rows([_row(nmpr="02", ord_idx="0")],
+                                        client._store.fingerprint_for("mkt-1"))
 
 
 def test_day_reconcile_wrong_nmpr_is_zero_match():
@@ -120,6 +131,8 @@ def test_day_reconcile_wrong_nmpr_is_zero_match():
     client = _client(fake)
     _place_timeout(client, "z-nmpr")
     assert client.orders.reconcile("z-nmpr") is None
+    assert fo._filter_matching_day_rows([_row(nmpr="02")], client._store.fingerprint_for("z-nmpr")) == []
+    assert not any(call["method"] == "GET" for call in fake.calls)
 
 
 def test_day_reconcile_zero_matches_stays_none():
@@ -128,6 +141,8 @@ def test_day_reconcile_zero_matches_stays_none():
     client = _client(fake)
     _place_timeout(client, "z-pdno")
     assert client.orders.reconcile("z-pdno") is None
+    assert fo._filter_matching_day_rows([_row(pdno="201S03")], client._store.fingerprint_for("z-pdno")) == []
+    assert not any(call["method"] == "GET" for call in fake.calls)
 
 
 def test_day_reconcile_excludes_modify_cancel_rows():
@@ -137,25 +152,27 @@ def test_day_reconcile_excludes_modify_cancel_rows():
     client = _client(fake)
     _place_timeout(client, "mod-1")
     assert client.orders.reconcile("mod-1") is None
+    assert fo._filter_matching_day_rows([_row(orgn_odno="0000007045")], client._store.fingerprint_for("mod-1")) == []
+    assert not any(call["method"] == "GET" for call in fake.calls)
 
 
 def test_day_reconcile_two_matches_raises():
-    fake = FakeTransport(on_post=TransportTimeoutError("t"),
-                         on_get=_ccnl([_row(odno="1"), _row(odno="2")]))
+    fake = FakeTransport(on_post=_ACCEPTED,
+                         on_get=_ccnl([_row(odno="0000007045"), _row(odno="0000007045")]))
     client = _client(fake)
-    _place_timeout(client, "m2")
+    _place_accepted(client, "m2")
     with pytest.raises(KISError, match="2건"):
-        client.orders.reconcile("m2")
+        client.orders.reconcile("m2", refresh=True)
 
 
 def test_day_reconcile_error_response_fails_closed():
     # rt_cd != "0" (조회 실패)는 빈 결과로 오인하지 않고 KISError -- 미접수 단정 -> 이중체결 방지.
-    fake = FakeTransport(on_post=TransportTimeoutError("t"),
+    fake = FakeTransport(on_post=_ACCEPTED,
                          on_get=RawResponse(rt_cd="7", msg_cd="E", msg1="조회 실패", body={}))
     client = _client(fake)
-    _place_timeout(client, "err")
+    _place_accepted(client, "err")
     with pytest.raises(KISError):
-        client.orders.reconcile("err")
+        client.orders.reconcile("err", refresh=True)
 
 
 def test_day_reconcile_page_cap_fails_closed():
@@ -165,51 +182,51 @@ def test_day_reconcile_page_cap_fails_closed():
     # 반복은 이제 비진전 커서로 보아 종료하므로, cap 을 치려면 커서가 실제로 진전해야 한다.
     pages = [RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
                          body={"output1": [], "ctx_area_nk200": f"N{i}"}) for i in range(200)]
-    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=pages)
+    fake = FakeTransport(on_post=_ACCEPTED, on_get=pages)
     client = _client(fake)
-    _place_timeout(client, "cap")
+    _place_accepted(client, "cap")
     with pytest.raises(KISError, match="페이지 상한"):
-        client.orders.reconcile("cap")
+        client.orders.reconcile("cap", refresh=True)
 
 
 def test_day_reconcile_non_finite_numeric_fails_closed():
     # 수량 필드가 "nan" 이면 비유한값이라 비교가 무너져 오확정을 부른다 -> KISError.
-    fake = FakeTransport(on_post=TransportTimeoutError("t"),
+    fake = FakeTransport(on_post=_ACCEPTED,
                          on_get=_ccnl([_row(ord_qty="nan")]))
     client = _client(fake)
-    _place_timeout(client, "nan")
+    _place_accepted(client, "nan")
     with pytest.raises(KISError):
-        client.orders.reconcile("nan")
+        client.orders.reconcile("nan", refresh=True)
 
 
 def test_day_reconcile_output1_not_a_list_raises():
-    fake = FakeTransport(on_post=TransportTimeoutError("t"),
+    fake = FakeTransport(on_post=_ACCEPTED,
                          on_get=RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
                                             body={"output1": {"odno": "x"}}))
     client = _client(fake)
-    _place_timeout(client, "notlist")
+    _place_accepted(client, "notlist")
     with pytest.raises(KISError):
-        client.orders.reconcile("notlist")
+        client.orders.reconcile("notlist", refresh=True)
 
 
 def test_day_reconcile_mixed_list_non_mapping_raises():
     # 리스트 안에 Mapping 아닌 원소가 섞이면 부분/오응답으로 확정하지 않는다.
-    fake = FakeTransport(on_post=TransportTimeoutError("t"),
+    fake = FakeTransport(on_post=_ACCEPTED,
                          on_get=_ccnl([_row(), "not-a-mapping"]))
     client = _client(fake)
-    _place_timeout(client, "mixed")
+    _place_accepted(client, "mixed")
     with pytest.raises(KISError):
-        client.orders.reconcile("mixed")
+        client.orders.reconcile("mixed", refresh=True)
 
 
 def test_day_reconcile_paginates_across_pages():
     page1 = RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
-                        body={"output1": [_row(pdno="201S03")], "ctx_area_nk200": "NEXT"})
+                        body={"output1": [_row(pdno="201S03", odno="sibling")], "ctx_area_nk200": "NEXT"})
     page2 = _ccnl([_row()])
-    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=[page1, page2])
+    fake = FakeTransport(on_post=_ACCEPTED, on_get=[page1, page2])
     client = _client(fake)
-    _place_timeout(client, "pg")
-    report = client.orders.reconcile("pg")
+    _place_accepted(client, "pg")
+    report = client.orders.reconcile("pg", refresh=True)
     assert report is not None and report.order_id == "0000007045"
     gets = [c for c in fake.calls if c["method"] == "GET"]
     assert len(gets) == 2
@@ -217,11 +234,11 @@ def test_day_reconcile_paginates_across_pages():
 
 
 def test_day_reconcile_timeout_raises_order_timeout():
-    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=TransportTimeoutError("scan"))
+    fake = FakeTransport(on_post=_ACCEPTED, on_get=TransportTimeoutError("scan"))
     client = _client(fake)
-    _place_timeout(client, "to")
+    _place_accepted(client, "to")
     with pytest.raises(OrderTimeoutError):
-        client.orders.reconcile("to")
+        client.orders.reconcile("to", refresh=True)
 
 
 def test_day_reconcile_date_window_is_deterministic():
@@ -229,9 +246,10 @@ def test_day_reconcile_date_window_is_deterministic():
     store = OrderStore()
     order = _order(client_order_id="d1")
     store.try_claim("d1", order.fingerprint)
+    _record_prior(store, order, status=OrderStatus.NEW)
     fake = FakeTransport(on_get=_ccnl([]))
     fo.reconcile(fake, store, "d1", cano="1", product_code="03", environment="real",
-                 now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST))
+                 now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST), force_refresh=True)
     params = fake.calls[0]["params"]
     assert params["STRT_ORD_DT"] == "20240315"
     assert params["END_ORD_DT"] == "20240315"
@@ -241,8 +259,9 @@ def test_day_reconcile_paper_uses_paper_tr():
     store = OrderStore()
     order = _order(client_order_id="pp")
     store.try_claim("pp", order.fingerprint)
+    _record_prior(store, order, status=OrderStatus.NEW)
     fake = FakeTransport(on_get=_ccnl([]))
-    fo.reconcile(fake, store, "pp", cano="1", product_code="03", environment="paper")
+    fo.reconcile(fake, store, "pp", cano="1", product_code="03", environment="paper", force_refresh=True)
     assert fake.calls[0]["tr_id"] == "VTTO5201R"
 
 
@@ -252,8 +271,9 @@ def test_day_reconcile_night_session_uses_union_scan():
     store = OrderStore()
     order = _order(client_order_id="nite", session="night")
     store.try_claim("nite", order.fingerprint)
+    _record_prior(store, order, status=OrderStatus.NEW)
     fake = FakeTransport(on_get=_ccnl([]))
-    assert fo.reconcile(fake, store, "nite", cano="1", product_code="03", environment="real") is None
+    assert fo.reconcile(fake, store, "nite", cano="1", product_code="03", environment="real", force_refresh=True) is None
     paths = {c["path"] for c in fake.calls if c["method"] == "GET"}
     assert "/uapi/domestic-futureoption/v1/trading/inquire-ngt-ccnl" in paths
     assert _INQUIRY in paths
@@ -339,7 +359,9 @@ def test_day_refresh_blank_stored_odno_does_not_match_blank_row():
     report = fo.reconcile(fake, store, "rf-zero", cano="1", product_code="03",
                           environment="real", force_refresh=True,
                           now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST))
-    assert report is not None and report.order_id == "0000000000"  # 종료 prior 유지, 빈 행 오매칭 아님
+    assert report is None
+    assert store.report_for("rf-zero").order_id == "0000000000"
+    assert fake.calls == []
 
 
 def test_day_refresh_excludes_modify_cancel_row_with_same_odno():
@@ -385,18 +407,17 @@ def test_day_reconcile_blank_odno_nonterminal_row_is_not_recorded():
     assert client._store.is_in_flight("blank-nt")             # in-flight 유지(수동 확인)
 
 
-def test_day_reconcile_blank_odno_terminal_fill_is_confirmed():
-    # 반대로 odno 가 빈 **종료**(전량체결) 행은 ODNO 없어도 확정한다 -- 종료 리포트는 refresh 의 0건
-    # 분기가 그대로 돌려줘 교착이 없고, 진짜 체결을 미확정으로 버리면 재전송 유도로 이중체결 위험이 크다.
-    from kis_trader import OrderStatus
+def test_day_reconcile_blank_odno_terminal_fill_remains_unknown():
     fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=_ccnl([_row(odno="", tot_ccld_qty="1")]))  # 전량체결
     client = _client(fake)
     _place_timeout(client, "blank-term")
     report = client.orders.reconcile("blank-term")
-    assert report is not None and report.status is OrderStatus.FILLED and report.order_id is None
-    assert client._store.report_for("blank-term") is report   # 기록됨
-    assert not client._store.is_in_flight("blank-term")        # in-flight 해제
+    assert report is None
+    store = client._store
+    cid = "blank-term"
+    assert store.report_for(cid) is None and store.is_in_flight(cid)
+    assert not any(call["method"] == "GET" for call in fake.calls)
 
 
 def test_day_refresh_does_not_overwrite_concurrent_modify_rebind():
@@ -453,7 +474,8 @@ def test_day_reconcile_night_session_on_paper_fails_closed():
     store = OrderStore()
     order = _order(client_order_id="nite-pp", session="night")
     store.try_claim("nite-pp", order.fingerprint)
+    _record_prior(store, order, status=OrderStatus.NEW)
     fake = FakeTransport(on_get=_ccnl([]))
     with pytest.raises(KISUsageError):
-        fo.reconcile(fake, store, "nite-pp", cano="1", product_code="03", environment="paper")
+        fo.reconcile(fake, store, "nite-pp", cano="1", product_code="03", environment="paper", force_refresh=True)
     assert not any(c["method"] == "GET" for c in fake.calls)

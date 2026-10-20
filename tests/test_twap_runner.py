@@ -11,7 +11,12 @@ from kis_trader.errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from kis_trader.execution import TWAPExecutionResult, execute_twap, make_twap_schedule
+from kis_trader.execution import (
+    TWAPExecutionResult,
+    TWAPSliceOutcome,
+    execute_twap,
+    make_twap_schedule,
+)
 from kis_trader.report import ExecutionReport, OrderStatus
 
 _KST = timezone(timedelta(hours=9))
@@ -302,6 +307,8 @@ def test_run_keyboard_interrupt_returns_partial():
     assert result.submitted_quantity == 34               # first slice only
     assert len(result.outcomes) == 2                      # interrupted second slice is pending
     assert result.pending_quantity == Decimal(33)
+    assert result.interrupted is True
+    assert result.outcome == "interrupted"
 
 
 def test_run_keyboard_interrupt_after_broker_acceptance_marks_slice_pending():
@@ -317,6 +324,9 @@ def test_run_keyboard_interrupt_after_broker_acceptance_marks_slice_pending():
                           now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
     assert result.pending_reconcile_ids == (broker_live[0][0],)
     assert result.pending_quantity == Decimal(34)
+    assert result.interrupted is True
+    assert result.outcome == "interrupted"
+    assert len(broker_live) == 1
     assert result.shortfall == Decimal(66)
 
 
@@ -343,3 +353,91 @@ def test_average_price_excludes_priceless_fills_from_both_numerator_and_denomina
     result = execute_twap(_Kis(stock), _sched(),
                           now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
     assert result.average_price == Decimal(70000)        # priced fills only, not understated
+
+
+@pytest.mark.parametrize("case,expected", [
+    ("complete", "completed"), ("priceless", "completed"), ("missing", "incomplete"),
+    ("error", "incomplete"), ("no_report", "incomplete"), ("nonterminal", "incomplete"),
+    ("partial", "incomplete"), ("pending", "unknown"), ("pending_error", "unknown"),
+    ("canceled", "incomplete"), ("expired", "incomplete"), ("rejected", "incomplete"),
+])
+def test_result_execution_outcome(case, expected):
+    schedule = _sched()
+    outcomes = [TWAPSliceOutcome(entry.at, entry.quantity,
+                _report(str(index), entry.quantity, None if case == "priceless" else 100), None)
+                for index, entry in enumerate(schedule.slices)]
+    first = schedule.slices[0]
+    if case == "missing":
+        outcomes.pop()
+    elif case in ("error", "no_report", "pending", "pending_error"):
+        outcomes[0] = TWAPSliceOutcome(first.at, first.quantity, None,
+            "synthetic" if case in ("error", "pending_error") else None,
+            "pending-id" if case.startswith("pending") else None)
+    elif case in ("nonterminal", "partial", "canceled", "expired", "rejected"):
+        status = {"nonterminal": OrderStatus.NEW, "partial": OrderStatus.FILLED,
+                  "canceled": OrderStatus.CANCELED, "expired": OrderStatus.EXPIRED,
+                  "rejected": OrderStatus.REJECTED}[case]
+        outcomes[0] = TWAPSliceOutcome(first.at, first.quantity,
+            _report("first", first.quantity if case == "nonterminal" else 1, 100, status=status), None)
+    result = TWAPExecutionResult(schedule, tuple(outcomes))
+    assert result.outcome == expected
+    assert result.interrupted is False
+    if case.startswith("pending"):
+        assert result.shortfall == 0
+        assert result.pending_reconcile_ids == ("pending-id",)
+
+
+def test_execution_interrupt_before_submission_has_explicit_outcome():
+    log = []
+    def interrupt(delay):
+        raise KeyboardInterrupt
+    result = execute_twap(_Kis(_Stock(log)), _sched(),
+        now_fn=lambda: _scheduled_at(9, 0), sleep_fn=interrupt)
+    assert result.interrupted is True
+    assert result.outcome == "interrupted"
+    assert result.outcomes == ()
+    assert result.pending_reconcile_ids == ()
+    assert log == []
+
+
+def test_execution_interrupt_during_reconcile_keeps_pending_id():
+    log = []
+    class Orders:
+        def reconcile(self, cid, *, refresh=False):
+            raise KeyboardInterrupt
+    result = execute_twap(_Kis(_Stock(log), orders=Orders()), _sched(),
+        now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda delay: None)
+    assert result.interrupted is True
+    assert result.outcome == "interrupted"
+    assert len(result.outcomes) == 1
+    assert len(result.pending_reconcile_ids) == 1
+    assert log == [("buy", 34)]
+
+
+def test_interrupt_after_append_does_not_duplicate_pending_outcome():
+    import inspect
+    import sys
+    lines, first_line = inspect.getsourcelines(execute_twap)
+    interrupt_line = max(first_line + index for index, line in enumerate(lines)
+                         if line.strip() == "in_flight = None")
+    previous_trace = sys.gettrace()
+    triggered = []
+    def trace(frame, event, argument):
+        if frame.f_code is execute_twap.__code__ and event == "line" and frame.f_lineno == interrupt_line:
+            triggered.append(True)
+            sys.settrace(None)
+            raise KeyboardInterrupt
+        return trace
+    try:
+        sys.settrace(trace)
+        result = execute_twap(_Kis(_Stock([])), _sched(),
+            now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda delay: None)
+    finally:
+        sys.settrace(previous_trace)
+    assert triggered == [True]
+    assert result.interrupted is True
+    assert result.outcome == "interrupted"
+    assert len(result.outcomes) == 1
+    assert result.filled_quantity == 34
+    assert result.pending_reconcile_ids == ()
+    assert result.shortfall == 66

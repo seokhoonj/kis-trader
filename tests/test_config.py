@@ -679,12 +679,11 @@ def test_v2_profile_chain_env_beats_marker_beats_first(tmp_path, monkeypatch):
     assert resolve_credentials(config_dir=tmp_path).app_key == "G"          # env 가 마커를 이긴다
 
 
-def test_v2_profile_first_is_union_real_then_paper(tmp_path):
-    _write_v2(tmp_path, real={"only_real": {"app_key": "R", "app_secret": "s"}},
-              paper={"only_paper": {"app_key": "P", "app_secret": "s"}})
-    # 기본 프로필 = 합집합 첫 키(real 먼저) = only_real. 기본 환경 = paper -> only_real 는 paper 에 없다.
-    with pytest.raises(KISUsageError, match="only_real"):
-        resolve_credentials(config_dir=tmp_path)
+def test_v2_profile_selection_reaches_environment_branch_with_valid_names(tmp_path):
+    _write_v2(tmp_path, real={"live": {"app_key": "R", "app_secret": "s"}},
+              paper={"simulation": {"app_key": "P", "app_secret": "s"}})
+    assert resolve_credentials(config_dir=tmp_path).app_key == "P"
+    assert resolve_credentials(environment="real", config_dir=tmp_path).app_key == "R"
 
 
 def test_v2_no_main_fallback(tmp_path, monkeypatch):
@@ -954,3 +953,39 @@ def test_runtime_requires_schema2_v2_resolves_legacy_raises_empty_errors(tmp_pat
     with pytest.raises(KISUsageError) as excinfo:
         resolve_credentials("general", config_dir=tmp_path)
     assert "migrate" not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("operation", ["resolve", "save"])
+@pytest.mark.parametrize("failure", ["utf8", "json", "io"])
+def test_credential_read_failures_remove_secret_bearing_exception_chain(tmp_path, monkeypatch, operation, failure):
+    import traceback
+    from pathlib import Path
+    marker = "SYNTHETIC_D12_SECRET_MARKER"
+    path = tmp_path / "credentials.json"
+    payload = ('{"schema":2,"secret":"' + marker + '",').encode()
+    if failure == "utf8":
+        payload += b"\xff"
+    path.write_bytes(payload)
+    original_read = Path.read_text
+    with monkeypatch.context() as patch:
+        if failure == "io":
+            def read(current, *args, **kwargs):
+                if current == path:
+                    raise PermissionError(marker)
+                return original_read(current, *args, **kwargs)
+            patch.setattr(Path, "read_text", read)
+        with pytest.raises(KISUsageError) as caught:
+            if operation == "resolve":
+                resolve_credentials("general", config_dir=tmp_path)
+            else:
+                KISConfig(profile="general", app_key="synthetic-key", app_secret="synthetic-secret",
+                          config_dir=tmp_path).save()
+    error = caught.value
+    assert error.__cause__ is None
+    assert error.__context__ is None
+    assert marker not in str(error)
+    assert marker not in "".join(traceback.format_exception(error))
+    assert path.read_bytes() == payload
+    path.write_text("{}")
+    KISConfig(profile="general", app_key="corrected-key", app_secret="corrected-secret", config_dir=tmp_path).save()
+    assert resolve_credentials("general", config_dir=tmp_path).app_key == "corrected-key"

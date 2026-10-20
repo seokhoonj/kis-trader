@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import queue
 import threading
 import time
 
@@ -347,10 +346,11 @@ def test_stop_does_not_reraise_cancelled_stop_coroutine(monkeypatch):
     assert client._running is False
 
 
-def test_enqueue_drops_oldest_when_queue_full():
+def test_enqueue_drops_oldest_when_queue_full(monkeypatch):
     # 상한 도달 시 가장 오래된 틱을 버리고 최신을 넣는다(콜백 전용/느린 소비자 메모리 누수 방지).
     client = RealtimeClient("KEY", "ws://x")
-    client._queue = queue.Queue(maxsize=2)
+    from kis_trader.realtime import client as module
+    monkeypatch.setattr(module, "_QUEUE_MAXSIZE", 2)
     first, second, third = (
         RealtimeMessage(tr_id="T", tr_key="1", data=[str(i)]) for i in range(3)
     )
@@ -363,13 +363,14 @@ def test_enqueue_drops_oldest_when_queue_full():
     assert client._queue_overflow_warned is True
 
 
-def test_put_sentinel_does_not_block_when_queue_full():
+def test_put_sentinel_does_not_block_when_queue_full(monkeypatch):
     # 콜백 전용 소비자(stream() 미소비)로 중앙 큐가 상한에 차 있으면 블로킹 put 은 teardown 을
-    # 영원히 멎게 한다(P0 교착). _put_sentinel 은 오래된 것을 버리며 non-blocking 으로 넣는다.
+    # 영원히 멎게 한다. 종료 신호는 DATA 상한 밖에 두어 남은 틱을 밀어내지 않아야 한다.
     from kis_trader.realtime.client import _STREAM_SENTINEL
 
     client = RealtimeClient("KEY", "ws://x")
-    client._queue = queue.Queue(maxsize=3)
+    from kis_trader.realtime import client as module
+    monkeypatch.setattr(module, "_QUEUE_MAXSIZE", 3)
     for i in range(3):                                # 큐를 상한까지 채운다
         client._queue.put_nowait(RealtimeMessage(tr_id="T", tr_key="K", data=[str(i)]))
     # 상한 있는 스레드로 호출 -- 블로킹 put 으로 퇴행하면 hang 대신 실패로 드러난다.
@@ -380,13 +381,15 @@ def test_put_sentinel_does_not_block_when_queue_full():
     drained = []
     while not client._queue.empty():
         drained.append(client._queue.get_nowait())
-    assert drained[-1] is _STREAM_SENTINEL             # 가득 차 있어도 sentinel 이 들어갔다
+    assert len(drained) == 4                          # DATA 3개를 보존한 뒤 terminal
+    assert drained[-1] is _STREAM_SENTINEL
 
 
-def test_dispatch_queue_drops_oldest_when_full():
+def test_dispatch_queue_drops_oldest_when_full(monkeypatch):
     # 디스패치 큐도 stream 큐와 같은 drop-oldest -- 느린/블로킹 콜백이 메모리를 무한정 키우지 않게.
     client = RealtimeClient("KEY", "ws://x")
-    client._dispatch_queue = queue.Queue(maxsize=2)
+    from kis_trader.realtime import client as module
+    monkeypatch.setattr(module, "_QUEUE_MAXSIZE", 2)
     items = [(RealtimeMessage(tr_id="T", tr_key="1", data=[str(i)]), (), ()) for i in range(3)]
     for item in items:
         client._submit_to_dispatch(item)
@@ -397,14 +400,15 @@ def test_dispatch_queue_drops_oldest_when_full():
     assert client._dispatch_overflow_warned is True
 
 
-def test_put_dispatch_sentinel_does_not_block_when_queue_full():
+def test_put_dispatch_sentinel_does_not_block_when_queue_full(monkeypatch):
     # 블로킹 콜백이 디스패치 큐를 상한에 채운 채 워커가 갇혀 있으면, 종료 센티넬의 블로킹 put 은
-    # 수신(루프) 스레드를 teardown 중 영원히 멎게 한다(P0 교착). _put_dispatch_sentinel 은 오래된
-    # 것을 버리며 non-blocking 으로 넣는다(stream 큐의 _put_sentinel 과 쌍).
+    # 수신(루프) 스레드를 teardown 중 영원히 멎게 한다. DATA 를 버리지 않고 상한 밖에
+    # 종료 신호를 넣는다(stream 큐의 _put_sentinel 과 쌍).
     from kis_trader.realtime.client import _DISPATCH_SENTINEL
 
     client = RealtimeClient("KEY", "ws://x")
-    client._dispatch_queue = queue.Queue(maxsize=3)
+    from kis_trader.realtime import client as module
+    monkeypatch.setattr(module, "_QUEUE_MAXSIZE", 3)
     for i in range(3):                                 # 큐를 상한까지 채운다
         client._dispatch_queue.put_nowait(
             (RealtimeMessage(tr_id="T", tr_key="K", data=[str(i)]), (), ()))
@@ -416,7 +420,8 @@ def test_put_dispatch_sentinel_does_not_block_when_queue_full():
     drained = []
     while not client._dispatch_queue.empty():
         drained.append(client._dispatch_queue.get_nowait())
-    assert drained[-1] is _DISPATCH_SENTINEL            # 가득 차 있어도 센티넬이 들어갔다
+    assert len(drained) == 4                          # DATA 3개를 보존한 뒤 terminal
+    assert drained[-1] is _DISPATCH_SENTINEL
 
 
 def test_dispatch_worker_terminates_on_stop():
@@ -613,3 +618,413 @@ def test_wire_schedulers_close_coro_when_loop_dies_mid_schedule():
     coro5 = _wire()
     client._call_async(coro5)
     assert coro5.cr_frame is None
+
+
+@pytest.mark.parametrize("startup_cleanup", [False, True])
+def test_start_refused_while_previous_dispatcher_alive_without_reset(startup_cleanup):
+    connects = []
+
+    async def connect(url):
+        connects.append(url)
+        return FakeWebSocket(incoming=[])
+
+    client = RealtimeClient("KEY", "ws://x", connect=connect, reconnect=False)
+    release = threading.Event()
+    entered = threading.Event()
+
+    def blocked_dispatcher():
+        entered.set()
+        release.wait()
+
+    previous_dispatcher = threading.Thread(target=blocked_dispatcher, daemon=True)
+    previous_receiver = threading.Thread(target=lambda: None)
+    previous_receiver.start()
+    previous_receiver.join(timeout=1)
+    assert not previous_receiver.is_alive()
+    previous_dispatcher.start()
+    assert entered.wait(1)
+    client._thread = previous_receiver
+    client._dispatch_thread = previous_dispatcher
+    client._ready.set()
+    client._stop_requested.set()
+    previous_error = RealtimeError("previous startup failure")
+    client._startup_error = previous_error
+    marker = RealtimeMessage("DUMMYTR0", "STALE", "retained")
+    client._queue.put(marker)
+    client._dispatch_queue.put((marker, [], []))
+    if startup_cleanup:
+        client._abort_startup(timeout=0)
+    raw_before = list(client._queue.queue)
+    dispatch_before = list(client._dispatch_queue.queue)
+    connection_before, loop_before = client._conn, client._loop
+    try:
+        with pytest.raises(RealtimeError, match="콜백"):
+            client.start(timeout=1)
+        assert client._thread is previous_receiver
+        assert client._dispatch_thread is previous_dispatcher
+        assert client._conn is connection_before and client._loop is loop_before
+        assert client._ready.is_set() and client._stop_requested.is_set()
+        assert client._startup_error is previous_error
+        assert list(client._queue.queue) == raw_before
+        assert list(client._dispatch_queue.queue) == dispatch_before
+        assert connects == []
+        assert client._running is False
+    finally:
+        release.set()
+        previous_dispatcher.join(timeout=1)
+        client.stop(timeout=1)
+        assert not previous_dispatcher.is_alive()
+
+
+def test_restart_waits_for_stopped_callback_worker_then_recovers():
+    class FirstSocket(OpenWebSocket):
+        def __init__(self, price="71500"):
+            super().__init__()
+            self.first = True
+            self.price = price
+
+        async def __anext__(self):
+            if self.first:
+                self.first = False
+                return f"0|DUMMYTR0|001|005930^093000^{self.price}"
+            return await super().__anext__()
+
+    sockets = [FirstSocket(), FirstSocket("71600")]
+    connects = []
+
+    async def connect(url):
+        connects.append(url)
+        return sockets[len(connects) - 1]
+
+    entered, release, second_tick = threading.Event(), threading.Event(), threading.Event()
+    seen = []
+
+    def callback(message):
+        seen.append(message.data)
+        if len(seen) == 1:
+            entered.set()
+            assert release.wait(5)
+        else:
+            second_tick.set()
+
+    client = RealtimeClient("KEY", "ws://x", connect=connect, reconnect=False)
+    client.subscribe(tr_id="DUMMYTR0", tr_key="005930", on=callback)
+    previous_dispatcher = None
+    try:
+        client.start()
+        assert entered.wait(1)
+        previous_receiver = client._thread
+        previous_dispatcher = client._dispatch_thread
+        client.stop(timeout=1)
+        assert previous_receiver is not None and not previous_receiver.is_alive()
+        assert previous_dispatcher is not None and previous_dispatcher.is_alive()
+        with pytest.raises(RealtimeError, match="콜백"):
+            client.start(timeout=1)
+        assert client._dispatch_thread is previous_dispatcher
+        assert client._thread is previous_receiver
+        assert len(connects) == 1
+        release.set()
+        previous_dispatcher.join(timeout=1)
+        assert not previous_dispatcher.is_alive()
+        # stop 은 라우팅 등록도 정리하므로 다음 실행의 콜백을 다시 등록한다.
+        client.subscribe(tr_id="DUMMYTR0", tr_key="005930", on=callback)
+        client.start()
+        assert len(connects) == 2
+        assert client._dispatch_thread is not previous_dispatcher
+        assert second_tick.wait(1)
+        assert seen[-1][-1] == "71600"
+    finally:
+        release.set()
+        client.stop(timeout=1)
+        # 거부가 깨진 구현에서도 옛 워커를 회수한다(새 start 가 이전 종료 신호를 비울 수 있음).
+        if previous_dispatcher is not None and previous_dispatcher.is_alive():
+            client._put_dispatch_sentinel()
+            previous_dispatcher.join(timeout=1)
+        assert previous_dispatcher is None or not previous_dispatcher.is_alive()
+
+
+class DrainWebSocket(FakeWebSocket):
+    """첫 프레임 뒤 main 스레드의 허가까지 기다려 콜백 정체와 EOF 순서를 고정한다."""
+
+    def __init__(self, count):
+        from kis_trader.realtime.parsers.domestic_stock import _ORDER_BOOK_KRX_FIELDS
+        fields = ["0"] * len(_ORDER_BOOK_KRX_FIELDS)
+        fields[0], fields[1] = "005930", "093000"
+        super().__init__(["0|H0STASP0|001|" + "^".join(fields)] * count)
+        self.first = True
+        self.remaining = asyncio.Event()
+        self.loop = None
+        self.receiver_closed = threading.Event()
+
+    async def __anext__(self):
+        self.loop = asyncio.get_running_loop()
+        if self.first:
+            self.first = False
+        else:
+            await self.remaining.wait()
+        return await super().__anext__()
+
+    def allow_remaining(self):
+        assert self.loop is not None
+        if not self.remaining.is_set() and not self.loop.is_closed():
+            self.loop.call_soon_threadsafe(self.remaining.set)
+
+    async def close(self):
+        await super().close()
+        self.receiver_closed.set()
+
+
+@pytest.mark.parametrize("count", [1, 3])
+def test_natural_eof_drains_raw_and_typed_before_permanent_terminal(count):
+    socket = DrainWebSocket(count)
+    client = _client(socket)
+    entered, release = threading.Event(), threading.Event()
+    received = []
+
+    def callback(message):
+        received.append(message.data)
+        if len(received) == 1:
+            entered.set()
+            assert release.wait(3)
+
+    client.subscribe(tr_id="H0STASP0", tr_key="005930", on=callback)
+    sub = client.domestic.stock("005930").order_book()
+    try:
+        client.start()
+        assert entered.wait(1)
+        socket.allow_remaining()
+        assert socket.receiver_closed.wait(1)
+        client._thread.join(timeout=1)
+        assert not client._thread.is_alive()
+        raw = list(client.stream(timeout=1))
+        assert len(raw) == count
+        assert sub._closed is False  # EOF 가 대기 중인 타입드 전달을 취소하면 안 된다
+        release.set()
+        client._dispatch_thread.join(timeout=1)
+        assert not client._dispatch_thread.is_alive()
+        assert list(sub) == [message.data for message in raw] == received
+        for _ in range(3):
+            with pytest.raises(StopIteration):
+                next(sub)
+    finally:
+        release.set()
+        socket.allow_remaining()
+        client.stop(timeout=1)
+
+
+def test_natural_eof_capacity_does_not_evict_extra_data(monkeypatch):
+    from kis_trader.realtime import client as module
+    monkeypatch.setattr(module, "_QUEUE_MAXSIZE", 2)
+    socket = DrainWebSocket(3)
+    client = _client(socket)
+    entered, release = threading.Event(), threading.Event()
+    typed = []
+
+    def callback(message):
+        entered.set()
+        assert release.wait(3)
+
+    client.subscribe(tr_id="H0STASP0", tr_key="005930", on=callback)
+    sub = client.domestic.stock("005930").order_book(on=typed.append)
+    try:
+        client.start()
+        assert entered.wait(1)
+        socket.allow_remaining()
+        assert socket.receiver_closed.wait(1)
+        client._thread.join(timeout=1)
+        assert not client._thread.is_alive()  # terminal publication must not block
+        assert len(list(client.stream(timeout=1))) == 2  # DATA overflow only, no EOF-only loss
+        release.set()
+        client._dispatch_thread.join(timeout=1)
+        assert not client._dispatch_thread.is_alive()
+        assert len(typed) == 3  # first in flight + two retained dispatch DATA
+        assert len(list(sub)) == 2  # typed DATA bound still applies
+    finally:
+        release.set()
+        socket.allow_remaining()
+        client.stop(timeout=1)
+
+
+def test_stop_after_eof_preserves_drain_and_next_run_registrations(monkeypatch):
+    socket = DrainWebSocket(1)
+    client = _client(socket)
+    entered, release, callback_finished = threading.Event(), threading.Event(), threading.Event()
+    callback_errors = []
+
+    def callback(message):
+        entered.set()
+        assert release.wait(3)
+        try:
+            client.stop()
+        except RealtimeError as error:
+            callback_errors.append(error)
+        callback_finished.set()
+
+    client.subscribe(tr_id="H0STASP0", tr_key="005930", on=callback)
+    old_sub = client.domestic.stock("005930").order_book()
+    next_sub = None
+    try:
+        client.start()
+        assert entered.wait(1)
+        socket.allow_remaining()
+        assert socket.receiver_closed.wait(1)
+        client._thread.join(timeout=1)
+        assert not client._thread.is_alive()
+
+        def dead_wire(*args, **kwargs):
+            raise AssertionError("완료된 수신 연결로 다음 실행 구독을 보내면 안 된다")
+
+        monkeypatch.setattr(client._conn, "subscribe", dead_wire)
+        monkeypatch.setattr(client._conn, "unsubscribe", dead_wire)
+        next_sub = client.domestic.stock("005930").order_book()
+        client.subscribe(tr_id="H0STASP0", tr_key="005930")
+        client.stop(timeout=0)  # receiver EOF 뒤에는 취소하지 않고 drain 을 기다린다
+        assert old_sub._closed is False
+        assert next_sub._closed is False
+        release.set()
+        assert callback_finished.wait(1)
+        client._dispatch_thread.join(timeout=1)
+        assert not client._dispatch_thread.is_alive()
+        assert len(callback_errors) == 1  # self-stop 은 lifecycle lock 전에 거부
+        assert len(list(old_sub)) == 1
+        assert next_sub._closed is False
+        assert next_sub in client._subscriptions[("H0STASP0", "005930")]
+        second_socket = OpenWebSocket()
+        client._connect = _connector(second_socket)
+        client.start()
+        assert _wait_until(second_socket, lambda: bool(second_socket.sent))
+        assert any("H0STASP0" in frame for frame in second_socket.sent)
+    finally:
+        release.set()
+        socket.allow_remaining()
+        client.stop(timeout=1)
+        if next_sub is not None:
+            next_sub.close()
+
+
+@pytest.mark.parametrize("dispatch", [False, True])
+def test_terminal_published_once_and_rejects_late_data(dispatch):
+    from kis_trader.realtime.client import _DISPATCH_SENTINEL, _STREAM_SENTINEL
+    client = _client(FakeWebSocket(incoming=[]))
+    message = RealtimeMessage("T", "K", "late")
+    if dispatch:
+        client._put_dispatch_sentinel()
+        client._put_dispatch_sentinel()
+        client._submit_to_dispatch((message, (), ()))
+        assert list(client._dispatch_queue.queue) == [_DISPATCH_SENTINEL]
+    else:
+        client._put_sentinel()
+        client._put_sentinel()
+        client._enqueue(message)
+        assert list(client._queue.queue) == [_STREAM_SENTINEL]
+
+
+def test_explicit_stop_cancels_typed_while_callback_remains_blocked():
+    socket = OpenWebSocket()
+    client = _open_client(socket)
+    entered, release = threading.Event(), threading.Event()
+
+    def callback(message):
+        entered.set()
+        assert release.wait(3)
+
+    client.subscribe(tr_id="H0STASP0", tr_key="005930", on=callback)
+    sub = client.domestic.stock("005930").order_book()
+    try:
+        client.start()
+        client._dispatch(RealtimeMessage("H0STASP0", "005930", "tick"))
+        assert entered.wait(1)
+        client.stop(timeout=0.2)
+        assert sub._closed is True
+        for _ in range(3):
+            with pytest.raises(StopIteration):
+                next(sub)
+        assert client._thread is not None and not client._thread.is_alive()
+        assert client._dispatch_thread is not None and client._dispatch_thread.is_alive()
+        with pytest.raises(RealtimeError):
+            client.start()
+    finally:
+        release.set()
+        client.stop(timeout=1)
+        if client._dispatch_thread is not None:
+            client._dispatch_thread.join(timeout=1)
+            assert not client._dispatch_thread.is_alive()
+
+
+def test_late_old_receiver_frame_cannot_route_to_next_run_subscription():
+    client = _client(FakeWebSocket(incoming=[]))
+    old_sub = client.domestic.stock("005930").order_book()
+    client._shutdown_subscriptions()  # stop 가 전이했지만 수신 스레드의 마지막 프레임은 경합 가능
+    next_sub = client.domestic.stock("005930").order_book()
+    try:
+        client._dispatch(RealtimeMessage("H0STASP0", "005930", "old tick"))
+        assert client._dispatch_queue.empty()
+        assert old_sub._closed is True
+        assert next_sub._closed is False
+    finally:
+        next_sub.close()
+
+
+def test_aborted_startup_does_not_send_next_run_registration_on_late_connect():
+    socket = FakeWebSocket(incoming=[])
+    client = _client(socket)
+    old_sub = client.domestic.stock("005930").order_book()
+    client._abort_startup(timeout=0)
+    next_sub = client.domestic.stock("005930").order_book()
+    try:
+        asyncio.run(client._main())  # timeout 뒤에 원래 연결이 뒤늦게 열리는 상황
+        assert socket.sent == []
+        assert old_sub._closed is True
+        assert next_sub._closed is False
+        assert next_sub in client._subscriptions[("H0STASP0", "005930")]
+    finally:
+        next_sub.close()
+
+
+def test_startup_and_close_failure_preserves_original_and_terminates_consumers(monkeypatch, caplog):
+    from kis_trader.realtime import client as module
+
+    primary = RuntimeError("synthetic startup failure")
+    secondary = RuntimeError("synthetic close failure")
+    reached = []
+
+    class FailedConnection:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            reached.append("enter")
+            raise primary
+
+        async def close(self):
+            reached.append("close")
+            raise secondary
+
+    monkeypatch.setattr(module, "RealtimeConnection", FailedConnection)
+    client = _client(FakeWebSocket(incoming=[]))
+    sub = client.domestic.stock("005930").order_book()
+    asyncio.run(client._main())
+    assert reached == ["enter", "close"]
+    assert client._startup_error is primary
+    assert client._ready.is_set()
+    assert list(client._queue.queue) == [module._STREAM_SENTINEL]
+    assert list(client._dispatch_queue.queue) == [module._DISPATCH_SENTINEL]
+    assert sub._closed is True
+    for _ in range(3):
+        with pytest.raises(StopIteration):
+            next(sub)
+    assert any(record.exc_info and record.exc_info[1] is secondary for record in caplog.records)
+    # 실제 워커 루프도 종료 신호를 받아 유계 시간 안에 끝나야 한다.
+    worker = threading.Thread(target=client._dispatch_worker, daemon=True)
+    worker.start()
+    worker.join(timeout=1)
+    assert not worker.is_alive()
+
+    public_client = _client(FakeWebSocket(incoming=[]))
+    public_sub = public_client.domestic.stock("005930").order_book()
+    with pytest.raises(RuntimeError) as excinfo:
+        public_client.start(timeout=1)
+    assert excinfo.value is primary
+    assert public_client._ready.is_set() and public_sub._closed is True
+    public_client._dispatch_thread.join(timeout=1)
+    assert not public_client._dispatch_thread.is_alive()

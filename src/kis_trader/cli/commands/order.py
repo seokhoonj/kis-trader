@@ -8,15 +8,16 @@
   다르면 거부한다(남은 셸 히스토리의 플래그가 다른 환경에서 오작동하지 못하게).
 - 확인: 대화형이면 paper 는 y/N, real 은 계좌 마지막 4자리 입력. 비대화형이면 ``--yes`` 필수이고
   real 은 ``--confirm-account`` 가 계좌 마지막 4자리와 일치해야 한다.
-- 타임아웃/결과불명은 재전송하지 않는다 -- ``kis order reconcile`` 만이 사후 진실이다(errors 참조).
+- 타임아웃/결과불명은 재전송하지 않는다 -- 저장 상태를 확인하고 번호 없는 최초 불명 요청은 HTS/MTS나 계좌 주문·체결 조회로 수동 확인한다.
 """
 from __future__ import annotations
 
 import sys
 from argparse import Namespace
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from ..._internal._datetime import _KST, _parse_kst_time
 from ...errors import KISError
@@ -333,6 +334,14 @@ def _twap_start(args: Namespace) -> datetime | None:
     )
 
 
+@dataclass(frozen=True)
+class TWAPCommandResult:
+    """TWAP 부분 실행 데이터와 라이브러리 실행 분류를 CLI 출력까지 함께 전달한다."""
+
+    payload: dict[str, Any]
+    outcome: Literal["completed", "incomplete", "unknown", "interrupted"]
+
+
 def cmd_twap(kis: KISClient, args: Namespace, *, is_tty: bool | None = None,
              prompt: Callable[[str], str] = input) -> Any:
     """국내주식 TWAP 분할주문 -- 기본 dry-run(스케줄 표시), --execute 로 블로킹 실행. 슬라이스마다 시장가."""
@@ -352,14 +361,17 @@ def cmd_twap(kis: KISClient, args: Namespace, *, is_tty: bool | None = None,
         is_tty = sys.stdin.isatty()
     _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     result = execute_twap(kis, schedule)
-    return {
+    payload = {
         **preview,
+        "outcome": result.outcome,
+        "interrupted": result.interrupted,
+        "pending_quantity": str(result.pending_quantity),
         "submitted_quantity": result.submitted_quantity,
         "filled_quantity": str(result.filled_quantity),
         "shortfall": str(result.shortfall),
         "average_price": None if result.average_price is None else str(result.average_price),
         # 타임아웃(체결 불명) 슬라이스의 client_order_id -- 비어있지 않으면 kis order reconcile <id> 로
-        # 사후 확인해야 한다(그 주문은 살아 있을 수 있어 유실로 단정하지 않는다).
+        # 저장 상태와 HTS/MTS·계좌 주문/체결 조회로 확인한다(재전송 금지).
         "pending_reconcile_ids": list(result.pending_reconcile_ids),
         "outcomes": [
             {"at": o.at.isoformat(), "quantity": o.quantity,
@@ -369,13 +381,15 @@ def cmd_twap(kis: KISClient, args: Namespace, *, is_tty: bool | None = None,
             for o in result.outcomes
         ],
     }
+    return TWAPCommandResult(payload=payload, outcome=result.outcome)
 
 
 def cmd_reconcile(kis: KISClient, args: Namespace) -> Any:
-    """접수 여부가 불확실한 주문의 실제 상태를 확정한다. 재전송하지 않는다.
+    """저장된 주문번호로 지원 자산의 관측 상태를 갱신한다. 재전송하지 않는다.
 
-    ``refresh=True`` 로 브로커를 실제로 재스캔한다 -- 저장된 접수 스냅샷(체결 0)이 아니라 현재 체결
-    상태를 돌려준다(그렇지 않으면 사용자가 체결된 주문을 미체결로 오인해 재주문할 수 있다)."""
+    ``refresh=True`` 로 캐시를 건너뛰지만, 유효한 저장 주문번호가 없으면 조회 없이 None 을 반환한다.
+    조회 결과도 제한된 시점·기간의 관측이며, None 은 미접수나 재전송 허가가 아니다.
+    자동 확인이 안 되면 HTS/MTS나 계좌 주문·체결 조회로 수동 확인한다."""
     return kis.orders.reconcile(args.client_order_id, refresh=True)
 
 

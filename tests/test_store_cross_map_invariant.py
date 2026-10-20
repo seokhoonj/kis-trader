@@ -11,7 +11,7 @@ from decimal import Decimal
 import pytest
 
 from kis_trader.errors import KISError
-from kis_trader.order import Order
+from kis_trader.order import ChangeActionFingerprint, Order
 from kis_trader.report import ExecutionReport, OrderStatus
 from kis_trader.store import OrderStore
 
@@ -40,7 +40,7 @@ def _valid_v10_file(tmp_path, cid: str = "cid-done"):
 
 def _reload_mutated(path, mutate):
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["schema_version"] == 10
+    assert data["schema_version"] == 12
     mutate(data)
     path.write_text(json.dumps(data), encoding="utf-8")
     return OrderStore(path, now=_clock)
@@ -143,7 +143,7 @@ def test_legacy_v9_survives_mutate_and_reopen(tmp_path):
                             region="domestic", asset_class="stock", exchange="KRX",
                             client_order_id="cid-new")
         store.try_claim("cid-new", order.fingerprint)
-    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 10
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 12
     with OrderStore(path, now=_clock):           # 재오픈이 벽돌이 되면 안 된다
         pass
 
@@ -159,3 +159,144 @@ def test_legacy_v9_without_fingerprints_still_loads(tmp_path):
     }), encoding="utf-8")
     with OrderStore(path, now=_clock):
         pass
+
+
+_OMITTED = object()
+
+
+def _valid_report_and_pending_file(tmp_path):
+    path = _valid_v10_file(tmp_path)
+    pending = Order.market("005930", side="buy", quantity=1, client_order_id="cid-pending")
+    with OrderStore(path, now=_clock, retention_days=0) as store:
+        store.try_claim(pending.client_order_id, pending.fingerprint)
+    return path
+
+
+def _assert_bad_report_preserves_file_and_releases_lock(path, valid_bytes):
+    corrupted_bytes = path.read_bytes()
+    accepted = None
+    try:
+        with pytest.raises(KISError, match="손상"):
+            accepted = OrderStore(path, now=_clock, retention_days=0)
+    finally:
+        if accepted is not None:
+            accepted.close()  # RED 실행에서 잘못 수용한 저장소도 잠금을 회수한다
+    assert path.read_bytes() == corrupted_bytes
+    path.write_bytes(valid_bytes)
+    with OrderStore(path, now=_clock, retention_days=0) as corrected:
+        assert corrected.report_for("cid-done") is not None
+        assert corrected.fingerprint_for("cid-done") is not None
+        assert corrected.is_in_flight("cid-pending")
+        assert corrected.fingerprint_for("cid-pending") is not None
+
+
+@pytest.mark.parametrize("status", list(OrderStatus))
+@pytest.mark.parametrize("field, value", [
+    ("filled_quantity", "NaN"), ("filled_quantity", "sNaN"),
+    ("filled_quantity", "Infinity"), ("filled_quantity", "-Infinity"), ("filled_quantity", "-1"),
+    ("average_price", "NaN"), ("average_price", "sNaN"),
+    ("average_price", "Infinity"), ("average_price", "-Infinity"),
+])
+def test_persisted_nonfinite_or_negative_fill_rejected_in_every_status(tmp_path, status, field, value):
+    path = _valid_report_and_pending_file(tmp_path)
+    valid_bytes = path.read_bytes()
+    data = json.loads(valid_bytes)
+    data["reports"]["cid-done"].update(status=status.value)
+    data["reports"]["cid-done"][field] = value
+    path.write_text(json.dumps(data), encoding="utf-8")
+    _assert_bad_report_preserves_file_and_releases_lock(path, valid_bytes)
+
+
+@pytest.mark.parametrize("field", ["filled_quantity", "average_price"])
+@pytest.mark.parametrize("value", [_OMITTED, "", "   ", "bad-number", True, {}, []])
+def test_persisted_numeric_field_invalid_shapes_rejected(tmp_path, field, value):
+    path = _valid_report_and_pending_file(tmp_path)
+    valid_bytes = path.read_bytes()
+    data = json.loads(valid_bytes)
+    record = data["reports"]["cid-done"]
+    if value is _OMITTED:
+        record.pop(field)
+    else:
+        record[field] = value
+    path.write_text(json.dumps(data), encoding="utf-8")
+    _assert_bad_report_preserves_file_and_releases_lock(path, valid_bytes)
+
+
+def test_persisted_null_fill_is_not_optional(tmp_path):
+    path = _valid_report_and_pending_file(tmp_path)
+    valid_bytes = path.read_bytes()
+    data = json.loads(valid_bytes)
+    data["reports"]["cid-done"]["filled_quantity"] = None
+    path.write_text(json.dumps(data), encoding="utf-8")
+    _assert_bad_report_preserves_file_and_releases_lock(path, valid_bytes)
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("value", [_OMITTED, None, "", "not-a-date", "2026-08-31", "2026-08-31T10:00:00"])
+def test_persisted_report_timestamp_requires_timezone_aware_value(tmp_path, legacy, value):
+    path = _valid_report_and_pending_file(tmp_path)
+    valid_bytes = path.read_bytes()
+    data = json.loads(valid_bytes)
+    record = data["reports"]["cid-done"]
+    record.pop("recorded_at")
+    key = "submitted_at" if legacy else "recorded_at"
+    if legacy:
+        data["schema_version"] = 6
+    if value is not _OMITTED:
+        record[key] = value
+    path.write_text(json.dumps(data), encoding="utf-8")
+    _assert_bad_report_preserves_file_and_releases_lock(path, valid_bytes)
+
+
+@pytest.mark.parametrize("status", list(OrderStatus))
+@pytest.mark.parametrize("filled", [0, "0", "3.25"])
+@pytest.mark.parametrize("average", [None, "0", "-10", "70000"])
+def test_persisted_finite_report_accepts_status_neutral_price_and_fill_contract(tmp_path, status, filled, average):
+    path = _valid_v10_file(tmp_path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    record = data["reports"]["cid-done"]
+    record.update(status=status.value, filled_quantity=filled, average_price=average)
+    if status in (OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED, OrderStatus.EXPIRED):
+        record["order_id"] = None
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with OrderStore(path, now=_clock, retention_days=0) as store:
+        report = store.report_for("cid-done")
+        assert report is not None
+        assert report.status is status
+        assert report.filled_quantity == Decimal(str(filled))
+        assert report.average_price == (None if average is None else Decimal(average))
+        assert report.order_id == record["order_id"]
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("offset, minutes", [("+00:00", 0), ("+09:00", 540), ("+05:30", 330)])
+def test_persisted_report_preserves_aware_offsets_and_legacy_key(tmp_path, legacy, offset, minutes):
+    path = _valid_v10_file(tmp_path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    record = data["reports"]["cid-done"]
+    record.pop("recorded_at")
+    key = "submitted_at" if legacy else "recorded_at"
+    if legacy:
+        data["schema_version"] = 6
+    record[key] = "2026-08-31T10:00:00" + offset
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with OrderStore(path, now=_clock, retention_days=0) as store:
+        report = store.report_for("cid-done")
+        assert report.recorded_at.utcoffset() == timedelta(minutes=minutes)
+        assert report.recorded_at.hour == 10
+
+
+def test_persisted_action_report_fill_can_exceed_requested_change_quantity(tmp_path):
+    path = tmp_path / "action.json"
+    fingerprint = ChangeActionFingerprint(
+        original_client_order_id="original", side="buy", order_type="limit",
+        quantity="1", limit_price="100", action="modify", time_in_force="day",
+        region="domestic", asset_class="derivative", exchange="KRX",
+    )
+    report = ExecutionReport(client_order_id="change", order_id="new-order", symbol="101W09", side="buy",
+                             status=OrderStatus.PENDING_REPLACE, filled_quantity=Decimal(100),
+                             average_price=None, recorded_at=_clock())
+    with OrderStore(path, now=_clock, retention_days=0) as store:
+        store.record(report, fingerprint)
+    with OrderStore(path, now=_clock, retention_days=0) as store:
+        assert store.report_for("change").filled_quantity == 100

@@ -138,7 +138,7 @@ def fetch_etf_nav_comparison(
 def fetch_etf_nav_intraday(
     transport: Transport, *, symbol: str, interval_minutes: int
 ) -> list[ETFNAVMinutePoint]:
-    """최근 30개 ETF 시장가격-NAV 분별 비교."""
+    """ETF 시장가격-NAV 분별 비교(반환 개수는 응답에 따른다)."""
     if not 1 <= interval_minutes <= 120:
         raise KISUsageError(
             f"interval_minutes 는 1~120 사이 정수여야 한다: {interval_minutes!r}"

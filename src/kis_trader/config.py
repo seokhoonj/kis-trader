@@ -6,10 +6,9 @@
 넘긴다 -- 보통 ``KISClient(profile=...)`` 가 내부에서 부른다.
 
 **두 축 모델(schema 2, env-outer)**: 자격증명은 **(프로필, 환경)** 두 축으로 주소지정된다. 프로필은
-계좌 종류 이름(사용자 자유 문자열 ``[a-z0-9_]+``; 앱키/시크릿은 종합계좌번호 단위라 "계좌 하나 =
-프로필 하나", 같은 유형 여럿도 가능), 환경(``real``/``paper``)은 별개 축이다. 같은 프로필로 환경만
-토글해 실/모의를 전환한다. 환경이 앱키·계좌·호스트·토큰캐시·rate limit 을 **한꺼번에** 고르므로
-자격증명이 환경과 어긋난 상태가 표현 불가능하다.
+저장한 자격증명 묶음의 이름(사용자 자유 문자열 ``[a-z0-9_]+``), 환경(``real``/``paper``)은 별개
+축이다. 같은 프로필의 두 환경 슬롯에 각각 다른 값을 저장할 수 있다. 선택한 환경은 슬롯·호스트·
+토큰캐시·rate limit 을 함께 고른다. 저장한 앱키와 계좌가 실제 KIS 신청 정보에 맞는지는 사용자가 확인한다.
 
 ``credentials.json`` 은 환경을 대분류(바깥 블록)로 두고, 그 안에 프로필별 묶음(bundle)을 담는다::
 
@@ -40,8 +39,8 @@
 형식(schema 2)으로 한 번 변환하라는 :class:`KISUsageError` 로 멈춘다. 변환기(``kis config migrate``)만
 옛 형식을 읽어 schema 2 로 옮긴다.
 
-``hts_id`` 는 조건검색·관심종목 조회의 ``user_id`` 로 쓰는 HTS 로그인 아이디다(사용자당 하나, 최상위
-공유; 인증엔 안 씀). :meth:`KISConfig.set_hts_id` 로 기록하거나 손 편집한다.
+``hts_id`` 는 조건검색·관심종목 조회의 기본 ``user_id`` 로 쓰는 HTS 로그인 아이디다(최상위
+공유 설정값; 인증엔 안 씀). :meth:`KISConfig.set_hts_id` 로 기록하거나 손 편집한다.
 
 읽기 순서: 환경변수 -> ``credentials.json``. v2 환경변수는 두 축 키를 쓴다
 (``KIS_<PROFILE>_<ENV>_APP_KEY`` / ``_APP_SECRET`` / ``_ACCOUNT`` / ``_ACCOUNT_PASSWORD``; 예:
@@ -62,7 +61,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -94,11 +92,11 @@ _DEFAULT_PROFILE_ENV_VAR = "KIS_DEFAULT_PROFILE"
 #: credentials.json 최상위에서 기본 프로필 이름을 담는 예약 키(프로필 이름으로는 못 쓴다).
 #: 프로필 섹션은 객체, 이 마커는 문자열이라 값 타입으로 구분한다.
 _DEFAULT_PROFILE_KEY = "default_profile"
-#: HTS 로그인 아이디를 담는 예약 최상위 키. HTS 아이디는 사용자당 하나라 프로필별이 아니라
-#: 최상위에 한 번 둔다(모든 프로필이 공유). 인증엔 안 쓰이고 조건검색·관심종목의 user_id 로 쓴다.
+#: HTS 로그인 아이디의 기본값을 담는 예약 최상위 키(모든 프로필이 공유).
+#: 조건검색·관심종목의 user_id 로 쓰며, 조회에 직접 준 user_id 가 이 기본값보다 우선한다.
 _HTS_ID_KEY = "hts_id"
 _HTS_ID_ENV_VAR = "KIS_HTS_ID"
-#: 계좌비밀번호를 담는 예약 최상위 키. 사용자당 하나라 최상위에 한 번 둔다(모든 프로필 공유).
+#: 계좌비밀번호의 공유 fallback 을 담는 예약 최상위 키. 슬롯별 설정값이 있으면 그쪽을 먼저 쓴다.
 #: 일부 조회(야간 파생 잔고 등)의 ``ACNT_PWD`` 로만 쓰인다. **비밀값** -- repr/로그에 절대 노출하지 않는다.
 _ACCOUNT_PASSWORD_KEY = "account_password"
 _ACCOUNT_PASSWORD_ENV_VAR = "KIS_ACCOUNT_PASSWORD"
@@ -249,33 +247,20 @@ def order_store_path(*, account: str, environment: Environment, override: str | 
     파일명은 ``<환경>-<해시>.json`` 꼴이다. 계좌번호는 파일명에 그대로 노출하지 않고 SHA-256 앞
     16자리로 해시한다(파일 목록에 계좌번호가 드러나지 않게).
 
-    이전 버전은 이 저장소를 캐시 트리(``$XDG_CACHE_HOME/kis-trader/orders``)에 뒀다. 기본 위치를
-    쓸 때(``override`` 없음) 옛 캐시 위치에 같은 이름의 파일이 있고 새 state 위치엔 없으면, 처음 쓸 때
-    새 위치로 옮겨(read-old-then-write-new) dedup 연속성을 지킨다 -- 기존 저장소를 잃지 않는다."""
+    POSIX 기본 배치는 물리적 state 디렉터리에 구 캐시 디렉터리 별칭을 연결한다. 실제 구
+    디렉터리는 자동 이동하지 않는다. 모든 저장소 사용자와 자동 재시작을 중지한 뒤
+    ``kis config migrate-orders --offline`` 으로 이전해야 한다. 캐시 별칭이 삭제된 뒤에는
+    오프라인 복구 전 구 버전을 실행하지 않아야 한다. 명시적 override 경로는 이전하지 않는다."""
     digest = hashlib.sha256(account.encode()).hexdigest()[:16]
     filename = f"{environment}-{digest}.json"
     if override is not None:
         return Path(override).expanduser() / "orders" / filename
-    new_path = xdg_state_subdir(_APP_DIR_NAME, "orders") / filename
-    old_path = xdg_cache_subdir(_APP_DIR_NAME, "orders") / filename
-    if old_path.exists() and not new_path.exists():
-        _migrate_order_store(old_path, new_path)
-    return new_path
-
-
-def _migrate_order_store(old_path: Path, new_path: Path) -> None:
-    """옛 캐시 위치의 주문 dedup 저장소를 새 state 위치로 한 번 옮긴다. 재생성 불가한 영속 상태라
-    위치 이전에서 잃으면 안 되므로 복제가 아니라 이동한다 -- 같은 파일이 두 곳에 남아 서로 다른
-    프로세스가 갈라진 dedup 을 보지 않도록. 캐시와 state 가 다른 파일시스템이면 rename 대신 복사 후
-    원본을 지운다(:func:`shutil.move` 가 두 경우를 모두 처리)."""
-    new_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        shutil.move(str(old_path), str(new_path))
-    except (FileNotFoundError, shutil.Error):
-        # 동시 첫 실행에서 다른 프로세스가 이미 옮겼으면 원본이 사라지거나 대상이 먼저 생긴다.
-        # 대상이 존재하면 이전은 완료된 것이니 조용히 넘어가 크래시를 막는다(중복 이동은 무해).
-        if not new_path.exists():
-            raise
+    from ._order_store_layout import ensure_order_store_directory
+    directory = ensure_order_store_directory(
+        xdg_state_subdir(_APP_DIR_NAME, "orders"),
+        xdg_cache_subdir(_APP_DIR_NAME, "orders"),
+    )
+    return directory / filename
 
 
 def _split_account(account: str) -> tuple[str, str]:
@@ -311,12 +296,16 @@ def _load_credentials(directory: Path) -> dict[str, object]:
     파일이 있는데 읽거나 파싱할 수 없으면 -- 있는 자격증명을 '없음'으로 오진하지 않도록 --
     :class:`KISUsageError`."""
     path = directory / "credentials.json"
+    read_failed = False
+    parsed: object = None
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
-    except (OSError, json.JSONDecodeError) as err:
-        raise KISUsageError(f"{path} 가 있으나 읽을 수 없다.") from err
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        read_failed = True
+    if read_failed:
+        raise KISUsageError(f"{path} 가 있으나 읽을 수 없다.")
     if not isinstance(parsed, dict):
         raise KISUsageError(f"{path} 의 최상위가 프로필 객체가 아니다.")
     return parsed
@@ -477,7 +466,8 @@ def _resolve_account_password_v2(
 def _resolve_environment_v2(environment: Environment | None, loaded: dict[str, object]) -> str:
     """v2 환경 해석 체인(환경은 자격증명 슬롯의 주소다): 인자 > ``KIS_DEFAULT_ENVIRONMENT`` 환경변수
     (빈/공백은 미설정) > 최상위 ``"default_environment"`` 마커 > ``"paper"`` (fail-safe 기본). 유효성(real/paper)
-    검증은 호출부(:func:`_resolve_v2`)가 한다. no-auto-promote: 기본이 paper 라 실주문은 명시 없이는 불가."""
+    검증은 호출부(:func:`_resolve_v2`)가 한다. 인자·환경변수·저장 마커가 없을 때 paper 이며,
+    해당 환경에 프로필이 없다고 다른 환경으로 자동 전환하지 않는다."""
     if environment is not None:
         return environment
     env = os.environ.get(_DEFAULT_ENVIRONMENT_ENV_VAR)
@@ -676,12 +666,16 @@ def _merge_base_v2(path: Path) -> dict[str, object]:
     검증 후). 레거시(schema 마커 없는) 파일 -> 거부(``'kis config migrate'`` 로 변환 후 저장) -- 어댑터로
     읽히는 레거시 파일을 writer 가 조용히 반쪽 v2 로 만들지 않도록. 파손/비객체 -> 덮어써 남의 프로필을
     날리지 않게 fail-closed."""
+    read_failed = False
+    parsed: object = None
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {_SCHEMA_KEY: _SCHEMA_VERSION}
-    except (OSError, json.JSONDecodeError) as err:
-        raise KISUsageError(f"{path} 가 있으나 읽을 수 없어 병합할 수 없다.") from err
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        read_failed = True
+    if read_failed:
+        raise KISUsageError(f"{path} 가 있으나 읽을 수 없어 병합할 수 없다.")
     if not isinstance(parsed, dict):
         raise KISUsageError(f"{path} 의 최상위가 객체가 아니라 병합할 수 없다.")
     if not parsed:
@@ -846,3 +840,12 @@ __all__ = [
     "KISConfig", "ResolvedCredentials", "is_legacy_store", "list_profiles", "order_store_path",
     "resolve_credentials",
 ]
+
+
+def _migrate_order_store_layout(*, offline: bool) -> None:
+    """XDG 기본 주문 디렉터리만 오프라인 이전한다. 자격증명은 읽지 않는다."""
+    from ._order_store_layout import migrate_order_store_directory
+    migrate_order_store_directory(
+        xdg_state_subdir(_APP_DIR_NAME, "orders"),
+        xdg_cache_subdir(_APP_DIR_NAME, "orders"), offline=offline,
+    )

@@ -5,7 +5,7 @@ CLI 는 도메인 조건을 **탐지하지 않고 번역만** 한다: 패키지 
 종료 코드로 구분해, 스크립트가 결과를 프로그램적으로 분기할 수 있게 한다.
 
 종료 코드: 0 성공 / 2 인자 오류(argparse) / 3 로컬 구성·자격증명 / 4 도메인 검증·리스크 거부 /
-5 전송 실패 / 6 브로커 거부 / 7 주문 결과 불확실(reconcile 필요) / 130 사용자 중단.
+5 전송 실패 / 6 브로커 거부 / 7 주문 결과 불확실(저장 상태·계좌 조회 및 수동 확인 필요) / 130 사용자 중단.
 """
 from __future__ import annotations
 
@@ -48,7 +48,8 @@ class Translated:
 
 
 _RECONCILE_HINT = (
-    "재전송하지 마세요 -- `kis order reconcile <client_order_id>` 로 실제 상태를 확정하세요."
+    "재전송하지 마세요 -- `kis order reconcile <client_order_id>` 로 저장 상태를 확인하세요. "
+    "저장된 유효한 증권사 주문번호가 없으면 불명으로 유지되므로 HTS/MTS나 계좌 주문·체결 조회로 수동 확인하세요."
 )
 
 
@@ -66,7 +67,7 @@ def translate(exc: BaseException) -> Translated:
         # 있게 한다(예전엔 id 를 버리고 자리표시만 찍어, 재조회 대상을 알 수 없었다).
         return Translated(exit_code=7, outcome="unknown", retryable=False, reconcile_required=True,
                           message=f"주문 결과 불명(타임아웃) -- kis order reconcile {exc.client_order_id} "
-                                  f"로 확인하세요. {_RECONCILE_HINT}")
+                                  f"로 저장 상태를 확인하세요. {_RECONCILE_HINT}")
     if isinstance(exc, OrderRejectedError):
         return Translated(exit_code=6, outcome="rejected", retryable=False,
                           reconcile_required=False, message=f"브로커가 주문을 거부했습니다: {exc}")
@@ -75,7 +76,7 @@ def translate(exc: BaseException) -> Translated:
                           reconcile_required=False, message=f"사전 리스크 한도에 걸려 전송하지 않았습니다: {exc}")
     if isinstance(exc, OrderError):
         # 접수됐으나 결과 불명(예: rt_cd=0 인데 ODNO 없음 -> in-flight 유지). 주문이 살아
-        # 있을 수 있으니 실패로 단정하지 않고 reconcile 을 요구한다(타임아웃과 동급 처리).
+        # 있을 수 있으니 실패로 단정하지 않고 저장 상태·계좌 조회와 수동 확인을 안내한다.
         return Translated(exit_code=7, outcome="unknown", retryable=False, reconcile_required=True,
                           message=f"주문 결과 불명. {_RECONCILE_HINT} ({exc})")
     if isinstance(exc, AccountNotOrderableError):

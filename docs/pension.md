@@ -13,8 +13,11 @@ pension.orders()                                     # 당일 주문내역(체�
 pension.buyable(symbol="005930", limit_price=70000)  # 주문가능·최대매수
 ```
 
-CLI로는 연금 프로필을 선택한 뒤 `kis account buyable 005930 --limit-price 70000` 으로 같은 매수가능
-여력(주문가능현금·매수가능수량)을 조회합니다.
+CLI로는 상품코드 **29인 실전 슬롯**을 저장한 `irp` 프로필을 선택해
+`kis --profile irp --environment real account buyable 005930 --limit-price 70000` 을 요청할 수 있습니다.
+현재 이 CLI 명령은 일반 주식 매수가능 조회 경로를 사용하므로 위 IRP 전용 `pension.buyable()` 과
+API가 다릅니다. IRP 전용 조회에는 위 Python 예제를 사용하고, CLI의 지원 여부와 결과 항목은
+해당 계좌의 브로커 응답으로 확인해야 합니다.
 
 IRP(29)는 조회전용입니다 — KIS(APBK1744)가 주문을 거부하므로 이 렌즈에도 발주 메서드는
 없습니다. 일반 국내주식 잔고([계좌](account.md)의 `.domestic`)엔 없는 퇴직연금 전용 필드

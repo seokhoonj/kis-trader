@@ -236,3 +236,323 @@ def test_second_store_on_same_path_is_rejected(tmp_path):
     path = tmp_path / "s.json"
     with OrderStore(path, now=_clock), pytest.raises(KISError, match="이미 열려"):
         OrderStore(path, now=_clock)
+
+
+
+def _anchor_report(cid="cid-1", *, recorded=None):
+    return ExecutionReport(client_order_id=cid, order_id="confirmed", symbol="101S03", side="buy",
+        status=OrderStatus.NEW, filled_quantity=Decimal(0), average_price=None,
+        recorded_at=recorded or _clock())
+
+
+def test_submission_anchor_survives_record_refresh_cas_and_restart(tmp_path):
+    path = tmp_path / "anchors.json"
+    times = [_clock(), _clock() + timedelta(days=3)]
+    calls = []
+    def now():
+        calls.append(True)
+        return times[0]
+    with OrderStore(path, now=now, retention_days=0) as store:
+        store.try_claim("cid-1", _fp())
+        first = _clock().isoformat()
+        assert calls == [True]
+        assert store.claim_time_for("cid-1") == first
+        assert store.query_anchor_for("cid-1") == (first, "first_claim")
+        token = store._recovery_snapshot_for("cid-1")[3]
+        store.record(_anchor_report(), _fp())
+        assert store.claim_time_for("cid-1") is None
+        prior = store.snapshot_for("cid-1")
+        later = _anchor_report(recorded=times[1])
+        assert store.record_if_unchanged(later, _fp(), expected=prior)
+        assert not store.record_if_unchanged(_anchor_report(), _fp(), expected=prior)
+        assert store.query_anchor_for("cid-1") == (first, "first_claim")
+        assert store._recovery_snapshot_for("cid-1")[:3] == (later, _fp(), (first, "first_claim"))
+        assert store._recovery_snapshot_for("cid-1")[3] is token
+    with OrderStore(path, retention_days=0) as reopened:
+        assert reopened.query_anchor_for("cid-1") == (first, "first_claim")
+        assert len(reopened.snapshot_for("cid-1")) == 2
+        assert reopened._recovery_snapshot_for("cid-1")[3] is not token
+
+
+def test_submission_anchor_clear_reclaim_change_and_direct_record(tmp_path):
+    current = [_clock()]
+    with OrderStore(tmp_path / "lifecycle.json", now=lambda: current[0], retention_days=0) as store:
+        store.try_claim("cid-1", _fp())
+        original = store.query_anchor_for("cid-1")
+        store.record(_anchor_report(), _fp())
+        current[0] += timedelta(days=1)
+        store.try_claim_change("change", _change_fp(original="cid-1"), original_client_order_id="cid-1")
+        changed = store.query_anchor_for("change")
+        assert changed != original
+        store.record_change(_anchor_report("change", recorded=current[0]), _change_fp(original="cid-1"),
+            rebind=Binding(_anchor_report(recorded=current[0]), _fp()))
+        assert store.query_anchor_for("cid-1") == changed
+        assert json.loads((tmp_path / "lifecycle.json").read_text())["submission_anchors"]["cid-1"]["first_claimed_at"] == original[0]
+        assert store.query_anchor_for("change") == changed
+        store.record(_anchor_report("direct"), _fp())
+        assert store.query_anchor_for("direct") == (None, "unknown")
+        store.try_claim("rejected", _fp())
+        first = store.query_anchor_for("rejected")
+        store.clear_in_flight("rejected")
+        assert store.query_anchor_for("rejected") == (None, "unknown")
+        current[0] += timedelta(days=1)
+        store.try_claim("rejected", _fp())
+        assert store.query_anchor_for("rejected") != first
+
+
+@pytest.mark.parametrize("version", range(1, 12))
+def test_legacy_anchor_sources_frozen_without_read_rewrite(tmp_path, version):
+    path = tmp_path / "legacy-anchor.json"
+    with OrderStore(path, now=_clock, retention_days=0) as seed:
+        seed.record(_anchor_report(), _fp())
+        seed.try_claim("pending", _fp())
+    data = json.loads(path.read_text())
+    data["schema_version"] = version
+    data.pop("submission_anchors", None)
+    if version < 11:
+        data.pop("scope", None)
+    if version < 8:
+        data["in_flight"] = ["pending"]
+    path.write_text(json.dumps(data))
+    before = path.read_bytes()
+    with OrderStore(path, retention_days=0) as instance:
+        assert instance.query_anchor_for("cid-1") == (_clock().isoformat(), "legacy_recorded")
+        assert instance.query_anchor_for("pending") == ((_clock().isoformat(), "first_claim") if version >= 8 else (None, "unknown"))
+        assert path.read_bytes() == before
+        instance.record(_anchor_report(recorded=_clock() + timedelta(days=3)), _fp())
+    with OrderStore(path, retention_days=0) as reopened:
+        assert reopened.query_anchor_for("cid-1") == (_clock().isoformat(), "legacy_recorded")
+
+
+@pytest.mark.parametrize("value", ["", "bad", "2026-08-17T10:00:00", 1])
+@pytest.mark.parametrize("field", ["first_claimed_at", "current_claimed_at", "legacy_recorded_at"])
+def test_schema12_anchor_corruption_rejected_without_rewrite(tmp_path, value, field):
+    path = tmp_path / "corrupt-anchor.json"
+    with OrderStore(path, now=_clock) as instance:
+        instance.try_claim("cid-1", _fp())
+    data = json.loads(path.read_text())
+    data["submission_anchors"] = {"cid-1": {"first_claimed_at": None, "legacy_recorded_at": None, "current_claimed_at": None}}
+    data["submission_anchors"]["cid-1"][field] = value
+    path.write_text(json.dumps(data))
+    before = path.read_bytes()
+    with pytest.raises(KISError):
+        OrderStore(path)
+    assert path.read_bytes() == before
+    data["submission_anchors"]["cid-1"][field] = _clock().isoformat()
+    path.write_text(json.dumps(data))
+    with OrderStore(path):
+        pass
+
+
+def test_anchor_aware_recovery_rejects_cleared_reclaimed_same_fingerprint():
+    current = [_clock()]
+    instance = OrderStore(now=lambda: current[0])
+    instance.try_claim("cid-1", _fp())
+    stale = instance._recovery_snapshot_for("cid-1")
+    instance.clear_in_flight("cid-1")
+    current[0] += timedelta(days=1)
+    instance.try_claim("cid-1", _fp())
+    fresh = instance._recovery_snapshot_for("cid-1")
+    assert stale[:2] == fresh[:2]                     # 기존 2-tuple CAS 로는 재확보 세대를 구분 못 한다
+    assert not instance._record_recovery_if_unchanged(_anchor_report(), _fp(), expected=stale)
+    assert instance._recovery_snapshot_for("cid-1") == fresh
+
+
+@pytest.mark.parametrize("mutation", ["missing_map", "not_map", "missing_entry", "extra_entry", "not_object",
+    "extra_field", "missing_field", "both_sources", "legacy_naive"])
+def test_schema12_anchor_map_invariants_fail_closed(tmp_path, mutation):
+    path = tmp_path / "shape.json"
+    with OrderStore(path, now=_clock) as seed:
+        seed.try_claim("cid-1", _fp())
+    data = json.loads(path.read_text())
+    anchors = data["submission_anchors"]
+    entry = anchors["cid-1"]
+    if mutation == "missing_map":
+        del data["submission_anchors"]
+    elif mutation == "not_map":
+        data["submission_anchors"] = []
+    elif mutation == "missing_entry":
+        del anchors["cid-1"]
+    elif mutation == "extra_entry":
+        anchors["extra"] = dict(entry)
+    elif mutation == "not_object":
+        anchors["cid-1"] = None
+    elif mutation == "extra_field":
+        entry["other"] = None
+    elif mutation == "missing_field":
+        del entry["legacy_recorded_at"]
+    elif mutation == "both_sources":
+        entry["legacy_recorded_at"] = _clock().isoformat()
+    else:
+        entry["first_claimed_at"] = None
+        entry["current_claimed_at"] = None
+        entry["legacy_recorded_at"] = "2026-08-17T10:00:00"
+    path.write_text(json.dumps(data))
+    before = path.read_bytes()
+    with pytest.raises(KISError):
+        OrderStore(path)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("version", [8, 9, 10, 11])
+@pytest.mark.parametrize("timestamp", ["bad", "2026-08-17T10:00:00"])
+def test_legacy_nonempty_invalid_claim_timestamp_is_corruption(tmp_path, version, timestamp):
+    path = tmp_path / "legacy-corrupt.json"
+    data = {"schema_version": version, "scope": None, "in_flight": {"pending": timestamp},
+            "fingerprints": {}, "reports": {}}
+    path.write_text(json.dumps(data))
+    before = path.read_bytes()
+    with pytest.raises(KISError):
+        OrderStore(path)
+    assert path.read_bytes() == before
+
+
+def test_anchor_prune_rejection_and_no_prune_scope_binding(tmp_path):
+    current = [_clock()]
+    path = tmp_path / "retained.json"
+    with OrderStore(path, now=lambda: current[0]) as instance:
+        instance.try_claim("cid-1", _fp())
+        instance.record(_anchor_report(), _fp())
+        original = instance.query_anchor_for("cid-1")
+        current[0] += timedelta(days=30)
+        instance.bind_scope(cano="synthetic", product_code="01", environment="paper", adopt_legacy=True)
+        assert instance.query_anchor_for("cid-1") == original
+        instance.try_claim("pending", _fp())           # 일반 저장에서만 보존기간 정리
+        assert instance.query_anchor_for("cid-1") == (None, "unknown")
+        assert "cid-1" not in json.loads(path.read_text())["submission_anchors"]
+
+
+@pytest.mark.parametrize("version", [8, 9, 10, 11])
+def test_legacy_empty_claim_timestamp_stays_unknown(tmp_path, version):
+    path = tmp_path / "empty-legacy.json"
+    path.write_text(json.dumps({"schema_version": version, "scope": None,
+        "in_flight": {"pending": ""}, "fingerprints": {}, "reports": {}}))
+    with OrderStore(path) as instance:
+        assert instance.query_anchor_for("pending") == (None, "unknown")
+
+
+def test_anchor_replay_conflict_and_stale_change_never_reset_clock():
+    calls = []
+    def now():
+        calls.append(True)
+        return _clock()
+    instance = OrderStore(now=now)
+    instance.try_claim("cid-1", _fp())
+    original = instance.query_anchor_for("cid-1")
+    assert isinstance(instance.try_claim("cid-1", _fp()), InFlight)
+    instance.try_claim("cid-1", replace(_fp(), quantity="2"))
+    instance.record(_anchor_report(), _fp())
+    assert isinstance(instance.try_claim("cid-1", _fp()), Completed)
+    stale = Binding(replace(_anchor_report(), order_id="older"), _fp())
+    assert isinstance(instance.try_claim_change("stale", _change_fp(original="cid-1"),
+        original_client_order_id="cid-1", expected_original=stale), StaleOriginal)
+    assert calls == [True]
+    assert instance.query_anchor_for("stale") == (None, "unknown")
+    assert instance.query_anchor_for("cid-1") == original
+    instance.close()
+    with pytest.raises(KISError):
+        instance.query_anchor_for("cid-1")
+    with pytest.raises(KISError):
+        instance._recovery_snapshot_for("cid-1")
+
+
+def test_anchor_recovery_same_clock_clear_reclaim_rejects_stale_generation():
+    instance = OrderStore(now=_clock)
+    instance.try_claim("cid-1", _fp())
+    stale = instance._recovery_snapshot_for("cid-1")
+    instance.clear_in_flight("cid-1")
+    instance.try_claim("cid-1", _fp())
+    fresh = instance._recovery_snapshot_for("cid-1")
+    assert stale[:3] == fresh[:3]                     # 시각은 세대 식별자가 아니다
+    assert stale[3] is not fresh[3]
+    assert not instance._record_recovery_if_unchanged(_anchor_report(), _fp(), expected=stale)
+    assert instance._recovery_snapshot_for("cid-1") == fresh
+
+
+
+def test_current_broker_generation_anchor_changes_only_on_explicit_rebind(tmp_path):
+    friday = _clock() + timedelta(days=4)
+    monday = friday + timedelta(days=3)
+    tuesday = monday + timedelta(days=1)
+    current = [friday]
+    path = tmp_path / "broker-generation.json"
+    with OrderStore(path, now=lambda: current[0], retention_days=0) as instance:
+        instance.try_claim("cid-1", _fp())
+        instance.record(_anchor_report(recorded=friday), _fp())
+        current[0] = monday
+        instance.try_claim_change("change", _change_fp(original="cid-1"), original_client_order_id="cid-1")
+        change_token = instance._recovery_snapshot_for("change")[3]
+        instance.record_change(_anchor_report("change", recorded=monday), _change_fp(original="cid-1"),
+            rebind=Binding(replace(_anchor_report(recorded=monday), order_id="modified"), _fp()))
+        assert instance.query_anchor_for("cid-1") == (monday.isoformat(), "first_claim")
+        assert instance._recovery_snapshot_for("change")[3] is change_token
+        data = json.loads(path.read_text())["submission_anchors"]["cid-1"]
+        assert data["first_claimed_at"] == friday.isoformat()
+        assert data["current_claimed_at"] == monday.isoformat()
+        instance.record(replace(_anchor_report(recorded=tuesday), order_id="modified"), _fp())
+        assert instance.query_anchor_for("cid-1") == (monday.isoformat(), "first_claim")
+    with OrderStore(path, retention_days=0) as reopened:
+        assert reopened.query_anchor_for("cid-1") == (monday.isoformat(), "first_claim")
+
+
+def test_explicit_rebind_same_clock_invalidates_original_query_token():
+    instance = OrderStore(now=_clock)
+    instance.try_claim("cid-1", _fp())
+    instance.record(_anchor_report(), _fp())
+    stale = instance._recovery_snapshot_for("cid-1")
+    instance.try_claim_change("change", _change_fp(original="cid-1"), original_client_order_id="cid-1")
+    instance.record_change(_anchor_report("change"), _change_fp(original="cid-1"),
+        rebind=Binding(_anchor_report(), _fp()))
+    fresh = instance._recovery_snapshot_for("cid-1")
+    assert fresh[:3] == stale[:3]
+    assert not instance._record_recovery_if_unchanged(_anchor_report(), _fp(), expected=stale)
+    assert instance._recovery_snapshot_for("cid-1") == fresh
+
+
+def test_unknown_change_anchor_does_not_reuse_original_claim_proof():
+    instance = OrderStore(now=_clock)
+    instance.try_claim("cid-1", _fp())
+    instance.record(_anchor_report(), _fp())
+    instance.record_change(_anchor_report("unknown-change"), _change_fp(original="cid-1"),
+        rebind=Binding(_anchor_report(), _fp()))
+    assert instance.query_anchor_for("cid-1") == (None, "unknown")
+
+
+
+def test_legacy_generation_fallback_copied_on_rebind_without_changing_first_claim(tmp_path):
+    path = tmp_path / "weak-generation.json"
+    monday = _clock() + timedelta(days=7)
+    with OrderStore(path, now=_clock, retention_days=0) as instance:
+        instance.try_claim("cid-1", _fp())
+        instance.record(_anchor_report(), _fp())
+        instance.record(_anchor_report("change", recorded=monday), _change_fp(original="cid-1"))
+    data = json.loads(path.read_text())
+    data["submission_anchors"]["change"] = {
+        "first_claimed_at": None, "current_claimed_at": None, "legacy_recorded_at": monday.isoformat()}
+    path.write_text(json.dumps(data))
+    with OrderStore(path, retention_days=0) as instance:
+        instance.record_change(_anchor_report("change", recorded=monday), _change_fp(original="cid-1"),
+            rebind=Binding(_anchor_report(recorded=monday), _fp()))
+        assert instance.query_anchor_for("cid-1") == (monday.isoformat(), "legacy_recorded")
+        entry = json.loads(path.read_text())["submission_anchors"]["cid-1"]
+        assert entry["first_claimed_at"] == _clock().isoformat()
+        assert entry["current_claimed_at"] is None
+        instance.record(_anchor_report(recorded=monday + timedelta(days=1)), _fp())
+        assert instance.query_anchor_for("cid-1") == (monday.isoformat(), "legacy_recorded")
+    with OrderStore(path, retention_days=0) as reopened:
+        assert reopened.query_anchor_for("cid-1") == (monday.isoformat(), "legacy_recorded")
+
+
+def test_unknown_rebind_clears_old_legacy_generation_fallback(tmp_path):
+    path = tmp_path / "legacy-origin.json"
+    with OrderStore(path, retention_days=0) as seed:
+        seed.record(_anchor_report(), _fp())
+    data = json.loads(path.read_text())
+    data["schema_version"] = 11
+    del data["submission_anchors"]
+    path.write_text(json.dumps(data))
+    with OrderStore(path, retention_days=0) as instance:
+        assert instance.query_anchor_for("cid-1")[1] == "legacy_recorded"
+        instance.record_change(_anchor_report("unknown-change"), _change_fp(original="cid-1"),
+            rebind=Binding(_anchor_report(), _fp()))
+        assert instance.query_anchor_for("cid-1") == (None, "unknown")

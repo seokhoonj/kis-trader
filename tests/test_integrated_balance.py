@@ -93,7 +93,7 @@ def _overseas_resp():
         "output2": [{"crcy_cd": "USD", "crcy_cd_name": "미국달러",
                      "frcr_dncl_amt_2": "1000.50", "frst_bltn_exrt": "1350.20"}],
         "output3": {"pchs_amt_smtl_amt": "2500000", "evlu_amt_smtl_amt": "2800000",
-                    "tot_evlu_pfls_amt": "300000", "tot_asst_amt": "3000000"},
+                    "tot_evlu_pfls_amt": "300000", "tot_asst_amt": "3000000", "evlu_erng_rt1": "0"},
     }
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
 
@@ -106,7 +106,7 @@ def _overseas_resp_duplicate_currency():
                     {"crcy_cd": "USD", "crcy_cd_name": "미국달러",
                      "frcr_dncl_amt_2": "2000.00", "frst_bltn_exrt": "1351.00"}],
         "output3": {"pchs_amt_smtl_amt": "2500000", "evlu_amt_smtl_amt": "2800000",
-                    "tot_evlu_pfls_amt": "300000", "tot_asst_amt": "3000000"},
+                    "tot_evlu_pfls_amt": "300000", "tot_asst_amt": "3000000", "evlu_erng_rt1": "0"},
     }
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
 

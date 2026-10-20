@@ -177,7 +177,8 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
         return account.domestic.bonds.order_history(start=args.start, end=args.end, **filters)
     if args.older_than_three_months:
         filters["older_than_three_months"] = True
-    return account.domestic.order_history(start=args.start, end=args.end, **filters)
+        return account.domestic.order_history(start=args.start, end=args.end, **filters)
+    return account.domestic.combined_order_history(start=args.start, end=args.end, **filters)
 
 
 def cmd_reserved(kis: KISClient, args: Namespace) -> Any:

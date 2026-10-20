@@ -16,6 +16,8 @@ import json
 import pathlib
 import tomllib
 
+from packaging.requirements import Requirement
+
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _PLUGIN = _ROOT / "plugins" / "kis-trader"
 
@@ -94,3 +96,19 @@ def test_claude_marketplace_source_points_at_the_plugin():
     target = (_ROOT / entry["source"]).resolve()
     assert target.is_dir(), f"source path does not resolve: {entry['source']}"
     assert (target / ".claude-plugin" / "plugin.json").is_file()
+
+
+def test_plugin_server_requirement_pins_tested_published_version():
+    """서버 실행 요구사항은 검증한 배포 버전에 고정하고 실행 명령을 보존한다."""
+    manifest = _load_json("plugins/kis-trader/.claude-plugin/plugin.json")
+    server = manifest["mcpServers"]["kis-trader"]
+    assert server["command"] == "uvx"
+    assert len(server["args"]) == 3
+    assert server["args"][0] == "--from"
+    assert server["args"][2] == "kis-mcp"
+    requirement = Requirement(server["args"][1])
+    assert requirement.name == "kis-trader"
+    assert requirement.extras == {"mcp"}
+    assert str(requirement.specifier) == "==0.11.0"
+    assert requirement.url is None
+    assert requirement.marker is None

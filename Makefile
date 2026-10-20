@@ -7,7 +7,8 @@ test:
 	pytest -q
 
 lint:
-	ruff check src tests
+	ruff check src tests tools/check_docs.py
 
 types:
 	mypy
+	mypy --strict tools/check_docs.py

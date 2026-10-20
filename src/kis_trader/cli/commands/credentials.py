@@ -268,7 +268,7 @@ def _existing_bundle(loaded: dict[str, object], *, profile: str, environment: st
 
 def cmd_config_set(args: argparse.Namespace) -> None:
     """한 필드를 수정한다 -- ``kis config set general.paper.app_key`` 꼴. 시크릿은 argv 로 받지 않고
-    숨김 프롬프트로만 입력받는다. 기존 묶음에서 그 필드만 바꿔 다시 저장한다(슬롯은 미리 있어야 함)."""
+    숨김 프롬프트로만 입력받는다. 입력 후 잠금 안에서 최신 저장분을 다시 읽어 그 필드만 바꾼다(슬롯은 미리 있어야 함)."""
     profile, environment, field_name = _parse_set_address(args.address)
     _validate_profile_name_v2(profile)
     if environment not in _ENVIRONMENTS:
@@ -280,6 +280,8 @@ def cmd_config_set(args: argparse.Namespace) -> None:
     loaded = _load_credentials(_config_dir_path())
     _require_v2_or_fresh(loaded)
     merged = _existing_bundle(loaded, profile=profile, environment=environment)
+    if "app_key" not in merged or "app_secret" not in merged:
+        raise CliAborted(f"{profile}.{environment} 슬롯이 없습니다 -- 먼저 'kis config' 로 만드세요.")
 
     argv_value = getattr(args, "value", None)
     if field_name in _SECRET_FIELDS:
@@ -299,22 +301,29 @@ def cmd_config_set(args: argparse.Namespace) -> None:
             new_value = new_value or None                    # 비밀번호는 다듬지 않는다(공백이 유효할 수 있어)
         if field_name == "account" and new_value is not None:
             _validate_account(new_value)
-        if new_value is None:
-            merged.pop(field_name, None)
-        else:
-            merged[field_name] = new_value
     else:                                            # app_key / app_secret: 비울 수 없다
         if new_value is None or not new_value.strip():
             raise CliAborted(f"{field_name} 은 비어 있을 수 없습니다.")
-        merged[field_name] = new_value
 
-    if "app_key" not in merged or "app_secret" not in merged:
-        raise CliAborted(
-            f"{profile}.{environment} 에 app_key/app_secret 이 아직 없습니다 -- "
-            "먼저 'kis config' 로 슬롯을 만드세요.")
-    KISConfig(profile=profile, app_key=merged["app_key"], app_secret=merged["app_secret"],
-              account=merged.get("account"), environment=cast(Environment, environment),
-              account_password=merged.get(_ACCOUNT_PASSWORD_KEY)).save()
+    directory = _config_dir_path()
+    with _credentials_write_lock(directory):
+        current = _load_credentials(directory)
+        _require_v2_or_fresh(current)
+        _validate_v2_shape(current)
+        merged = _existing_bundle(current, profile=profile, environment=environment)
+        if "app_key" not in merged or "app_secret" not in merged:
+            raise CliAborted(
+                f"{profile}.{environment} 슬롯이 없거나 불완전합니다 -- 먼저 'kis config' 로 만드세요.")
+        block = current.get(environment)
+        assert isinstance(block, dict)               # 검증된 기존 슬롯만 수정한다
+        bundle = block.get(profile)
+        assert isinstance(bundle, dict)
+        if new_value is None:
+            bundle.pop(field_name, None)
+        else:
+            bundle[field_name] = new_value
+        _validate_v2_shape(current)
+        _write_credentials(directory, current)
     print(f"수정됨: {profile}.{environment}.{field_name}")
 
 
@@ -530,8 +539,8 @@ def _pick_default_profile(
 
 
 def cmd_config_migrate(args: argparse.Namespace) -> None:
-    """이전 형식(평평한) ``credentials.json`` 을 두 축 형식(schema 2)으로 변환한다. 구 ``main``(real)과
-    구 ``paper``(paper)를 한 계좌 종류로 합칠지, 그리고 같은 계좌 종류의 레거시 ``<X>``(real)와
+    """이전 형식(평평한) ``credentials.json`` 을 두 축 형식(schema 2)으로 변환한다. 구 ``main``과
+    구 ``paper``를 저장된 환경을 보존하며 한 계좌 종류로 합칠지, 그리고 같은 계좌 종류의 레거시 ``<X>``(real)와
     ``paper_<X>``(paper)를 한 v2 프로필 ``<X>`` 로 합칠지 **물어본다**(사람 지식이라 자동 추론하지
     않는다; ``--yes`` 는 규약대로 자동 병합). ``default_environment`` 는 fail-safe 로 ``paper`` 를,
     ``default_profile`` 은 합친/첫 프로필을 명시
@@ -573,11 +582,16 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
             slot_source[key] = source
             blocks[environment][target] = _legacy_bundle(profiles[source], top_password)
 
-        # 병합: 구 main(real) + 구 paper(paper) -> 한 계좌 종류. 같은 종류인지는 사람 지식이라 물어본다.
+        # 병합: 구 main + 구 paper -> 한 계좌 종류. 환경은 이름이 아닌 저장된 값을 보존한다.
         if "main" in profiles and "paper" in profiles:
+            main_env = _legacy_environment(profiles["main"])
+            paper_env = _legacy_environment(profiles["paper"])
             if yes:
                 do_merge, merged_name = True, "general"
-            elif _confirm("'general' 프로필로 합칠까요? real 슬롯 = 기존 'main', paper 슬롯 = 기존 'paper'"):
+            elif _confirm(
+                f"'general' 프로필로 합칠까요? {main_env} 슬롯 = 기존 'main', "
+                f"{paper_env} 슬롯 = 기존 'paper'",
+            ):
                 do_merge, merged_name = True, _prompt("합친 프로필 이름", "general")
             else:
                 do_merge, merged_name = False, ""
@@ -588,10 +602,10 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
                     raise CliAborted(
                         f"병합 이름 '{merged_name}' 이 이미 레거시 프로필로 있어 합치면 그 자격증명이 사라집니다 "
                         "-- 다른 이름을 쓰거나 '--yes' 없이 실행해 지정하세요.")
-                _claim(environment="real", target=merged_name, source="main")
-                _claim(environment="paper", target=merged_name, source="paper")
+                _claim(environment=main_env, target=merged_name, source="main")
+                _claim(environment=paper_env, target=merged_name, source="paper")
                 consumed |= {"main", "paper"}
-                renames += [("main", merged_name, "real"), ("paper", merged_name, "paper")]
+                renames += [("main", merged_name, main_env), ("paper", merged_name, paper_env)]
                 default_profile_name = merged_name
 
         # 병합(일반화): 같은 계좌 종류의 레거시 '<X>'(real) + 'paper_<X>'(paper) -> 한 v2 프로필 '<X>'.
@@ -664,3 +678,11 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
         if names:
             print(f"  [{environment}] {', '.join(names)}")
     _print_env_rename_table(renames)
+
+
+def cmd_config_migrate_orders(args: argparse.Namespace) -> None:
+    """전체 주문 저장소 사용자를 중지한 운영자 선언 아래 기본 디렉터리를 이전한다."""
+    from ...config import _migrate_order_store_layout
+    _migrate_order_store_layout(offline=args.offline)
+    print("모든 주문 저장소 사용자를 계속 중지한 상태에서 이전·검증을 완료했습니다. "
+          "보존 백업을 확인한 뒤 재시작하세요. 캐시 별칭 삭제 후에는 구 버전 실행 전에 다시 복구해야 합니다.")

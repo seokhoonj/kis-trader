@@ -7,8 +7,9 @@
 사전 리스크 점검(:func:`run_pre_trade_risk`, 참조가가 국내 시세 기반이라 여기 둔다), 그리고 국내
 일별체결조회 재조회(:func:`reconcile`)를 담는다. KIS 주문/체결조회 와이어 매핑은 이 안에 갇힌다.
 
-:func:`reconcile` 는 미확인 주문을 일별체결조회로 재조회한다 -- **보수적**: 스캔이 비거나
-모호하면 미접수로 단정하지 않고 in-flight 유지(부재는 미접수의 증거가 아니다).
+:func:`reconcile` 는 저장된 유효 증권사 주문번호가 있을 때 일별체결내역을 재조회한다.
+번호가 없는 초기 요청은 경제 조건만으로 자동 귀속하지 않으며, 스캔이 비거나 모호해도 미접수로
+단정하지 않고 in-flight 를 유지한다(부재는 미접수의 증거가 아니다).
 
 KIS URL/TR-ID (국내주식):
 - 현금주문: ``POST .../trading/order-cash`` 실전 매수 ``TTTC0012U`` / 매도 ``TTTC0011U``,
@@ -24,7 +25,12 @@ from decimal import Decimal
 from typing import Any
 
 from ..._internal._response import _CONTINUATION_END, _MAX_RECONCILE_PAGES
-from ..._internal._wire import decimal_or_zero, format_wire_decimal, normalize_order_number
+from ..._internal._wire import (
+    decimal_or_zero,
+    format_wire_decimal,
+    normalize_order_number,
+    required_decimal,
+)
 from ..._order_core import _extract_organization_number, _extract_output_mapping
 from ...errors import (
     KISError,
@@ -102,20 +108,17 @@ def reconcile(
     transport: Transport, store: OrderStore, client_order_id: str, *,
     cano: str, product_code: str, environment: Environment, force_refresh: bool = False,
 ) -> ExecutionReport | None:
-    """미확인 주문의 실제 상태를 브로커에 재조회한다 -- **보수적**(모듈 docstring 참고).
+    """저장된 국내 즉시주문의 증권사 주문번호(ODNO)로 일별체결내역을 재조회한다.
 
-    완료 리포트가 있으면 반환. in-flight 면 일별체결조회를 스캔해 지문과 맞는 주문을 찾는다:
-    정확히 1건이면 확정(단 그 행에 쓸 수 있는 ODNO 가 없으면 **비종료**는 ``None`` 유지 -- order_id=None
-    리포트가 이후 refresh 를 교착시키지 않게; **종료** 체결은 ODNO 없어도 확정), 0건이면 미접수로 단정하지
-    않고 ``None``(재전송 금지 유지), 2건 이상이면
-    :class:`KISError`(수동 확인). 스캔 실패(에러/타임아웃)는 in-flight 유지한 채 예외. 모르는 id면
-    :class:`KISUsageError`. **자동 해제는 절대 하지 않는다.**
+    기존 리포트가 있고 force_refresh 가 아니면 그대로 반환한다. 저장된 유효 증권사 주문번호가
+    없으면 경제 조건·날짜·시각의 일치만으로 초기 요청에 귀속하지 않고 None 을 반환한다.
+    미확인 기록과 같은 ID의 재전송 차단은 유지되므로 HTS/MTS 등에서 수동 확인해야 한다.
 
-    ``force_refresh`` 면 저장된 완료 리포트가 있어도 단락하지 않고 브로커를 다시 스캔한다 --
-    정정·취소(ChangeAction) 재조회가 원주문의 **현재** 상태(캐시가 아니라)를 확인하려고 쓴다.
-    이때 prior 에 확정 거래소주문번호(ODNO)가 있으면 지문 대신 그 ODNO 로 자기 행을 집어 동일수량
-    형제의 오귀속을 막는다(ODNO 가 없거나 전부-0/빈값인 타임아웃 복구에서만 지문으로 스캔한다).
-    """
+    force_refresh 는 캐시를 건너뛰어 현재 상태를 조회한다. 반환된 행을 저장 ODNO 로 로컬 필터링해
+    동일 수량의 다른 주문으로 바인딩하지 않는다. 0건은 미접수로 단정하지 않으며 비종료 prior 는
+    None, 종료 prior 는 기존 결과를 유지한다. 다건·조회 실패는 오류이며 미확인 기록을 해제하지
+    않는다. 모르는 ID는 KISUsageError다. 저장 ODNO 의 출처나 날짜별 재사용을 보편적으로 증명하는
+    계약은 아니며, 레거시 기록의 인과적 출처는 별도로 확인해야 한다."""
     prior, fingerprint = store.snapshot_for(client_order_id)  # 리포트+지문 원자 스냅샷(세대 일관)
     if prior is not None and not force_refresh:
         return prior
@@ -128,6 +131,10 @@ def reconcile(
             f"client_order_id {client_order_id!r} 의 지문이 즉시주문이 아니다"
             f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
+    # 저장된 유효 증권사 주문번호가 없으면 경제 조건이나 날짜만으로 요청을 귀속하지 않는다.
+    # 미확인 상태와 재전송 차단을 유지하며 HTS/MTS 등에서 수동 확인한다.
+    if prior is None or not (prior.order_id or "").strip().lstrip("0"):
+        return None
     try:
         rows = _fetch_daily_orders(transport, fingerprint.symbol, cano=cano,
                                    product_code=product_code, environment=environment)
@@ -139,18 +146,9 @@ def reconcile(
         ) from err
     want_odno = normalize_order_number(prior.order_id) if prior is not None and prior.order_id else ""
     if want_odno:
-        # force_refresh 재조회엔 place 가 실은 확정 거래소주문번호(ODNO)가 있다 -- 모호한 지문 대신
-        # 그 ODNO 로 자기 행을 집는다. 지문 매칭은 동일수량 형제를 다건매칭하거나(균등분할 TWAP 에서
-        # 측정 불능) 반영 지연 시 형제 행을 이 주문으로 오귀속해(형제 ODNO 가 store.record 돼 이후
-        # cancel 이 살아있는 형제를 겨냥) phantom 확정을 낸다. 저장 ODNO 가 전부-0/빈값(비정상)으로
-        # 정규화돼 비면 아래 elif/else 로 갈린다: prior 없으면 지문(타임아웃 복구), prior 있으면 0건
-        # 처리(지문 폴백 금지 -- 동일지문 형제 오확정 방지).
+        # 저장된 주문번호로 자기 행만 찾는다. 초기 번호 없는 요청은 조회 전에 반환한다.
         matches = [row for row in rows if normalize_order_number(str(row.get("odno", ""))) == want_odno]
-    elif prior is None:
-        matches = _filter_matching_daily_rows(rows, fingerprint)  # prior 없는 타임아웃 복구 전용
     else:
-        # prior 는 있는데 쓸 수 있는 ODNO 가 없다(order_id None/전부-0) -- 지문 폴백은 동일지문 형제를
-        # 오확정할 수 있으므로 쓰지 않고, 아래 0건 분기에서 종료-prior 폴백/None 으로 fail-closed 한다.
         matches = []
     if len(matches) > 1:
         raise KISError(
@@ -399,7 +397,7 @@ def _filter_matching_daily_rows(
     rows: list[Mapping[str, Any]], fingerprint: ImmediateOrderFingerprint
 ) -> list[Mapping[str, Any]]:
     """일별체결조회 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+주문구분+수량, 지정가면
-    단가까지 비교해 무관한 동일수량 주문의 오귀속을 줄인다. 신용/현금은 행의 대출일자(loan_dt)로
+    단가까지, 스톱지정가면 조건가격까지 비교해 무관한 동일수량 주문의 오귀속을 줄인다. 신용/현금은 행의 대출일자(loan_dt)로
     가른다 -- 안 그러면 같은 종목·수량·가격의 현금 체결이 미접수 신용주문을 phantom 확정할 수 있다."""
     symbol, side, order_type = fingerprint.symbol, fingerprint.side, fingerprint.order_type
     quantity = Decimal(fingerprint.quantity)
@@ -442,6 +440,13 @@ def _filter_matching_daily_rows(
         if limit_price is not None:
             row_price = row.get("ord_unpr")
             if row_price in (None, "") or decimal_or_zero(row_price) != limit_price:
+                continue
+        if fingerprint.order_type == "stop_limit":
+            try:
+                trigger = required_decimal(row.get("stpm_cndt_pric"), "stpm_cndt_pric")
+            except KISError:
+                continue
+            if trigger != Decimal(fingerprint.stop_price):
                 continue
         matched.append(row)
     return matched

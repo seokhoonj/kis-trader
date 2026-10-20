@@ -13,7 +13,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import ExecutionReport, KISClient, OrderStatus, OrderStore
+from kis_trader import ExecutionReport, KISClient, OrderStatus, OrderStore, RiskLimits
 from kis_trader.errors import (
     AccountNotOrderableError,
     KISAuthError,
@@ -22,6 +22,7 @@ from kis_trader.errors import (
     OrderError,
     OrderRejectedError,
     OrderTimeoutError,
+    PreTradeRiskError,
 )
 from kis_trader.transport import RawResponse, TransportTimeoutError
 
@@ -84,9 +85,9 @@ class FakeTransport:
         return outcome
 
 
-def _client(transport, *, environment="real", account="12345678-01", store=None):
+def _client(transport, *, environment="real", account="12345678-01", store=None, risk=None):
     return KISClient(app_key="k", app_secret="s", account=account, environment=environment,
-                     transport=transport, store=store)
+                     transport=transport, store=store, risk=risk)
 
 
 # --- 정상 전송 -------------------------------------------------------------
@@ -264,18 +265,17 @@ def test_reserve_reconcile_confirms_single_match(monkeypatch):
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
     cid = "20240101-reserved-rc01"
-    # 발주 타임아웃 -> in-flight
-    place_t = FakeTransport(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
-            quantity=1, limit_price=70000, client_order_id=cid)
+    # 접수 응답으로 증권사 주문번호를 저장한다.
+    place_t = FakeTransport(response=_ACCEPTED)
+    _client(place_t, store=store).domestic.stock("005930").reserve_buy(
+        quantity=1, limit_price=70000, client_order_id=cid)
     # 재조회: 예약주문조회에 지문과 맞는 미처리 예약 하나
     row = _reserved_row(qty="1", unpr="70000")
     row["rsvn_ord_rcit_dt"] = "20240603"
     recon_body = {"output": [row],
                   "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=recon_body)})
-    report = _client(recon_t, store=store).orders.reconcile(cid)
+    report = _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
     assert report is not None
     assert report.order_id == "42401"
     assert report.status is OrderStatus.PENDING_NEW
@@ -354,18 +354,17 @@ def test_reserve_reconcile_multi_match_raises(monkeypatch):
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
     cid = "20240101-reserved-rc03"
-    place_t = FakeTransport(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
-            quantity=1, limit_price=70000, client_order_id=cid)
+    place_t = FakeTransport(response=_ACCEPTED)
+    _client(place_t, store=store).domestic.stock("005930").reserve_buy(
+        quantity=1, limit_price=70000, client_order_id=cid)
     row1 = _reserved_row(seq="42401", qty="1", unpr="70000")
-    row2 = _reserved_row(seq="42402", qty="1", unpr="70000")
+    row2 = _reserved_row(seq="42401", qty="1", unpr="70000")
     row1["rsvn_ord_rcit_dt"] = row2["rsvn_ord_rcit_dt"] = "20240603"
     body = {"output": [row1, row2],
             "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     with pytest.raises(KISError):
-        _client(recon_t, store=store).orders.reconcile(cid)
+        _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
 
 
 def test_reserve_reconcile_scans_all_pages_before_confirming(monkeypatch):
@@ -376,12 +375,11 @@ def test_reserve_reconcile_scans_all_pages_before_confirming(monkeypatch):
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
     cid = "20240101-reserved-pg01"
-    place_t = FakeTransport(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
-            quantity=1, limit_price=70000, client_order_id=cid)
+    place_t = FakeTransport(response=_ACCEPTED)
+    _client(place_t, store=store).domestic.stock("005930").reserve_buy(
+        quantity=1, limit_price=70000, client_order_id=cid)
     row1 = _reserved_row(seq="42401", qty="1", unpr="70000")
-    row2 = _reserved_row(seq="42402", qty="1", unpr="70000")
+    row2 = _reserved_row(seq="42401", qty="1", unpr="70000")
     row1["rsvn_ord_rcit_dt"] = row2["rsvn_ord_rcit_dt"] = "20240603"
     page1 = RawResponse(rt_cd="0", msg_cd="M", msg1="", tr_cont="D",
                         body={"output": [row1],
@@ -391,7 +389,7 @@ def test_reserve_reconcile_scans_all_pages_before_confirming(monkeypatch):
                               "ctx_area_nk200": "", "ctx_area_fk200": ""})
     recon_t = FakeTransport(by_path={_INQUIRE: [page1, page2]})
     with pytest.raises(KISError):                      # 두 페이지 모두 스캔 -> 2건 -> 모호로 거부
-        _client(recon_t, store=store).orders.reconcile(cid)
+        _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
     assert len(recon_t.calls) == 2                     # 커서가 남아 둘째 페이지도 조회했다
 
 
@@ -455,6 +453,9 @@ def test_reserve_reconcile_rejects_partial_match(monkeypatch, changed):
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     assert _client(recon_t, store=store).orders.reconcile(cid) is None
     assert store.fingerprint_for(cid) is not None
+    from kis_trader.domestic._engine.reserved_orders import _filter_matching_reserved
+    assert _filter_matching_reserved([row], store.fingerprint_for(cid), {_dt.date(2024, 6, 3)}) == []
+    assert recon_t.calls == []
 
 
 def test_reserve_reconcile_skips_cancelled_same_fingerprint(monkeypatch):
@@ -474,6 +475,9 @@ def test_reserve_reconcile_skips_cancelled_same_fingerprint(monkeypatch):
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     assert _client(recon_t, store=store).orders.reconcile(cid) is None
     assert store.fingerprint_for(cid) is not None    # 여전히 in-flight
+    from kis_trader.domestic._engine.reserved_orders import _filter_matching_reserved
+    assert _filter_matching_reserved([row], store.fingerprint_for(cid), {_dt.date(2024, 6, 3)}) == []
+    assert recon_t.calls == []
 
 
 def test_reserve_reconcile_skips_stale_receipt_same_fingerprint(monkeypatch):
@@ -492,6 +496,9 @@ def test_reserve_reconcile_skips_stale_receipt_same_fingerprint(monkeypatch):
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     assert _client(recon_t, store=store).orders.reconcile(cid) is None
     assert store.fingerprint_for(cid) is not None
+    from kis_trader.domestic._engine.reserved_orders import _filter_matching_reserved
+    assert _filter_matching_reserved([row], store.fingerprint_for(cid), {_dt.date(2024, 6, 3)}) == []
+    assert recon_t.calls == []
 
 
 def test_reserve_reconcile_skips_missing_receipt_same_fingerprint(monkeypatch):
@@ -509,6 +516,9 @@ def test_reserve_reconcile_skips_missing_receipt_same_fingerprint(monkeypatch):
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     assert _client(recon_t, store=store).orders.reconcile(cid) is None
     assert store.fingerprint_for(cid) is not None
+    from kis_trader.domestic._engine.reserved_orders import _filter_matching_reserved
+    assert _filter_matching_reserved([row], store.fingerprint_for(cid), {_dt.date(2024, 6, 3)}) == []
+    assert recon_t.calls == []
 
 
 def test_reserve_reconcile_confirms_fresh_receipt(monkeypatch):
@@ -516,23 +526,19 @@ def test_reserve_reconcile_confirms_fresh_receipt(monkeypatch):
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
     cid = "20240101-reserved-fr01"
-    place_t = FakeTransport(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
-            quantity=1, limit_price=70000, client_order_id=cid)
+    place_t = FakeTransport(response=_ACCEPTED)
+    _client(place_t, store=store).domestic.stock("005930").reserve_buy(
+        quantity=1, limit_price=70000, client_order_id=cid)
     row = _reserved_row(seq="42401", qty="1", unpr="70000")
     row["rsvn_ord_rcit_dt"] = "20240603"             # 오늘 접수
     row["cncl_ord_dt"] = ""
     body = {"output": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
-    report = _client(recon_t, store=store).orders.reconcile(cid)
+    report = _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
     assert report is not None and report.order_id == "42401"
 
 
-def test_reserve_reconcile_confirms_receipt_days_after_placement(monkeypatch):
-    # 예약은 며칠 뒤 체결된다 -- 발주(5/30) 후 늦게(6/3) reconcile 해도 접수일자(5/30)가 발주일(claim)
-    # 앵커 창에 들어 확정돼야 한다. reconcile 호출일 고정창({6/3, 6/2})이면 5/30 이 빠져 영구 미확정
-    # (None 반복->수동 재주문->이중체결)되던 회귀를 막는 가드다.
+def test_reserve_reconcile_keeps_old_unknown_pending(monkeypatch):
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)  # 오늘=6/3
     placed_at = lambda: _dt.datetime(2024, 5, 30, 10, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
     store = OrderStore(now=placed_at)                # claim(발주) 시각 = 5/30
@@ -547,23 +553,24 @@ def test_reserve_reconcile_confirms_receipt_days_after_placement(monkeypatch):
     body = {"output": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     report = _client(recon_t, store=store).orders.reconcile(cid)
-    assert report is not None and report.order_id == "42402"
-    # 조회 start 가 발주일(5/30)-7 = 5/23 로 co-anchor 됐는지 핀한다 -- 호출일(6/3)-7 = 5/27 로 두던
-    # 과거 코드로 되돌리면 이 단언이 깨진다(쿼리창 widening 회귀 가드).
-    assert recon_t.calls[0]["params"]["RSVN_ORD_ORD_DT"] == "20240523"
+    assert report is None and recon_t.calls == []
+    assert store.is_in_flight(cid) and store.report_for(cid) is None
+    from kis_trader._internal._datetime import _reconcile_recency_window
+    from kis_trader.domestic._engine.reserved_orders import _filter_matching_reserved
+    dates = _reconcile_recency_window(_dt.date(2024, 5, 30), _dt.date(2024, 6, 3))
+    assert _filter_matching_reserved([row], store.fingerprint_for(cid), dates) == [row]
 
 
 def test_reserve_reconcile_window_and_process_params(monkeypatch):
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-reserved-win01"
-    place_t = FakeTransport(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
-            quantity=1, limit_price=70000, client_order_id=cid)
+    place_t = FakeTransport(response=_ACCEPTED)
+    _client(place_t, store=store).domestic.stock("005930").reserve_buy(
+        quantity=1, limit_price=70000, client_order_id=cid)
     body = {"output": [], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
-    _client(recon_t, store=store).orders.reconcile(cid)
+    _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
     params = recon_t.calls[0]["params"]
     # 고정된 오늘 20240603 기준 양방향 창(오늘-7 ~ 오늘+31), 처리/미처리 모두(0)
     assert params["RSVN_ORD_ORD_DT"] == "20240527"   # 20240603 - 7
@@ -590,3 +597,147 @@ def test_reserve_requires_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_ACCEPTED), account=None).domestic.stock("005930").reserve_buy(
             quantity=1, limit_price=1)
+
+
+@pytest.mark.parametrize("side", ["buy", "sell"])
+@pytest.mark.parametrize("risk", [
+    RiskLimits(max_order_quantity=1),
+    RiskLimits(max_order_notional=100),
+    RiskLimits(max_order_quantity=1, max_order_notional=100),
+])
+def test_reserved_create_risk_rejects_before_wire_or_claim(side, risk):
+    fake = FakeTransport(response=_ACCEPTED)
+    store = OrderStore()
+    cid = "reserved-risk-reject"
+    with pytest.raises(PreTradeRiskError):
+        getattr(_client(fake, store=store, risk=risk).domestic.stock("005930"), "reserve_" + side)(
+            quantity=1000, limit_price=70000, client_order_id=cid,
+        )
+    assert fake.calls == []
+    assert store.snapshot_for(cid) == (None, None)
+    assert not store.is_in_flight(cid)
+
+
+@pytest.mark.parametrize("risk, price", [
+    (RiskLimits(max_order_notional=100), None),
+    (RiskLimits(price_collar_percent=10), 100),
+    (RiskLimits(enforce_tick_size=True), 70001),
+])
+def test_reserved_create_uncheckable_or_tick_risk_rejects_without_claim(risk, price):
+    fake = FakeTransport(response=_ACCEPTED)
+    store = OrderStore()
+    with pytest.raises(PreTradeRiskError):
+        _client(fake, store=store, risk=risk).domestic.stock("005930").reserve_buy(
+            quantity=1, limit_price=price, client_order_id="uncheckable",
+        )
+    assert fake.calls == []
+    assert store.snapshot_for("uncheckable") == (None, None)
+
+
+@pytest.mark.parametrize("price", [None, "100"])
+def test_reserved_create_quantity_and_fixed_notional_equality_allows_normalized_wire(price):
+    fake = FakeTransport(response=_ACCEPTED)
+    risk = RiskLimits(max_order_quantity=2, max_order_notional=None if price is None else 200)
+    report = _client(fake, risk=risk).domestic.stock("005930").reserve_buy(
+        quantity=Decimal("2.0"), limit_price=price,
+    )
+    assert report.status is OrderStatus.PENDING_NEW
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["body"]["ORD_QTY"] == "2.0"
+    assert fake.calls[0]["body"]["ORD_UNPR"] == ("0" if price is None else "100")
+
+
+def test_reserved_create_rejected_id_not_claimed_and_can_be_used_with_compliant_terms(monkeypatch):
+    fake = FakeTransport(response=_ACCEPTED)
+    store = OrderStore()
+    claims = []
+    original_claim = store.try_claim
+
+    def claim(*args, **kwargs):
+        claims.append(args)
+        return original_claim(*args, **kwargs)
+
+    monkeypatch.setattr(store, "try_claim", claim)
+    stock = _client(fake, store=store, risk=RiskLimits(max_order_quantity=1)).domestic.stock("005930")
+    with pytest.raises(PreTradeRiskError):
+        stock.reserve_buy(quantity=2, limit_price=100, client_order_id="reusable")
+    assert claims == []
+    report = stock.reserve_buy(quantity=1, limit_price=100, client_order_id="reusable")
+    assert report.order_id == "42401"
+    assert len(claims) == len(fake.calls) == 1
+
+
+def test_reserved_completed_replay_precedes_newly_incompatible_risk():
+    store = OrderStore()
+    fake = FakeTransport(response=_ACCEPTED)
+    report = _client(fake, store=store).domestic.stock("005930").reserve_buy(
+        quantity=1000, limit_price=70000, client_order_id="completed-risk",
+    )
+    stricter = _client(fake, store=store, risk=RiskLimits(max_order_quantity=1, price_collar_percent=1))
+    assert stricter.domestic.stock("005930").reserve_buy(
+        quantity=1000, limit_price=70000, client_order_id="completed-risk",
+    ) is report
+    assert len(fake.calls) == 1
+
+
+@pytest.mark.parametrize("quantity, message", [(1000, "결과가 확인"), (1001, "다른 주문")])
+def test_reserved_pending_or_conflict_precedes_new_risk(quantity, message):
+    store = OrderStore()
+    fake = FakeTransport(raises=TransportTimeoutError("unknown"))
+    with pytest.raises(OrderTimeoutError):
+        _client(fake, store=store).domestic.stock("005930").reserve_buy(
+            quantity=1000, limit_price=70000, client_order_id="pending-risk",
+        )
+    before = store.snapshot_for("pending-risk")
+    stricter = _client(fake, store=store, risk=RiskLimits(max_order_quantity=1))
+    with pytest.raises(KISUsageError, match=message):
+        stricter.domestic.stock("005930").reserve_buy(
+            quantity=quantity, limit_price=70000, client_order_id="pending-risk",
+        )
+    assert store.is_in_flight("pending-risk")
+    assert store.snapshot_for("pending-risk") == before
+    assert len(fake.calls) == 1
+
+
+def test_reserved_risk_checked_concurrent_fresh_claim_sends_once(monkeypatch):
+    from kis_trader.domestic._engine import reserved_orders as engine
+
+    fake = FakeTransport(response=_ACCEPTED)
+    stock = _client(fake, risk=RiskLimits(max_order_quantity=1)).domestic.stock("005930")
+    barrier = threading.Barrier(2)
+    original = engine._check_reserved_risk
+
+    def check(*args, **kwargs):
+        original(*args, **kwargs)
+        barrier.wait(timeout=2)
+
+    monkeypatch.setattr(engine, "_check_reserved_risk", check)
+    reports, errors = [], []
+
+    def reserve():
+        try:
+            reports.append(stock.reserve_buy(quantity=1, limit_price=100, client_order_id="risk-race"))
+        except KISUsageError as error:
+            errors.append(error)
+
+    workers = [threading.Thread(target=reserve, daemon=True) for _ in range(2)]
+    try:
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=3)
+            assert not worker.is_alive()
+        assert len(fake.calls) == 1
+        assert reports and len(reports) + len(errors) == 2
+    finally:
+        barrier.abort()
+        for worker in workers:
+            worker.join(timeout=1)
+
+
+@pytest.mark.parametrize("risk", [RiskLimits(max_order_quantity=1), RiskLimits(max_order_notional=199)])
+def test_reserved_create_one_unit_above_configured_cap_rejected(risk):
+    fake = FakeTransport(response=_ACCEPTED)
+    with pytest.raises(PreTradeRiskError):
+        _client(fake, risk=risk).domestic.stock("005930").reserve_buy(quantity=2, limit_price=100)
+    assert fake.calls == []

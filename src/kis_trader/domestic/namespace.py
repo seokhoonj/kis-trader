@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     )
     from .entities.product import DomesticProductInfo
     from .entities.saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
-    from .entities.stock_orders import StockOrderHistory
+    from .entities.stock_orders import StockOrderHistory, StockOrderHistoryCollection
     from .entities.trade_profit import DailyProfitHistory, TradeProfitHistory
 
 
@@ -133,6 +133,25 @@ class DomesticAccount:
             older_than_three_months=older_than_three_months,
         )
 
+    def combined_order_history(
+        self, *, start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
+        unfilled_only: bool = False,
+    ) -> StockOrderHistoryCollection:
+        """국내주식 최근·과거 주문 내역을 같은 기간으로 각각 조회한다.
+
+        ``start``/``end`` 는 YYYYMMDD 실재 날짜, 시작일 <= 종료일이어야 한다.
+        ``side`` = all/sell/buy, ``symbol`` 없으면 전체, ``unfilled_only`` 면 미체결만.
+        그 외에는 미체결·거부 주문도 포함한다. 최근·과거 각각의 합계는 반환값의 ``recent`` /
+        ``historical`` 에 보존하며 통합 합계는 만들지 않는다. 같은 완전 식별정보의 관측이
+        서로 다르면 오류다. 어느 한 조회 실패 시 부분 결과를 반환하지 않는다.
+        공급자의 보관기간·허용 조회기간을 보장하지 않는다. 실전·모의 모두 지원한다.
+        """
+        cano, product_code = self._client._require_account()
+        return account_api.fetch_combined_stock_order_history(
+            self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
+            start=start, end=end, side=side, symbol=symbol, unfilled_only=unfilled_only,
+        )
+
     def trade_profits(
         self, *, start: str, end: str, symbol: str | None = None, sort: ProfitSort = "recent"
     ) -> TradeProfitHistory:
@@ -206,12 +225,13 @@ class DomesticAccount:
         """예약주문을 정정한다 -- 브로커 규격상 종목/방향/수량/단가/종료일을 **전체 재지정**한다.
         ``limit_price`` 를 생략하면 기존 단가 유지가 아니라 **시장가**로 바뀐다. 정정 후 순번이 바뀔 수
         있으니 이후 정정·취소가 필요하면 :meth:`reserved_orders` 로 재확인하라. **모의투자 미지원**, 국내
-        현금 예약만."""
+        현금 예약만. 세션의 risk 는 교체 후 전체 수량/지정 금액에 적용한다. 미래 참조가를
+        조회하지 않으므로 참조가가 필요한 설정은 확인 불가로 거부한다."""
         cano, product_code = self._client._require_account()
         reserved_orders_api.modify_reserved_order(
             self._client.transport, reserved_order_id=reserved_order_id, symbol=symbol, side=side, quantity=quantity,
             limit_price=limit_price, end_date=end_date, order_date=order_date,
-            cano=cano, product_code=product_code, environment=self._client.environment,
+            cano=cano, product_code=product_code, environment=self._client.environment, risk=self._client._risk,
         )
 
 
@@ -317,7 +337,7 @@ class DomesticNamespace:
 
     def _resolve_user_id(self, user_id: str | None) -> str:
         """조건검색·관심종목 조회의 ``user_id``(HTS 아이디)를 정한다. 명시하면 그대로, 없으면
-        세션의 ``hts_id``(사용자당 하나, 모든 프로필 공유)를 쓴다. 둘 다 없으면 :class:`KISUsageError`."""
+        세션의 ``hts_id``(최상위 공유 설정값)를 쓴다. 둘 다 없으면 :class:`KISUsageError`."""
         resolved = user_id if user_id is not None else self._client.hts_id
         if not resolved:
             raise KISUsageError(
@@ -370,6 +390,6 @@ class DomesticNamespace:
 
     @property
     def elw_screener(self) -> ELWScreenerQueries:
-        """ELW 스크리닝 질의 -- ``underlyings()`` / ``by_underlying(code)`` / ``newly_listed(date=...)`` 등."""
+        """ELW 스크리닝 질의 -- ``underlyings()`` / ``by_underlying(code)`` / ``newly_listed(base_date=...)`` 등."""
         return ELWScreenerQueries(self._client)
 

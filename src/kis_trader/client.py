@@ -169,7 +169,7 @@ class KISClient:
         (:class:`~kis_trader.risk.RiskLimits`)를 통과해야 한다(fat-finger 방지).
 
         ``throttle`` (기본 True)은 built-in 전송에 sliding-window 유량 제한기를 붙여 KIS 호출
-        유량(공식 실전 초당 18건/모의 1건, **앱키 단위 합산**) 아래로 마진을 두고(실전 15/모의 1)
+        유량(공식 실전 초당 20건/모의 2건, **앱키 단위 합산**) 아래로 마진을 두고(실전 15/모의 1)
         선제적으로 속도를 조절한다. ``requests_per_second`` 로 초당 한도를 바꾸고, ``throttle=False``
         로 끈다(직접 관리하거나 앱키를 분산 운용할 때). 주입한 ``transport`` 에는 적용되지 않는다.
         유량은 앱키(계좌) 단위라 **같은 앱키를 다른 프로세스/앱이 동시에 쓰면 이 리미터로 조율되지
@@ -231,6 +231,20 @@ class KISClient:
         #: 계좌비밀번호(야간 파생 잔고 등 일부 조회의 ACNT_PWD). **비밀값** -- 공개 프로퍼티로 노출하지
         #: 않고, 어디에도 출력/로그하지 않는다. 내부 조회 함수만 이 접근자로 읽는다.
         self._account_password = account_password
+        self._cano, self._product_code = _split_optional_account(account)
+        # 상품계좌종류(ACNT_PRDT_CD)로 이용 가능 범위를 자동 반영한다(공식 FAQ 2026-03-26):
+        # DC가입자(55)는 Open API 이용 자체가 불가 -> 생성 거부. IRP(29)는 조회만 가능(주문 불가)
+        # -> orderable 을 자동으로 끈다. 수동 orderable 플래그는 더 제약만 가능(주문불가 계좌를
+        # 켜지 못한다). 연금저축(22)은 주문 가능이라 막지 않는다(IRP 와 혼동 주의).
+        if self._product_code in _API_UNAVAILABLE_PRODUCT_CODES:
+            raise KISUsageError(
+                f"상품계좌종류 {self._product_code}(DC가입자)는 한국투자 Open API 이용이 불가하다."
+            )
+        # 주문 멱등 dedup 저장소. 기본은 세션 인메모리 -- 프로세스 재시작에도 dedup 을 유지하려면
+        # store=OrderStore(path=...) 로 영속 저장소를 주입하라(권장, 이중체결 장벽 지속).
+        self._store = store if store is not None else OrderStore()
+        if self._cano is not None and self._product_code is not None:
+            self._store.bind_scope(cano=self._cano, product_code=self._product_code, environment=environment)
         if transport is None:
             from ._internal._auth import TokenManager
             from ._internal._http import RequestsTransport
@@ -240,7 +254,7 @@ class KISClient:
             )
 
             # 앱키 단위 호출 유량을 선제적으로 지킨다(기본 on). requests_per_second 로 초당 한도를
-            # override, 없으면 환경 기본값(실전 15/모의 1 -- 공식 18/1 아래 마진). throttle=False 면
+            # override, 없으면 환경 기본값(실전 15/모의 1 -- 공식 20/2 아래 마진). throttle=False 면
             # 리미터 미장착(사용자가 직접 관리하거나 앱키를 분산 운용). 주입한 transport 엔 미적용.
             rate_limiter = None
             if throttle:
@@ -273,18 +287,6 @@ class KISClient:
                     f"({environment!r})과 다르다 -- 안전 게이트와 소켓 목적지가 갈라진다(같게 맞춰라)."
                 )
         self._transport = transport
-        self._cano, self._product_code = _split_optional_account(account)
-        # 상품계좌종류(ACNT_PRDT_CD)로 이용 가능 범위를 자동 반영한다(공식 FAQ 2026-03-26):
-        # DC가입자(55)는 Open API 이용 자체가 불가 -> 생성 거부. IRP(29)는 조회만 가능(주문 불가)
-        # -> orderable 을 자동으로 끈다. 수동 orderable 플래그는 더 제약만 가능(주문불가 계좌를
-        # 켜지 못한다). 연금저축(22)은 주문 가능이라 막지 않는다(IRP 와 혼동 주의).
-        if self._product_code in _API_UNAVAILABLE_PRODUCT_CODES:
-            raise KISUsageError(
-                f"상품계좌종류 {self._product_code}(DC가입자)는 한국투자 Open API 이용이 불가하다."
-            )
-        # 주문 멱등 dedup 저장소. 기본은 세션 인메모리 -- 프로세스 재시작에도 dedup 을 유지하려면
-        # store=OrderStore(path=...) 로 영속 저장소를 주입하라(권장, 이중체결 장벽 지속).
-        self._store = store if store is not None else OrderStore()
         self._orderable = orderable and self._product_code not in _READ_ONLY_PRODUCT_CODES
         # 신용(융자/대주) 주문은 위험이 커 기본 비활성 -- opt-in(allow_credit=True) 해야 credit_buy/sell 이
         # 와이어에 닿는다. 조회(credit_buyable)는 읽기라 게이트하지 않는다.
@@ -408,7 +410,7 @@ class KISClient:
         return self._domestic_index
 
     def _reconcile(self, client_order_id: str, *, refresh: bool = False) -> ExecutionReport | None:
-        """미확인 주문(타임아웃 등)의 실제 상태를 재조회한다 -- 주문 엔진에 위임(``kis.orders.reconcile``)."""
+        """저장 리포트 반환 또는 알려진 증권사 주문번호의 상태 갱신 -- 번호 없는 최초 요청은 불명 유지. 주문 엔진에 위임(``kis.orders.reconcile``)."""
         return self._order_engine.reconcile(client_order_id, refresh=refresh)
 
     def _change_order(
@@ -506,12 +508,15 @@ class KISClient:
             )
 
     def _require_account(self) -> tuple[str, str]:
-        """계좌 식별정보를 돌려주거나, 없으면 :class:`KISUsageError`."""
+        """계좌 식별정보와 저장소 귀속을 확인한다. 계좌 누락·귀속 불일치는 :class:`KISUsageError`."""
         if self._cano is None or self._product_code is None:
             raise KISUsageError(
                 "계좌 조회/주문에는 계좌 정보가 필요하다 -- "
                 "KISClient(..., account='12345678-01') 로 생성하라."
             )
+        self._store.bind_scope(
+            cano=self._cano, product_code=self._product_code, environment=self._environment,
+        )
         return self._cano, self._product_code
 
     def _require_account_password(self) -> str:

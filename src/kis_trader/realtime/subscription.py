@@ -9,7 +9,8 @@
 from __future__ import annotations
 
 import logging
-import queue
+import threading
+from collections import deque
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, Self, TypeVar, cast
 
@@ -19,7 +20,6 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 _logger = logging.getLogger("kis_trader.realtime")
-_SENTINEL = object()  # 반복 종료 신호
 
 
 class RealtimeSubscription(Generic[T]):
@@ -42,25 +42,22 @@ class RealtimeSubscription(Generic[T]):
         self.tr_key = tr_key
         self._on = on
         self._unsubscribe = unsubscribe
-        # 큐 자체는 상한 없이 두고 데이터 항목만 수동으로 상한(``maxsize``)에 맞춰 드롭한다.
-        # 종료 sentinel 은 제어 신호라 상한과 무관하게 항상 들어가야 하므로(꽉 찬 큐에 blocking
-        # put 하면 소비자 없는 close 가 영원히 막힌다) 큐를 unbounded 로 둔다.
         self._maxsize = maxsize
-        self._queue: queue.Queue[object] = queue.Queue()
+        # 종료는 데이터와 별도 상태로 보관해 overflow 가 종료 신호를 지울 수 없게 한다.
+        self._queue: deque[object] = deque()
+        self._condition = threading.Condition()
         self._closed = False
         self._overflow_warned = False
 
     def _feed(self, message: RealtimeMessage) -> None:
-        """dispatch 가 매칭 메시지를 전달. 콜백 실행 후 엔티티를 drop-oldest 로 적재.
+        """매칭 메시지의 콜백을 실행한 뒤 열린 구독에만 엔티티를 적재한다.
 
-        ``close()`` 뒤에 도착하는 late 메시지는 (대부분) 무시한다. dispatch 는 라우팅 스냅샷을 락
-        밖에서 ``_feed`` 하므로 close 와 경합할 수 있는데, 닫힌 뒤 적재하면 큐가 상한일 때 drop-oldest
-        가 종료 sentinel 을 밀어내 ``__next__`` 가 영구 블록될 수 있다 -- ``_closed`` 가드가 이를 막는다.
-        단 ``_closed`` 확인과 콜백 호출 사이에 close 가 끼어들면 **이미 디스패치 중이던 콜백이 최대 1회**
-        발화할 수 있다(단일 생산자라 그 이상은 없다).
+        콜백은 잠금 밖에서 실행한다. 종료 전에 실행이 허용된 콜백은 종료와 경합해 끝날 수
+        있지만, 적재 직전에 닫힘을 다시 확인하므로 종료 뒤 새 데이터가 들어가지는 않는다.
         """
-        if self._closed:
-            return
+        with self._condition:
+            if self._closed:
+                return
         entity = message.data
         if self._on is not None:
             try:
@@ -72,46 +69,54 @@ class RealtimeSubscription(Generic[T]):
         self._enqueue(entity)
 
     def _enqueue(self, entity: object) -> None:
-        if self._maxsize and self._queue.qsize() >= self._maxsize:
-            try:
-                self._queue.get_nowait()  # 가장 오래된 것 드롭
-            except queue.Empty:
-                pass
-            if not self._overflow_warned:
-                self._overflow_warned = True
-                _logger.warning(
-                    "realtime subscription 큐가 상한에 도달 -- 소비가 느려 오래된 항목을 드롭합니다 (%s/%s)",
-                    self.tr_id,
-                    self.tr_key,
-                )
-        self._queue.put(entity)
+        warn_overflow = False
+        with self._condition:
+            if self._closed:
+                return
+            if self._maxsize and len(self._queue) >= self._maxsize:
+                if self._queue:
+                    self._queue.popleft()  # 가장 오래된 데이터만 드롭
+                if not self._overflow_warned:
+                    self._overflow_warned = True
+                    warn_overflow = True
+            self._queue.append(entity)
+            self._condition.notify()
+        if warn_overflow:
+            # 로깅 핸들러도 사용자 코드를 실행할 수 있으므로 잠금 밖에서 호출한다.
+            _logger.warning(
+                "realtime subscription 큐가 상한에 도달 -- 소비가 느려 오래된 항목을 드롭합니다 (%s/%s)",
+                self.tr_id,
+                self.tr_key,
+            )
 
     def __iter__(self) -> Self:
         return self
 
     def __next__(self) -> T:
-        item = self._queue.get()
-        if item is _SENTINEL:
+        with self._condition:
+            while not self._queue and not self._closed:
+                self._condition.wait()
+            if self._queue:
+                return cast("T", self._queue.popleft())
             raise StopIteration
-        return cast("T", item)  # 큐엔 엔티티(T) 또는 종료 sentinel 만 들어오고, sentinel 은 위에서 걸러짐
 
     def close(self) -> None:
-        """구독 해제(wire unsubscribe) + 반복 종료. 멱등."""
-        if self._closed:
-            return
-        self._closed = True
+        """반복을 영구 종료하고 구독 해제(wire unsubscribe). 멱등이며 남은 데이터는 소비 가능."""
+        with self._condition:
+            if self._closed:
+                return
+            self._closed = True
+            self._condition.notify_all()
+        # 해제가 실패하거나 재진입해도 반복자는 이미 종료 상태다. 외부 코드는 잠금 밖에서 실행.
         self._unsubscribe(self)
-        self._queue.put(_SENTINEL)
 
     def _shutdown(self) -> None:
-        """클라이언트 종료 시 호출 -- 반복만 종료하고 wire unsubscribe 는 하지 않는다.
-
-        ``stop()`` 이 소켓을 이미 닫으므로 개별 해제는 불필요·불가하다. 미종료 구독의 반복
-        (``for tick in sub``)이 영구 블록되지 않게 종료 sentinel 만 넣는다. 멱등."""
-        if self._closed:
-            return
-        self._closed = True
-        self._queue.put(_SENTINEL)
+        """클라이언트 종료 시 반복만 영구 종료한다. wire unsubscribe 없이 남은 데이터는 소비 가능."""
+        with self._condition:
+            if self._closed:
+                return
+            self._closed = True
+            self._condition.notify_all()
 
     def __enter__(self) -> Self:
         return self

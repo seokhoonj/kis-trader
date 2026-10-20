@@ -406,7 +406,8 @@ def _fetch_minute_bars(
 ) -> list[Bar]:
     """해외 1분봉을 과거->현재 오름차순으로. 최신부터 120건씩 받고, KEYB(직전 페이지 최오래 봉의 현지
     시각 1분 전)로 뒤로 밀며 모은다. 새 봉이 없으면 종료(다음가능 플래그 인코딩과 무관하게 자가종료),
-    페이지 상한 초과는 fail-closed. 봉 식별은 현지 일자+시각(xymd+xhms)."""
+    페이지 상한 초과는 fail-closed. 봉 식별은 현지 일자+시각(xymd+xhms), 반환 timestamp 는
+    한국 일자+시각(kymd+khms)에 KST 를 붙인다."""
     bar_by_key: dict[str, Bar] = {}    # "YYYYMMDDHHMMSS"(현지) -> Bar, 고정폭이라 문자열 정렬=시간순
     keyb = ""                          # 첫 조회는 공백
     for _page in range(_MAX_MINUTE_PAGES):
@@ -451,8 +452,11 @@ def _fetch_minute_bars(
 def _parse_minute_bars(
     rows: Sequence[Mapping[str, Any]], *, symbol: str
 ) -> list[tuple[str, str, Bar]]:
-    """해외 분봉 행 -> (현지일자, 현지시각, Bar). 종가 ``last``, 거래량 ``evol``, timestamp 는 현지
-    일자+시각(``xymd``+``xhms``; 해외 일봉이 현지일자 xymd 를 쓰는 것과 같은 관례)."""
+    """해외 분봉 행 -> (현지일자, 현지시각, Bar). 종가 ``last``, 거래량 ``evol``.
+
+    식별·페이지 커서는 현지 ``xymd``/``xhms`` 를 유지하고, Bar.timestamp 는 한국 기준
+    ``kymd``/``khms`` 를 검증해 KST 로 반환한다(HHDFS76950200).
+    """
     out: list[tuple[str, str, Bar]] = []
     for row in rows:
         day = str(row.get("xymd", "")).strip()
@@ -460,11 +464,20 @@ def _parse_minute_bars(
         close_text = str(row.get("last", "")).strip()
         if not day or not moment or not close_text:  # 빈 봉 skip
             continue
+        korean_day = str(row.get("kymd", "")).strip()
+        korean_moment = str(row.get("khms", "")).strip()
+        if (
+            len(korean_day) != 8 or not korean_day.isascii() or not korean_day.isdigit()
+            or len(korean_moment) != 6 or not korean_moment.isascii() or not korean_moment.isdigit()
+        ):
+            raise KISError("해외 분봉 한국 기준 kymd/khms 는 YYYYMMDD/HHMMSS 여야 한다.")
         out.append((
             day, moment,
             Bar(
                 symbol=symbol,
-                timestamp=_parse_minute_bar_timestamp(date_text=day, time_text=moment),
+                timestamp=_parse_minute_bar_timestamp(
+                    date_text=korean_day, time_text=korean_moment,
+                ),
                 open=required_decimal(row.get("open"), "open"),
                 high=required_decimal(row.get("high"), "high"),
                 low=required_decimal(row.get("low"), "low"),

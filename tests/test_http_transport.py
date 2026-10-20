@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import traceback
 from collections.abc import Mapping
 from typing import Any
 
@@ -469,7 +470,7 @@ def _raising_send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[st
     ],
 )
 def test_error_paths_never_leak_credentials(tmp_path: Any, send: Any, error_type: type[BaseException]) -> None:
-    # BOUNDARY Sec.12.2: 자격증명을 다루는 패키지는 모든 에러 경로에서 비밀 값이 예외 문자열에도,
+    # 자격증명은 모든 에러 경로에서 예외 문자열에도,
     # 그 __cause__/__context__ 연쇄에도 안 섞여 나오는지 회귀로 고정해야 한다. 고유 센티넬로
     # app_key/app_secret/access_token 셋을 심고 전 경로에서 부재를 확인한다.
     with pytest.raises(error_type) as excinfo:
@@ -531,3 +532,57 @@ def test_requests_send_wraps_presend_config_error_as_plain_kis_error(monkeypatch
     with pytest.raises(KISError) as excinfo:
         _http._requests_send("GET", "https://x", headers={}, params=None, json_body=None)
     assert not isinstance(excinfo.value, TransportTimeoutError)
+
+
+@pytest.mark.parametrize(
+    ("exception_name", "sent_unknown"),
+    [
+        ("Timeout", True),
+        ("ConnectionError", True),
+        ("RequestException", True),
+        ("TooManyRedirects", True),
+        ("InvalidHeader", False),
+        ("URLRequired", False),
+        ("MissingSchema", False),
+        ("InvalidSchema", False),
+        ("InvalidURL", False),
+    ],
+)
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_default_sender_errors_do_not_retain_secrets(
+    tmp_path: Any, monkeypatch: Any, exception_name: str, sent_unknown: bool, method: str,
+) -> None:
+    import requests
+
+    from kis_trader._internal import _http
+
+    password = "SYNTHETIC_PASSWORD_ONLY_42"
+    calls = 0
+
+    class FailedSession:
+        def request(self, method: str, url: str, **kwargs: Any) -> Any:
+            nonlocal calls
+            calls += 1
+            prepared = requests.Request(
+                method, url, headers=kwargs["headers"], params=kwargs["params"],
+                json=kwargs["json"],
+            ).prepare()
+            # 실제 준비된 URL과 헤더/바디를 담는 외부 오류도 패키지 경계에서 제거해야 한다.
+            message = f"{prepared.url} {prepared.headers} {prepared.body!r}"
+            raise getattr(requests.exceptions, exception_name)(message, request=prepared)
+
+    monkeypatch.setattr(_http, "_SESSION", FailedSession())
+    transport = _leak_probe_transport(tmp_path, _http._requests_send, max_attempts=3)
+    with pytest.raises(KISError) as excinfo:
+        transport.request(
+            method=method, path="/uapi/x", tr_id="TR", idempotent=True,
+            params={"ACNT_PWD": password}, body={"ACNT_PWD": password},
+        )
+    error = excinfo.value
+    assert isinstance(error, TransportTimeoutError) is sent_unknown
+    assert calls == (3 if method == "GET" and sent_unknown else 1)
+    formatted = "".join(traceback.format_exception(error))
+    for secret in (password, _APP_KEY_SENTINEL, _APP_SECRET_SENTINEL, _TOKEN_SENTINEL):
+        assert secret not in formatted
+    assert error.__cause__ is None
+    assert error.__context__ is None

@@ -40,13 +40,14 @@ MCP 는 있어도 되고 없어도 되는 **선택 기능**입니다. 파이썬�
 됩니다. **설치는 세 앱(Claude Desktop·Cursor·ChatGPT Desktop)이 공통**이고, **연결 방법만 앱마다
 다릅니다** -- 먼저 공통 설치를 끝내고, 쓰는 앱에 맞춰 아래 절 중 하나만 따라 하세요.
 
-**플랜 조건이 앱마다 다릅니다**(개인이라면 Claude Desktop 이 가장 쉽습니다):
+**플랜·워크스페이스 정책에 따라 연결 가능 여부가 달라집니다.** 현재 계정에서 다음 공식 안내와
+서버 추가 메뉴를 확인한 뒤 연결하세요:
 
 | AI 앱 | 커스텀 MCP 플랜 조건 |
 |---|---|
-| **Claude Desktop** | 무료 포함 **전 플랜 OK**(무료는 시간당 도구 호출·컨텍스트 등 사용량만 제한) -- 장벽 가장 낮음 |
-| **Cursor** | **유료(Pro 이상) 필요** -- 무료 Hobby 는 커스텀 MCP 서버 추가 불가 |
-| **ChatGPT Desktop** | **Business·Enterprise/Edu 워크스페이스 전용** -- 개인 Plus·Pro·Free 전부 불가(그래서 맨 뒤 참고) |
+| **Claude Desktop** | [공식 로컬 MCP 안내](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)와 설치된 앱의 MCP 설정·조직 정책 확인 |
+| **Cursor** | [현재 MCP 안내](https://prod.cursor.com/help/customization/mcp)와 계정의 플랜 조건 확인. Pro 이상만 가능하다고 가정하지 않음 |
+| **ChatGPT Desktop** | [공식 연결 안내](https://developers.openai.com/plugins/deploy/connect-chatgpt)에서 현재 계정·워크스페이스 권한 확인 |
 
 ::: {.callout-tip}
 **계좌 하나만 쓰는 가장 짧은 길**은 [가장 쉽게 시작](easy.md) 에 직선으로 정리돼 있습니다(Claude Desktop
@@ -88,7 +89,8 @@ uv tool install 'kis-trader[mcp]'
 ::: {.callout-note}
 `pip` 이 아니라 `uv tool` 을 쓰는 이유: 요즘 macOS 의 `pip` 은 막혀 있고(`externally-managed-environment`
 오류), `uv tool` 은 실행 파일을 **한 폴더에 모아** 다음 단계에서 경로를 쉽게 찾을 수 있습니다
-(`uv tool dir --bin` 으로 그 폴더를 확인). `[mcp]` 를 빼면 MCP 서버가 안 깔리니 **따옴표째** 그대로 붙여넣으세요.
+(`uv tool dir --bin` 으로 그 폴더를 확인). `[mcp]` 는 서버 실행에 필요한 의존성을 설치합니다. 실행 명령 자체는 기본 패키지에도 등록되지만,
+의존성이 없으면 실행할 수 없으므로 **따옴표째** 그대로 붙여넣으세요.
 :::
 
 **3. 자격증명(앱키)을 저장합니다.** -- 터미널에 아래 한 줄을 치면 묻는 대로 입력합니다(앱키·시크릿은 화면에
@@ -105,8 +107,8 @@ kis config
 
 ## Claude Desktop 에 연결
 
-**플랜:** 무료 플랜 포함 **모든 플랜에서 됩니다**(커스텀 MCP 서버가 무료에도 열려 있음; 무료는 시간당
-도구 호출 횟수·컨텍스트 한도 같은 사용량만 제한). 개인이 추가 결제 없이 가장 쉽게 붙이는 길입니다.
+**플랜:** [공식 로컬 MCP 안내](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)와
+설치된 앱의 MCP 설정을 확인하세요. 조직 계정에는 관리자의 확장 프로그램 정책도 적용됩니다.
 
 Claude Desktop 은 `kis-mcp` 를 **stdio** 로 직접 띄웁니다 -- 설정 파일에 실행 파일 경로만 적으면 됩니다.
 
@@ -193,7 +195,8 @@ Claude Desktop 은 `kis-mcp` 를 **stdio** 로 직접 띄웁니다 -- 설정 파
 **`HTTP 500`("Error executing tool")** 으로만 실패할 수 있습니다 -- 원인 메시지가 화면에 안 보이니, 그때는
 로그를 보세요: macOS `~/Library/Logs/Claude/mcp-server-kis-trader.log`, Windows
 `%APPDATA%\Claude\logs\mcp-server-kis-trader.log`. 환경은 기본이 모의(`paper`)이고, 실전은 아래
-[실주문 가드레일](#실주문-가드레일)을 모두 갖춰 `KIS_MCP_ENVIRONMENT=real` 로 명시했을 때만 씁니다.
+`KIS_MCP_ENVIRONMENT=real` 로 선택합니다. 실전 계좌 조회와 실전 주문 권한은 별개이며,
+실전 주문 도구를 사용하려면 [실주문 가드레일](#실주문-가드레일)이 추가로 필요합니다.
 :::
 
 ::: {.callout-note collapse="true"}
@@ -229,12 +232,14 @@ kis-mcp   # 서버 시작. 오류 없이 멈춰 있으면 정상 -- Ctrl-C 로 �
 
 ## Cursor 에 연결
 
-**플랜:** **유료(Pro 이상) 필요** -- 무료 **Hobby** 플랜은 커스텀 MCP 서버를 추가할 수 없습니다. 무료로
-쓰려면 위 Claude Desktop 을 쓰세요.
+**플랜:** 현재 계정의 [MCP 지원 조건](https://prod.cursor.com/help/customization/mcp)을 확인하세요.
+[공식 기존 플랜 안내](https://prod.cursor.com/docs/account/pricing/legacy-cursor-plans)에는 Pro 외 Start에도
+MCP가 포함돼 있습니다. 현재 계정에 적용되는 조건은 위 안내와 앱 설정에서 확인하세요.
 
-Cursor 도 Claude Desktop 과 같은 **stdio** 방식입니다. `Settings → MCP Servers` 에서 Claude Desktop 과
-**똑같은** 등록 내용을 넣으면 됩니다(위 [Claude Desktop 에 연결](#claude-desktop-에-연결)의 JSON 을 그대로).
-Cursor 도 stdio 를 지원하므로 `command` 에 `kis-mcp` 경로를 그대로 적습니다.
+Cursor도 **stdio**를 지원합니다. [공식 수동 설정 안내](https://prod.cursor.com/help/customization/mcp)에 따라
+프로젝트의 `.cursor/mcp.json` 또는 사용자 전체 설정인 `~/.cursor/mcp.json` 에
+위 [Claude Desktop 등록 JSON](#claude-desktop-에-연결)의 `mcpServers` 항목을 기존 설정과 병합합니다.
+`command` 에는 `kis-mcp` 전체 경로를 넣고, 저장한 뒤 Cursor를 다시 시작합니다.
 
 ::: {.callout-note collapse="true"}
 ## (고급) 전송 방식 바꾸기 -- stdio · sse · streamable-http
@@ -256,7 +261,8 @@ kis-mcp
 ```
 
 **기본은 로컬(127.0.0.1) 전용입니다.** 돈이 오가는 서버라, 토큰 없이 비-로컬 host 로 열려 하면 거부합니다
-(fail-closed). ChatGPT 처럼 공개 HTTPS 커넥터만 받는 클라이언트는 아래 둘을 갖춰 노출합니다.
+(fail-closed). 공개 HTTPS로 연결할 때는 아래 보호를 갖추세요. ChatGPT의 Secure MCP Tunnel을
+사용하는 경우에는 터널의 로컬 대상과 인증 구성을 공식 안내에 따라 별도로 설정합니다.
 
 1. **`KIS_MCP_ACCESS_TOKEN`** 을 설정하면 비-로컬 bind 가 열리고, 모든 HTTP 요청에
    `Authorization: Bearer <토큰>` 을 요구합니다(불일치/누락 → 401). 방어심층입니다.
@@ -273,40 +279,32 @@ kis-mcp
 ## (참고) ChatGPT Desktop 에 연결
 
 ::: {.callout-important}
-**커스텀 MCP 커넥터는 현재 ChatGPT Business·Enterprise·Edu 워크스페이스 전용입니다.** OpenAI 도움말
-기준 개인 **Plus·Pro 는 커스텀 커넥터를 만들 수 없고**(디렉터리 앱 read/fetch 만 가능), Free 도 안 됩니다
--- Developer mode 를 켜는 토글과 "Create" 버튼 자체가 개인 계정엔 나타나지 않습니다. 개인 계정이면 위
-**[Claude Desktop 에 연결](#claude-desktop-에-연결)**(로컬 stdio, 플랜 무관·바로 됨)이나
-**[Cursor 에 연결](#cursor-에-연결)**을 쓰세요. 이 절은 **Business·Enterprise/Edu 워크스페이스(관리자가
-Developer mode 활성화)** 에서만 유효합니다.
+연결 가능 여부는 현재 ChatGPT 계정·워크스페이스 정책을 확인하세요. 아래 절차는
+[공식 연결 안내](https://developers.openai.com/plugins/deploy/connect-chatgpt)의 사용자 지정 MCP 서버 연결을
+기준으로 하며, 특정 개인 플랜이나 워크스페이스의 사용 권한을 보장하지 않습니다.
 :::
 
-ChatGPT Desktop 앱은 앞의 Claude Desktop·Cursor 와 **붙는 방식이 다릅니다.** 둘은 내 PC 에서 서버를 직접
-띄우는 stdio(표준 입출력) 로 붙지만, ChatGPT 는 앱이든 웹이든 **원격 HTTPS 커넥터(SSE)만** 받습니다 --
-내 PC 의 명령(`command`)을 가리킬 수 없고 **URL** 로 붙어야 합니다(커넥터는 ChatGPT 계정에 등록돼 웹·앱·
-모바일 어디서나 쓰입니다). 그래서 `kis-mcp` 를 **SSE 전송**으로 띄운 뒤, 공개 URL 없이 ChatGPT 가 로컬
-서버에 닿게 해주는 **Secure MCP Tunnel**(OpenAI 가 제공하는, 내 PC 에서 바깥으로 연결을 여는 작은
-클라이언트) 로 연결합니다. 돈이 오가는 로컬 서버를 공개 인터넷에 직접 노출하지 않아도 됩니다.
+ChatGPT에는 공개 HTTPS의 streamable HTTP 서버(`/mcp`)나 **Secure MCP Tunnel**로 연결합니다.
+터널은 설정한 로컬 stdio 또는 HTTP MCP 서버에 연결할 수 있습니다. SSE만 요구되는 것은 아닙니다.
+공개 인터넷에 직접 노출하지 않을 로컬 HTTP 예시는 다음과 같습니다:
 
-준비물: **ChatGPT Business·Enterprise·Edu 워크스페이스**(관리자가 Developer mode 활성화). 개인 Plus·Pro·Free
-는 위 경고대로 불가합니다. 순서:
+```bash
+export KIS_MCP_PROFILE=general
+export KIS_MCP_ENVIRONMENT=paper
+export KIS_MCP_TRANSPORT=streamable-http
+kis-mcp  # 기본 loopback 주소의 /mcp 경로
+```
 
-1. **`kis-mcp` 를 SSE 전송으로 띄웁니다** -- 기본은 로컬 전용(`127.0.0.1`) 이고, HTTP 로 열 때는 토큰을
-   요구합니다(위 **(고급) 전송 방식 바꾸기** 항목의 fail-closed 규칙):
+loopback HTTP는 토큰 없이 시작할 수 있습니다. 비로컬 주소에 직접 바인딩하려면
+`KIS_MCP_ACCESS_TOKEN` 이 필요하며, 토큰을 설정하면 loopback에서도 인증을 검사합니다.
+공개 URL 운영 시 TLS·인증·접근 제어를 별도로 갖추세요. 앞 절의 SSE 설정은 서버가 지원하는 다른
+전송 옵션이며 ChatGPT 연결의 필수 조건은 아닙니다.
 
-   ```bash
-   export KIS_MCP_PROFILE=general
-   export KIS_MCP_ENVIRONMENT=paper          # 실전은 real (가드레일 갖췄을 때만)
-   export KIS_MCP_TRANSPORT=sse              # ChatGPT 는 SSE(원격 HTTPS)
-   export KIS_MCP_ACCESS_TOKEN=아무_긴_비밀문자열   # 비-로컬 노출 시 필수(Bearer 토큰)
-   kis-mcp                                    # http://127.0.0.1:8000/sse 로 뜸
-   ```
-
-2. **ChatGPT 에서 커넥터를 만듭니다** -- `chatgpt.com/plugins` → **`Add`** → **`Create MCP App`**.
-   **Connection** 에서 **`Tunnel`**(Secure MCP Tunnel)을 고르면 공개 URL 없이 위 로컬 서버(1단계)의 SSE
-   엔드포인트로 연결됩니다. 직접 URL 을 쓸 거면 **Server URL** 에 역프록시/터널이 내준 HTTPS 주소(`.../sse`)를 넣습니다.
-3. **`Scan Tools`** 를 눌러 도구 목록을 받아옵니다. 인증을 걸었으면(OAuth/토큰) 그 단계를 먼저 통과합니다.
-4. 연결되면 ChatGPT 대화에서 "내 KIS 잔고 보여줘" 처럼 말하면 됩니다.
+1. `chatgpt.com/plugins` 에서 추가 버튼 → **Add custom MCP server**를 선택합니다.
+2. 이름·설명을 입력하고 Connection에서 공개 `/mcp` URL 또는 Tunnel을 선택합니다.
+   터널은 공식 안내에 따라 로컬 stdio/HTTP 서버를 대상으로 먼저 구성해야 합니다.
+3. 인증과 위험 안내를 확인한 뒤 **Create as a plugin**을 선택하고 발견된 도구·메타데이터를 검토합니다.
+4. 연결된 뒤 조회부터 확인하세요. 주문 도구는 아래 별도 안전장치가 적용됩니다.
 
 안전: `kis-mcp` 는 조회·주문 미리보기·대조에 더해 실주문 도구(`place_order`·`cancel_order`·`modify_order`)도
 내주지만, 실주문은 **기본 차단**입니다 -- 기동 시 명시적 언락 환경변수(`KIS_MCP_ALLOW_REAL` +
@@ -326,8 +324,9 @@ HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부�
 **실주문(매수·매도·정정·취소)은 기본이 모의(paper)이고, 실전 주문은 여러 겹의 안전장치를 모두 통과해야만
 나갑니다** -- 이중 잠금 + fat-finger 한도(RiskLimits) + 종목 허용목록(allowlist) + **사람 확인(elicitation)**
 + 세션 서킷브레이커(아래 [실주문 가드레일](#실주문-가드레일)). 하나라도 빠지면 주문을 보내기 전에 막습니다
-(fail-closed). 주문 내용(종목·매수매도·수량·가격)은 **사람이 직접** 적고 확인합니다 -- 조회 결과를 그대로
-주문에 흘려 넣지 않습니다(taint 경계).
+(fail-closed; 도구별 예외는 아래 적용 범위 참고). 주문 내용(종목·매수매도·수량·가격)은
+확인 창에서 사람이 직접 검토해야 합니다. 스칼라 인자만 받는 형식이 입력의 사람 작성 여부나
+조회 결과에서 유래했는지까지 추적·보장하지는 않습니다.
 :::
 
 ## 제공하는 도구
@@ -356,7 +355,7 @@ HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부�
 | `list_profiles` | 활성 환경에 저장됐고 현재 세션에서 전환 가능한 프로필 + 활성 프로필·환경·`switching_enabled` 반환(직접-자격증명 기동처럼 전환 불가면 빈 목록) |
 | `current_account` | 지금 보는 중인 활성 계좌·환경 표시 |
 | `order_preview` | 주문 **미리보기** -- 보내지 않고 나갈 티켓만 보여 줌(`sent: false`) |
-| `reconcile` | 결과가 불분명한 주문을 사후 확정 |
+| `reconcile` | 저장된 유효한 증권사 주문번호가 있는 주문의 상태 갱신. 번호 없는 최초 불명 요청은 `resolved: false`, `report: null` 유지 |
 | `place_order` | 주식 **실주문**(매수·매도). 국내는 `division`([주문](orders.md)의 division 표의 KRX 주문구분; 조건부지정가·애프터마켓 등. NXT 전용 `gtp_*` 는 KRX 기본 경로라 제외)을 받고, 해외는 `region="overseas"` + `exchange`(NAS/NYS/…)로 지정가 주문을 낸다. 안전장치·사람 확인을 거친 뒤 전송 |
 | `cancel_order` | 접수된 주문 취소(`client_order_id` 로 지정) |
 | `modify_order` | 접수된 주문의 가격·수량 정정 |
@@ -399,8 +398,8 @@ IRP(`29`)·파생은 조회 전용이라 주문이 나가지 않습니다. 해�
 - **정보 유출 차단** -- 응답은 frozen dataclass 에서 공개 필드만 골라 직렬화하고, `_raw`(벤더 원본 응답)와
   밑줄 필드는 떼어 냅니다. 계좌번호는 마지막 4자리만 남기고 가립니다(`****7801`). 자격증명은 환경변수
   또는 `KIS_MCP_PROFILE` 로 지정한 저장 프로필에서만 읽고 절대 출력하지 않습니다.
-- **기본은 모의** -- 환경은 기본이 모의투자이고, 실전은 `KIS_MCP_ENVIRONMENT=real` 과 이중 잠금을
-  명시했을 때만 씁니다.
+- **기본은 모의** -- 환경은 기본이 모의투자입니다. 실전 계좌 조회는 `KIS_MCP_ENVIRONMENT=real` 로
+  선택하며, 이중 잠금은 실전 주문 도구의 전송 권한에 추가로 필요합니다.
 - **계좌 종류에 맞는 조회** -- `balance`·`positions` 는 활성 계좌 종류로 분기합니다(위탁·ISA·연금저축은
   국내주식, IRP 는 퇴직연금). 해외주식 잔고·보유는 `region="overseas"` 로 보며, 위탁(general) 계좌의
   **실전 전용**입니다(모의 미지원). `open_orders`(정정취소가능주문조회)는 주문 가능한 국내주식 계좌(위탁·ISA·연금저축) 전용이고 IRP 는 거부되며,
@@ -418,10 +417,10 @@ IRP(`29`)·파생은 조회 전용이라 주문이 나가지 않습니다. 해�
 | 이중 잠금 | 실전 잠금 해제 두 가지가 **모두** 있어야 함 | `KIS_MCP_ALLOW_REAL=1` **그리고** `KIS_MCP_REAL_CONFIRM=i-understand-real-money` |
 | fat-finger 한도 | 실전은 RiskLimits **필수**(안 두면 거부) -- 국내는 **크기 캡(1주문 최대 수량 또는 금액)** 이 있어야 게이트를 통과하고(가격 collar 는 크기 캡이 아니라 단독으론 불충족), 해외주식 주문은 **통화별 금액 한도**로 검사하며 그 통화의 한도가 없으면 거부(fail-closed) | `KIS_MCP_MAX_ORDER_QTY` · `KIS_MCP_MAX_ORDER_NOTIONAL`(국내 KRW) · `KIS_MCP_MAX_ORDER_NOTIONAL_<통화>`(예 `..._USD` 해외) · `KIS_MCP_PRICE_COLLAR_PCT`(가격 편차 가드) |
 | 종목 허용목록 | 실전은 허용목록을 명시해야 함(비어 있으면 실거래 안 함) | `KIS_MCP_SYMBOL_ALLOWLIST=005930,000660` |
-| 사람 확인 | elicitation 으로 주문 내용을 사람에게 그대로 보여 주고 승인받음 -- 모델이 사람 대신 승인할 수 없음. 앱이 이 기능을 지원 안 하면 실주문 거부 | (AI 앱이 elicitation 지원해야) |
+| 사람 확인 | elicitation 으로 클라이언트에 주문 확인을 요청하고 승인 응답을 요구함. 사람이 내용을 직접 검토해야 하며, 미지원 앱에서는 실주문 거부 | (AI 앱이 elicitation 지원해야) |
 | 서킷브레이커 | 한 세션에서 실주문이 정한 횟수를 넘으면 멈추고, 사람이 다시 켜기 전까지 막음 | `KIS_MCP_MAX_REAL_ORDERS`(기본 10) |
-| taint 경계 | 주문 내용은 사람이 직접 적음 -- 조회 결과(뉴스·시세)가 주문으로 흘러들지 않음 | (설계상) |
-| 중복 차단 | `client_order_id` 로 같은 날 중복 전송을 막음 | (자동) |
+| 입력 검토 | 주문 인자는 종목·방향·수량·가격 등으로 받으며 확인 창에서 직접 검토해야 함. 인자의 출처는 자동 검증하지 않음 | 사람 확인과 함께 적용 |
+| 중복 차단 | 저장소에 남은 같은 `client_order_id` 의 동일 요청 재전송을 막음. 다른 ID의 유사 주문까지 막지는 않음 | 저장 기록 유지 필요 |
 
 ### 도구별 가드 적용 범위
 
@@ -487,13 +486,14 @@ AI 에이전트로 주문한다는 것 자체에 다음과 같은 **본질적 �
   주문할 수 있습니다. 실전에서는 전송 전 **사람 확인(elicitation) 창의 내용을 반드시 직접 검토**하고 맞을
   때만 승인하세요 -- 자동 승인하지 마세요.
 - **프롬프트 인젝션 위험.** 에이전트가 읽는 내용(뉴스·시세·웹·문서)에 악의적 지시가 숨어 에이전트를
-  조종해 원치 않는 주문을 유도할 수 있습니다(이른바 lethal trifecta). 이 서버는 주문 파라미터를 조회
-  결과에서 받지 않고 **사람이 직접 주게**(taint 경계) 하고 allowlist·사람 확인·금액 상한으로 이를
-  **줄이지만**, 완전히 없애지는 못합니다.
+  조종해 원치 않는 주문을 유도할 수 있습니다(이른바 lethal trifecta). 이 서버는 주문 파라미터의
+  출처를 자동 추적하지 않습니다. 악의적 내용이나 모델 오류가 주문 확인 창에 반영될 수 있으므로
+  allowlist·사람 확인·금액 상한으로 위험을 줄이고 확인 창을 직접 검토해야 합니다.
 - **가드레일은 위험을 "줄이는" 장치이지 "보장"이 아닙니다.** 이중 잠금·RiskLimits·allowlist·사람 확인·
   서킷브레이커는 실수와 오용을 어렵게 만들 뿐, 버그·오설정·예기치 못한 경로로 잘못된 주문이 나갈
   가능성을 0으로 만들지는 못합니다.
-- **실주문은 되돌릴 수 없습니다.** 접수·체결된 주문은 취소 전까지 유효하고 손익은 즉시 실현됩니다.
+- **체결은 되돌릴 수 없습니다.** 접수와 체결은 다르며, 남은 주문의 정정·취소 가능 여부는 현재 상태에
+  따라 달라집니다. 손익 실현·정산·출금 가능 시점은 거래와 브로커 기준으로 확인하세요.
 - **원격 노출은 운영자 책임.** 서버를 네트워크에 열면(ChatGPT 등) 돈이 오가는 엔드포인트가 노출됩니다 --
   TLS·인증·접근 통제는 서버를 띄운 사람의 책임입니다.
 

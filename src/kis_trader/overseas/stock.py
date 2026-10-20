@@ -91,7 +91,7 @@ class OverseasStock(_StockBase):
         정규 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·재시도 금지)을 공유하되 세션이 달라 정정·취소는
         미국주간 전용 엔드포인트로 라우팅된다(반환 리포트의 ``client_order_id`` 로 ``kis.orders.cancel``/
         ``kis.orders.modify``). **모의투자 미지원**, 미국(NAS/NYS/AMS)만. 타임아웃 시 ``kis.orders.reconcile``
-        은 주간 체결이 정규 체결내역에 없어 자동 확정하지 않고 None(in-flight 유지)을 준다 -- 수동 확인이
+        은 주간 주문의 자동 상태 갱신을 지원하지 않아 None 을 준다 -- 수동 확인이
         필요하다. 예외는 :meth:`buy` 와 같다(접수 거부 ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``)."""
         return self._client._place_order(self._make_overnight_order(
             "buy", quantity=quantity, limit_price=limit_price, client_order_id=client_order_id))
@@ -124,9 +124,9 @@ class OverseasStock(_StockBase):
         "235959")``)이나 이후(예 ``("000000","050000")``) 한쪽만 준다. 거부는 두 갈래다: 시작 >= 종료(자정
         넘김 포함)면 와이어 전에 :class:`~kis_trader.errors.KISUsageError` 로 **로컬 거부**, 형식은 맞지만
         KST 환산 세션 밖(미국 현지시각을 그대로 쓰면 KST 낮이라 세션 밖)이면 **서버**가 "장시간 벗어남"으로
-        거부한다. algo 는 **미국(NAS/NYS/AMS) 실전 전용**이고 **최소 10주**라, 그 밖의 거래소·모의투자·10주
-        미만이면 거래소가 접수 거부(``OrderRejectedError``)하거나 :class:`~kis_trader.errors.KISUsageError`
-        로 fail-closed 한다.
+        거부한다. 이 패키지의 algo 경로는 **미국(NAS/NYS/AMS) 실전 전용**이다. 주문유형별 최소 수량과
+        거래단위는 브로커의 주문 조건을 확인한다. KIS 미국시장 안내:
+        https://securities.koreainvestment.com/main/bond/research/_static/TF03ce010000.jsp .
 
         이중체결 방지·타임아웃 재시도 금지는 :meth:`~kis_trader._stock_base._StockBase.buy` 와 같은 안전
         엔진에서 자동 적용된다(접수 거부 ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``)."""
@@ -174,8 +174,11 @@ class OverseasStock(_StockBase):
         홍콩(HKS) 예약의 상품유형(HKD/CNY/USD) 선택 전용이고 **미지정(``None``)이면 홍콩은 HKD**다 --
         미국·기타 아시아 등 그 외 거래소에 ``currency`` 를 주면 :class:`~kis_trader.errors.KISUsageError`
         로 fail-closed(홍콩만 통화 선택이 있다). ``algo``(twap/vwap)는 미국 예약주문의 알고리즘 분할
-        (정규장 종료 집행 고정, 시간창 없음)로, **미국 실전 전용·최소 10주**이며 예약 접수 자체가 **10:00~22:20
-        KST** 에만 가능하다 -- 아시아·모의투자·10주 미만·접수시간 밖이면 접수 거부되거나 fail-closed 한다.
+        (정규장 종료 집행 고정, 시간창 없음)로, 이 패키지에서는 **미국 실전 전용**이다. 주문유형별
+        최소 수량·거래단위는 브로커의 주문 조건을 확인한다. 미국 예약 접수시간은 KIS 명세상 한국시간
+        10:00~23:20(서머타임10:00~22:20)이며 16:30~16:45경 시스템 정산 제한이 있다.
+        KIS 예약주문 명세:
+        https://apiportal.koreainvestment.com/api/apis/public/detail?accessUrl=%2Fuapi%2Foverseas-stock%2Fv1%2Ftrading%2Forder-resv .
 
         즉시 :meth:`buy` 와 같은 안전 규칙(이중발주 방지·재시도 금지·주문가능 계좌 가드)을 공유한다.
         반환 :class:`~kis_trader.report.ExecutionReport` 의 ``order_id`` 는 해외예약주문번호,
@@ -183,8 +186,8 @@ class OverseasStock(_StockBase):
         :attr:`~kis_trader.report.OrderStatus.PENDING_NEW`. 취소는 미국이 ``kis.account.overseas.
         cancel_reserved_order(예약번호)``, 아시아가 ``kis.orders.cancel(리포트.client_order_id)`` 다
         (아시아는 전용 취소 엔드포인트가 없어 안전코어가 원주문을 복원 재전송한다). 접수 거부는
-        ``OrderRejectedError``, 타임아웃(접수 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile``
-        로 확인 -- 재조회는 실전전용)."""
+        ``OrderRejectedError``, 타임아웃(접수 불명)은 ``OrderTimeoutError``(저장 상태 확인 후 번호가 없으면 재전송 없이 HTS/MTS나 계좌 주문·체결 조회로
+        수동 확인 -- 알려진 번호의 재조회는 실전전용)."""
         return self._reserve("buy", quantity=quantity, limit_price=limit_price,
                              end_date=end_date, client_order_id=client_order_id,
                              currency=currency, algo=algo)

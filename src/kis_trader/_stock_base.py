@@ -45,7 +45,7 @@ class _StockBase(abc.ABC):
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 정보가 없으면
         :class:`~kis_trader.errors.KISUsageError`, 조회전용(퇴직연금 등) 계좌면
         :class:`~kis_trader.errors.AccountNotOrderableError`. 접수 거부는 ``OrderRejectedError``,
-        타임아웃(체결 불명)은 ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다.
+        타임아웃(체결 불명)은 ``OrderTimeoutError`` -- 후자는 저장 상태를 확인하고 증권사 주문번호가 없으면 재전송 없이 HTS/MTS나 계좌 주문·체결 조회로 수동 확인한다.
         """
         return self._client._place_order(
             self._make_order("buy", quantity=quantity, limit_price=limit_price,
@@ -75,7 +75,7 @@ class _StockBase(abc.ABC):
         지원). 해외 종목 핸들은 이 메서드를 재정의해 미국·아시아 예약으로 라우팅한다(그쪽 문서 참조).
         잘못된 인자/계좌 미설정은
         ``KISUsageError``, 조회전용 계좌는 ``AccountNotOrderableError``, 접수 거부는 ``OrderRejectedError``,
-        타임아웃(접수 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
+        타임아웃(접수 불명)은 ``OrderTimeoutError``(저장 상태를 확인하고 증권사 주문번호가 없으면 재전송 없이 HTS/MTS나 계좌 주문·체결 조회로 수동 확인)."""
         return self._reserve("buy", quantity=quantity, limit_price=limit_price,
                              end_date=end_date, client_order_id=client_order_id)
 

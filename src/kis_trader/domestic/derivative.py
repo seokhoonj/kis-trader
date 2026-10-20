@@ -100,7 +100,7 @@ class _ContractBase:
 
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 미설정은
         :class:`~kis_trader.errors.KISUsageError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결
-        불명)은 ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다."""
+        불명)은 ``OrderTimeoutError`` -- 후자는 저장 상태를 확인하고 증권사 주문번호가 없으면 재전송 없이 HTS/MTS나 계좌 주문·체결 조회로 수동 확인한다."""
         return self._client._place_order(self._make_order(
             "buy", quantity=quantity, limit_price=limit_price, order_type=order_type,
             time_in_force=time_in_force, division=division, night=night,
@@ -135,7 +135,7 @@ class _ContractBase:
     def night_orderable(
         self, side: Side, *, limit_price: Numeric | None = None
     ) -> DomesticDerivativeOrderable:
-        """이 계약의 야간장(EUREX 연계) 주문가능수량. 파라미터는 :meth:`orderable` 과 같되 야간
+        """이 계약의 야간 주문가능수량(``STTN5105R``). 파라미터는 :meth:`orderable` 과 같되 야간
         세션 기준이며 **실전 전용**(``environment="paper"`` 는 :class:`~kis_trader.errors.KISUsageError`).
 
         KIS URL/TR-ID: ``GET .../trading/inquire-psbl-ngt-order`` (``STTN5105R``, 모의투자 미지원).

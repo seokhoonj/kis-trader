@@ -12,13 +12,14 @@ import datetime as _dt
 
 import pytest
 
-from kis_trader import KISClient, OrderStatus, OrderStore
+from kis_trader import KISClient, OrderStatus, OrderStore, RiskLimits
 from kis_trader.errors import (
     KISError,
     KISUsageError,
     OrderError,
     OrderRejectedError,
     OrderTimeoutError,
+    PreTradeRiskError,
 )
 from kis_trader.overseas._engine import reserved_orders as ro
 from kis_trader.transport import RawResponse, TransportTimeoutError
@@ -84,11 +85,11 @@ class _FrozenDatetime(_dt.datetime):
         return _dt.datetime(2024, 6, 3, 10, 0, tzinfo=tz)
 
 
-def _place_resp():
+def _place_resp(*, receipt="20260807"):
     # 원장 응답예시(TTTS3013U) 실값 -- output = 예약번호(OVRS_RSVN_ODNO) + 접수일자(RSVN_ORD_RCIT_DT).
     return RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="정상",
                        body={"output": {"OVRS_RSVN_ODNO": "0030138295",
-                                        "RSVN_ORD_RCIT_DT": "20260807"}})
+                                        "RSVN_ORD_RCIT_DT": receipt}})
 
 
 def _place(fake, store, **overrides):
@@ -99,9 +100,9 @@ def _place(fake, store, **overrides):
     return ro.place_overseas_reserved_order(fake, store, **kwargs)
 
 
-def _client(transport, store, *, environment="real"):
+def _client(transport, store, *, environment="real", risk=None):
     return KISClient(app_key="k", app_secret="s", account="12345678-01",
-                     environment=environment, transport=transport, store=store)
+                     environment=environment, transport=transport, store=store, risk=risk)
 
 
 def _list_row(**overrides):
@@ -359,6 +360,7 @@ def test_asia_cancel_routed_via_orders_cancel():
     # kis.orders.cancel(client_order_id) 이 지문 네임스페이스(overseas-reserved-asia)로 아시아 취소
     # 엔진에 라우팅된다(안전코어 경유 -- 스펙의 공개 취소 경로).
     store = OrderStore()
+    _client(_Fake(_place_resp()), store)  # 합성 저수준 기록을 만들기 전 계좌 귀속
     _place(_Fake(_place_resp()), store)
     cancel = _Fake(_place_resp())
     rep = _client(cancel, store).orders.cancel("c1")
@@ -369,6 +371,7 @@ def test_asia_cancel_routed_via_orders_cancel():
 
 def test_asia_modify_rejected_via_orders_modify():
     store = OrderStore()
+    _client(_Fake(_place_resp()), store)  # 합성 저수준 기록을 만들기 전 계좌 귀속
     _place(_Fake(_place_resp()), store)
     fake = _Fake(_place_resp())
     with pytest.raises(KISUsageError, match="정정"):
@@ -378,6 +381,7 @@ def test_asia_modify_rejected_via_orders_modify():
 
 def test_asia_partial_cancel_rejected_before_wire():
     store = OrderStore()
+    _client(_Fake(_place_resp()), store)  # 합성 저수준 기록을 만들기 전 계좌 귀속
     _place(_Fake(_place_resp()), store)
     fake = _Fake(_place_resp())
     with pytest.raises(KISUsageError, match="전량"):
@@ -424,11 +428,11 @@ def _frozen_now():
 def test_asia_reconcile_confirms_single_match_with_receipt_date(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
-    place_t = _Fake(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _place(place_t, store)
+    _client(_Fake(_place_resp()), store)  # 합성 저수준 기록을 만들기 전 계좌 귀속
+    place_t = _Fake(_place_resp(receipt="20240603"))
+    _place(place_t, store)
     recon_t = _Fake(_list_resp([_list_row()]))
-    rep = _client(recon_t, store).orders.reconcile("c1")   # 지문으로 아시아 경로 라우팅
+    rep = _client(recon_t, store).orders.reconcile("c1", refresh=True)   # 지문으로 아시아 경로 라우팅
     assert rep is not None
     assert recon_t.calls[0]["tr_id"] == "TTTS3014R"
     assert rep.order_id == "0030138295"
@@ -440,20 +444,20 @@ def _placed_0530():
     return _dt.datetime(2024, 5, 30, 10, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
 
 
-def test_asia_reconcile_confirms_receipt_days_after_placement(monkeypatch):
-    # 해외(아시아) 예약도 발주(5/30) 후 늦게(6/3) reconcile 해도 접수일자(5/30)가 발주일 앵커 창에 들어
-    # 확정된다 -- 국내 reserved 와 같은 규율(호출일 고정창이면 5/30 이 빠져 영구 미확정되던 회귀의 해외 짝).
+def test_asia_reconcile_keeps_old_unknown_pending(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)  # 오늘=6/3
     store = OrderStore(now=_placed_0530)                     # claim(발주) = 5/30
+    _client(_Fake(_place_resp()), store)  # 합성 저수준 기록을 만들기 전 계좌 귀속
     with pytest.raises(OrderTimeoutError):
         _place(_Fake(raises=TransportTimeoutError("t")), store)
     recon_t = _Fake(_list_resp([_list_row(rsvn_ord_rcit_dt="20240530")]))
     rep = _client(recon_t, store).orders.reconcile("c1")
-    assert rep is not None and rep.order_id == "0030138295"
-    # 조회창이 발주일(5/30)에 앵커한 ≤6일폭인지 핀한다: start=발주일-1=5/29, end=발주일+5=6/4
-    # (KIS 7일-이상 금지 준수 + 매칭창 {5/29,5/30,5/31} 포함). 넓은 창으로 되돌리면 깨진다.
-    assert recon_t.calls[0]["params"]["INQR_STRT_DT"] == "20240529"
-    assert recon_t.calls[0]["params"]["INQR_END_DT"] == "20240604"
+    assert rep is None and recon_t.calls == []
+    assert store.is_in_flight("c1") and store.report_for("c1") is None
+    from kis_trader._internal._datetime import _reconcile_recency_window
+    dates = _reconcile_recency_window(_dt.date(2024, 5, 30), _dt.date(2024, 6, 3))
+    assert ro._filter_matching([_list_row(rsvn_ord_rcit_dt="20240530")],
+                               store.fingerprint_for("c1"), dates)
 
 
 def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):
@@ -461,6 +465,7 @@ def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):
     # 반드시 엔진과 같은 frozen 시계로 store 를 만든다 -- wall-clock store 면 접수일자 창에서
     # 먼저 걸러져 ft_ord_qty 수량 판별이 돌지 않아(이 테스트의 유일한 대상) 공허해진다.
     store = OrderStore(now=_frozen_now)
+    _client(_Fake(_place_resp()), store)  # 합성 저수준 기록을 만들기 전 계좌 귀속
     with pytest.raises(OrderTimeoutError):
         _place(_Fake(raises=TransportTimeoutError("t")), store)
     recon_t = _Fake(_list_resp([_list_row(ft_ord_qty="9")]))   # 수량 불일치 -> 매칭 0
@@ -471,12 +476,12 @@ def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):
 def test_asia_reconcile_multi_match_raises(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
-    with pytest.raises(OrderTimeoutError):
-        _place(_Fake(raises=TransportTimeoutError("t")), store)
-    rows = [_list_row(), _list_row(ovrs_rsvn_odno="0030138299")]
+    _client(_Fake(_place_resp()), store)  # 합성 저수준 기록을 만들기 전 계좌 귀속
+    _place(_Fake(_place_resp(receipt="20240603")), store)
+    rows = [_list_row(), _list_row(ovrs_rsvn_odno="0030138295")]
     recon_t = _Fake(_list_resp(rows))
     with pytest.raises(KISError):                    # 2건 이상 -> 모호, 자동 확정 금지
-        _client(recon_t, store).orders.reconcile("c1")
+        _client(recon_t, store).orders.reconcile("c1", refresh=True)
     assert store.fingerprint_for("c1") is not None
 
 
@@ -594,3 +599,105 @@ def test_account_reserved_orders_paper_fails_closed():
     with pytest.raises(KISUsageError, match="실전"):
         kis.account.overseas.reserved_orders(start="20260801", end="20260807")
     assert fake.calls == []                          # 조회 와이어에 닿지 않는다
+
+
+@pytest.mark.parametrize("exchange, currency", [("HKS", "HKD"), ("SHS", "CNY"), ("SZS", "CNY"),
+                                                ("TSE", "JPY"), ("HSX", "VND"), ("HNX", "VND")])
+@pytest.mark.parametrize("side", ["buy", "sell"])
+@pytest.mark.parametrize("quantity_cap, notional_cap", [(1, 100), (100, 19)])
+def test_asia_reserved_quantity_and_local_notional_risk_rejects(exchange, currency, side, quantity_cap, notional_cap):
+    fake = _Fake(_place_resp())
+    store = OrderStore()
+    risk = RiskLimits(max_order_quantity=quantity_cap, max_order_notional_by_currency={currency: notional_cap})
+    with pytest.raises(PreTradeRiskError):
+        getattr(_client(fake, store, risk=risk).overseas.stock("00700", exchange=exchange),
+                "reserve_" + side)(quantity=2, limit_price=10, client_order_id="asia-risk-reject")
+    assert fake.calls == []
+    assert store.snapshot_for("asia-risk-reject") == (None, None)
+
+
+@pytest.mark.parametrize("currency, product_type", [("HKD", "501"), ("CNY", "543"), ("USD", "558")])
+def test_hong_kong_reserved_explicit_currency_chooses_honest_cap(currency, product_type):
+    fake = _Fake(_place_resp())
+    caps = {"HKD": 1, "CNY": 1, "USD": 1}
+    caps[currency] = 20
+    risk = RiskLimits(max_order_notional=1, max_order_notional_by_currency=caps)
+    _client(fake, OrderStore(), risk=risk).overseas.stock("00700", exchange="HKS").reserve_buy(
+        quantity=2, limit_price=10, currency=currency,
+    )
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["body"]["PRDT_TYPE_CD"] == product_type
+    assert fake.calls[0]["body"]["FT_ORD_QTY"] == "2"
+
+
+@pytest.mark.parametrize("currency", ["CNY", "USD"])
+def test_hong_kong_reserved_foreign_counter_cannot_consume_larger_hkd_cap(currency):
+    fake = _Fake(_place_resp())
+    risk = RiskLimits(max_order_notional_by_currency={"HKD": 10000, currency: 19})
+    with pytest.raises(PreTradeRiskError):
+        _client(fake, OrderStore(), risk=risk).overseas.stock("00700", exchange="HKS").reserve_buy(
+            quantity=2, limit_price=10, currency=currency,
+        )
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("risk", [RiskLimits(max_order_notional=1000000),
+                                   RiskLimits(max_order_notional_by_currency={"USD": 1000000})])
+def test_asia_reserved_missing_applicable_currency_cap_rejects(risk):
+    fake = _Fake(_place_resp())
+    with pytest.raises(PreTradeRiskError):
+        _client(fake, OrderStore(), risk=risk).overseas.stock("00700", exchange="HKS").reserve_buy(quantity=1, limit_price=10)
+    assert fake.calls == []
+
+
+def test_asia_reserved_replay_and_pending_precede_new_risk():
+    store = OrderStore()
+    fake = _Fake(_place_resp())
+    original = _client(fake, store).overseas.stock("00700", exchange="HKS").reserve_buy(
+        quantity=2, limit_price=10, client_order_id="asia-completed-risk",
+    )
+    stricter = _client(fake, store, risk=RiskLimits(max_order_quantity=1))
+    assert stricter.overseas.stock("00700", exchange="HKS").reserve_buy(
+        quantity=2, limit_price=10, client_order_id="asia-completed-risk",
+    ) is original
+    pending = _Fake(raises=TransportTimeoutError("unknown"))
+    with pytest.raises(OrderTimeoutError):
+        _client(pending, store).overseas.stock("00700", exchange="HKS").reserve_buy(
+            quantity=2, limit_price=10, client_order_id="asia-pending-risk",
+        )
+    before = store.snapshot_for("asia-pending-risk")
+    with pytest.raises(KISUsageError, match="결과가 확인"):
+        stricter.overseas.stock("00700", exchange="HKS").reserve_buy(
+            quantity=2, limit_price=10, client_order_id="asia-pending-risk",
+        )
+    assert store.snapshot_for("asia-pending-risk") == before
+    assert store.is_in_flight("asia-pending-risk")
+    assert len(fake.calls) == 1
+
+
+def test_asia_reserved_cancel_ignores_current_risk():
+    store = OrderStore()
+    fake = _Fake(_place_resp())
+    report = _client(fake, store).overseas.stock("00700", exchange="HKS").reserve_buy(
+        quantity=100, limit_price=350, client_order_id="asia-cancel-risk",
+    )
+    incompatible = RiskLimits(max_order_quantity=1, max_order_notional=1, price_collar_percent=1)
+    result = _client(fake, store, risk=incompatible).orders.cancel(report.client_order_id)
+    assert result.status is OrderStatus.PENDING_CANCEL
+    assert fake.calls[-1]["body"]["RVSE_CNCL_DVSN_CD"] == "02"
+
+
+@pytest.mark.parametrize("exchange, currency, product_type", [
+    ("HKS", "HKD", "501"), ("SHS", "CNY", "551"), ("SZS", "CNY", "552"),
+    ("TSE", "JPY", "515"), ("HSX", "VND", "508"), ("HNX", "VND", "507"),
+])
+def test_asia_reserved_currency_equality_allows_without_krw_or_quote(exchange, currency, product_type):
+    fake = _Fake(_place_resp())
+    risk = RiskLimits(max_order_quantity=2, max_order_notional=1, max_order_notional_by_currency={currency: 20})
+    report = _client(fake, OrderStore(), risk=risk).overseas.stock("00700", exchange=exchange).reserve_buy(
+        quantity="2", limit_price="10",
+    )
+    assert report.status is OrderStatus.PENDING_NEW
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["body"]["PRDT_TYPE_CD"] == product_type
+    assert fake.calls[0]["body"]["FT_ORD_UNPR3"] == "10"

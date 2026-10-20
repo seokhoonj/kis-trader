@@ -11,7 +11,7 @@
   "mcpServers": {
     "kis-trader": {
       "command": "uvx",
-      "args": ["--from", "kis-trader[mcp]", "kis-mcp"],
+      "args": ["--from", "kis-trader[mcp]==0.11.0", "kis-mcp"],
       "env": {
         "KIS_MCP_PROFILE": "${user_config.kis_profile}",
         "KIS_MCP_ENVIRONMENT": "${user_config.kis_environment}"

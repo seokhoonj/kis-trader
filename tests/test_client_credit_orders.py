@@ -298,16 +298,15 @@ def test_credit_same_id_different_credit_conflicts_no_wire():
 def test_credit_reconcile_confirms_credit_row():
     store = OrderStore()
     cid = "20240101-creditrecon01"
-    # 전송은 타임아웃(체결 불명) -> in-flight
-    place_t = FakeTransport(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).domestic.stock("009150").credit_buy(
-            quantity=1, limit_price=130000, credit_type="26", loan_date="20211103", client_order_id=cid)
+    # 접수 응답으로 증권사 주문번호를 저장한다.
+    place_t = FakeTransport(response=_ACCEPTED)
+    _client(place_t, store=store).domestic.stock("009150").credit_buy(
+        quantity=1, limit_price=130000, credit_type="26", loan_date="20211103", client_order_id=cid)
     # 재조회: 일별체결조회에 부분체결된 신용 행(loan_dt 일치) 하나
     row = _credit_daily_row(filled_quantity="1", loan_dt="20211103")
     recon_t = FakeTransport(by_path={_DAILY_CCLD: RawResponse(
         rt_cd="0", msg_cd="APBK0013", msg1="조회", body={"output1": [row]})})
-    report = _client(recon_t, store=store).orders.reconcile(cid)
+    report = _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
     assert report is not None
     assert report.order_id == "0001569138"
     assert report.status is OrderStatus.FILLED
@@ -328,6 +327,9 @@ def test_credit_reconcile_ignores_cash_lookalike_row():
         rt_cd="0", msg_cd="APBK0013", msg1="조회", body={"output1": [cash_row]})})
     report = _client(recon_t, store=store).orders.reconcile(cid)
     assert report is None                            # 현금 행으로 신용주문을 확정하지 않는다
+    from kis_trader.domestic._engine.orders import _filter_matching_daily_rows
+    assert _filter_matching_daily_rows([cash_row], store.fingerprint_for(cid)) == []
+    assert recon_t.calls == []
 
 
 # --- 애프터마켓/GTP 신용주문 (2026-09-14 제도변경: 신용 ORD_DVSN 에 41~47·27~29 추가) --------

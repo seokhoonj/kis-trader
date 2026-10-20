@@ -13,6 +13,7 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
@@ -40,7 +41,12 @@ from ..entities.account_reports import (
 )
 from ..entities.account_right import AccountRight
 from ..entities.balance import AccountAssets, DomesticBalance, DomesticPosition, Portfolio
-from ..entities.stock_orders import StockOrder, StockOrderHistory, StopTrigger
+from ..entities.stock_orders import (
+    StockOrder,
+    StockOrderHistory,
+    StockOrderHistoryCollection,
+    StopTrigger,
+)
 from ..entities.trade_profit import (
     DailyProfit,
     DailyProfitHistory,
@@ -523,6 +529,7 @@ def fetch_stock_order_history(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
     unfilled_only: bool = False, older_than_three_months: bool = False,
+    _preserve_unidentified: bool = False,
 ) -> StockOrderHistory:
     """국내주식 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,
     ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체, ``unfilled_only`` 면 미체결만.
@@ -563,7 +570,7 @@ def fetch_stock_order_history(
     if summary is None:
         raise KISError("주식일별주문체결조회 응답에 합계 요약(output2)이 없다.")
     return StockOrderHistory(
-        orders=tuple(_parse_stock_orders(rows)),
+        orders=tuple(_parse_stock_orders(rows, preserve_unidentified=_preserve_unidentified)),
         total_order_quantity=required_decimal(summary.get("tot_ord_qty"), "tot_ord_qty"),
         total_filled_quantity=required_decimal(summary.get("tot_ccld_qty"), "tot_ccld_qty"),
         total_filled_amount=required_decimal(summary.get("tot_ccld_amt"), "tot_ccld_amt"),
@@ -571,6 +578,85 @@ def fetch_stock_order_history(
         estimated_expenses=required_decimal(summary.get("prsm_tlex_smtl"), "prsm_tlex_smtl"),
         _raw=summary,
     )
+
+
+def fetch_combined_stock_order_history(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
+    unfilled_only: bool = False,
+) -> StockOrderHistoryCollection:
+    """최근·과거 TR을 같은 기간으로 각각 끝까지 조회하고 공급자 요약을 따로 보존한다.
+
+    ``start``/``end`` 는 실재하는 YYYYMMDD 날짜이며 시작일이 종료일보다 늦을 수 없다.
+    어느 조회든 실패하거나 같은 완전 식별정보의 관측이 다르면 부분 통합 결과를 반환하지 않는다.
+    ``TTTC0081R``/``CTSC9215R`` (모의 ``VTTC0081R``/``VTSC9215R``)를 사용한다.
+    """
+    for value in (start, end):
+        if not isinstance(value, str) or re.fullmatch(r"[0-9]{8}", value) is None:
+            raise KISUsageError("조회 날짜는 YYYYMMDD 형식이어야 한다.")
+        try:
+            datetime.strptime(value, "%Y%m%d")
+        except ValueError:
+            raise KISUsageError("조회 날짜는 실재하는 YYYYMMDD 날짜여야 한다.") from None
+    if start > end:
+        raise KISUsageError("조회 시작일은 종료일보다 늦을 수 없다.")
+    recent = fetch_stock_order_history(
+        transport, cano=cano, product_code=product_code, environment=environment,
+        start=start, end=end, side=side, symbol=symbol, unfilled_only=unfilled_only,
+        older_than_three_months=False, _preserve_unidentified=True,
+    )
+    historical = fetch_stock_order_history(
+        transport, cano=cano, product_code=product_code, environment=environment,
+        start=start, end=end, side=side, symbol=symbol, unfilled_only=unfilled_only,
+        older_than_three_months=True, _preserve_unidentified=True,
+    )
+    return StockOrderHistoryCollection(
+        orders=_merge_stock_order_histories(recent, historical), recent=recent, historical=historical,
+    )
+
+
+def _stock_order_identity(order: StockOrder) -> tuple[object, ...] | None:
+    if (order.order_date is None or not order.order_id.strip().lstrip("0")
+            or not order.branch_number.strip() or not order.order_organization_number.strip()):
+        return None
+    return (
+        order.order_date, order.order_id, order.branch_number, order.order_organization_number,
+        order.original_order_id, order.symbol, order.side, order.exchange_division_code, order.exchange,
+    )
+
+
+def _merge_stock_order_histories(
+    recent: StockOrderHistory, historical: StockOrderHistory,
+) -> tuple[StockOrder, ...]:
+    # 같은 조회 안의 반복은 유지하고, 두 조회에서 공통으로 나타난 횟수만 상쇄한다.
+    representatives: dict[tuple[object, ...], StockOrder] = {}
+    remaining: dict[tuple[object, ...], int] = {}
+    differing_recent: set[tuple[object, ...]] = set()
+    for order in recent.orders:
+        identity = _stock_order_identity(order)
+        if identity is None:
+            continue
+        representative = representatives.setdefault(identity, order)
+        if order != representative or order._raw != representative._raw:
+            differing_recent.add(identity)
+        remaining[identity] = remaining.get(identity, 0) + 1
+    orders = list(recent.orders)
+    for order in historical.orders:
+        identity = _stock_order_identity(order)
+        if identity is not None and identity in representatives:
+            representative = representatives[identity]
+            # 횟수가 소진된 뒤의 관측도 비교한다. 관측 시점 차이는 임의로 우선순위를 정할 수 없다.
+            if (identity in differing_recent or order != representative
+                    or order._raw != representative._raw):
+                raise KISError(
+                    "같은 주문의 최근·과거 관측이 달라 통합할 수 없다. "
+                    "order_history()로 각 조회를 따로 확인하라."
+                )
+            if remaining[identity] > 0:
+                remaining[identity] -= 1
+                continue
+        orders.append(order)
+    return tuple(orders)
 
 
 def _parse_fill_exchange(value: object, warned: set[str]) -> DomesticOrderExchange | None:
@@ -615,13 +701,21 @@ def _parse_stop_trigger(row: Mapping[str, Any]) -> StopTrigger | None:
     )
 
 
-def _parse_stock_orders(rows: list[Mapping[str, Any]]) -> list[StockOrder]:
+def _parse_stock_orders(
+    rows: list[Mapping[str, Any]], *, preserve_unidentified: bool = False,
+) -> list[StockOrder]:
     # 행 배열의 매핑 여부는 상류 _require_mapping_rows 가 이미 fail-closed 로 보장한다.
     orders: list[StockOrder] = []
     warned_exchanges: set[str] = set()  # 미지 거래소 코드 경고를 조회당 코드별 1회로 집약
     for row in rows:
         order_id = str(row.get("odno", "")).strip()
-        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+        if preserve_unidentified and row.get("odno") is None:
+            order_id = ""
+        # 기존 단일 조회의 동작은 유지한다. 통합 조회는 완전히 빈 행만 건너뛴다.
+        if not order_id and (not preserve_unidentified or all(
+            value is None or (isinstance(value, str) and not value.strip())
+            for value in row.values()
+        )):
             continue
         orders.append(
             StockOrder(
@@ -642,12 +736,14 @@ def _parse_stock_orders(rows: list[Mapping[str, Any]]) -> list[StockOrder]:
                 rejected_quantity=field_decimal_or_zero(row.get("rjct_qty"), "rjct_qty"),
                 canceled=str(row.get("cncl_yn", "")).strip().upper() == "Y",
                 canceled_quantity=field_decimal_or_zero(row.get("cnc_cfrm_qty"), "cnc_cfrm_qty"),
-                branch_number=str(row.get("ord_gno_brno", "")).strip(),
+                branch_number=("" if preserve_unidentified and row.get("ord_gno_brno") is None
+                               else str(row.get("ord_gno_brno", "")).strip()),
                 exchange_division_code=str(row.get("excg_dvsn_cd", "")).strip(),
                 fill_condition_name=str(row.get("ccld_cndt_name", "")).strip(),
                 order_type_code=str(row.get("ord_dvsn_cd", "")).strip(),
                 product_type_code=str(row.get("prdt_type_cd", "")).strip(),
-                order_organization_number=str(row.get("ord_orgno", "")).strip(),
+                order_organization_number=("" if preserve_unidentified and row.get("ord_orgno") is None
+                                           else str(row.get("ord_orgno", "")).strip()),
                 exchange=_parse_fill_exchange(row.get("excg_id_dvsn_cd"), warned_exchanges),
                 reservation_end_date=_parse_date(row.get("rsvn_ord_end_dt")),
                 loan_date=_parse_date(row.get("loan_dt")),

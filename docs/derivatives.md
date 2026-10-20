@@ -103,7 +103,7 @@ account.night_balance()                # 야간 잔고현황 -- 계좌비밀번�
 futures = kis.domestic.futures("101W09")
 
 futures.orderable("buy", limit_price=340.0)   # 주간 (모의 지원)
-futures.night_orderable("buy")                # 야간장(EUREX 연계, 실전투자 전용)
+futures.night_orderable("buy")                # 야간 주문가능 조회(STTN5105R, 실전투자 전용)
 ```
 
 `orderable()` 의 `DomesticDerivativeOrderable`: `orderable_quantity`(주문가능수량), `total_quantity`(총가능수량), `liquidatable_quantity`(청산가능수량), `base_index`(기준지수).

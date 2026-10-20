@@ -19,10 +19,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-from ..._internal._datetime import (
-    _claim_date,
-    _reconcile_recency_window,
-)
+from ..._internal._datetime import _claim_date
 from ..._internal._datetime import (
     _parse_optional_date as _parse_date,
 )
@@ -38,6 +35,7 @@ from ...errors import (
     OrderTimeoutError,
 )
 from ...order import (
+    Order,
     OrderType,
     ReservedOrderFingerprint,
     Side,
@@ -53,6 +51,7 @@ from ._parse import _side_from_code
 if TYPE_CHECKING:
     from ..._literals import Numeric
     from ...reserved_order import ReservedProcess
+    from ...risk import RiskLimits
 
 _KST = timezone(timedelta(hours=9))
 
@@ -110,6 +109,25 @@ def _coerce_reserved_order_terms(
     if end_date is not None:
         validate_yyyymmdd(end_date, "end_date")  # 실재 달력 날짜(신용 loan_date 와 동일 강도)
     return _ReservedTerms(order_type=order_type, quantity=qty, limit_price=limit)
+
+
+def _check_reserved_risk(
+    *, symbol: str, side: Side, terms: _ReservedTerms, risk: RiskLimits | None,
+) -> None:
+    """정규화된 예약의 수량/지정 금액을 검사한다. 미래 참조가는 추정하거나 조회하지 않는다.
+
+    참조가가 필요한 시장가 금액 한도·지정가 collar 는 기존 검사에 None 을 주어 거부한다.
+    검사 전용 Order 는 실제 국내주식 거래소를 쓰며 저장·전송하지 않는다.
+    """
+    if risk is None:
+        return
+    order = Order(
+        symbol=symbol, side=side, order_type=cast(OrderType, terms.order_type),
+        quantity=terms.quantity, limit_price=terms.limit_price,
+        region="domestic", asset_class="stock", exchange="KRX",
+        client_order_id="reserved-risk-check",
+    )
+    risk.check(order, reference_price=None)
 
 
 def _make_reserved_order_fields(
@@ -209,7 +227,7 @@ def place_reserved_order(
     transport: Transport, store: OrderStore, *,
     symbol: str, side: Side, quantity: Numeric, limit_price: Numeric | None = None,
     end_date: str | None = None, client_order_id: str, orderable: bool = True,
-    cano: str, product_code: str, environment: Environment,
+    cano: str, product_code: str, environment: Environment, risk: RiskLimits | None = None,
 ) -> ExecutionReport:
     """현금 예약주문을 안전 규칙으로 발주한다 -- 즉시주문(place)과 같은 이중발주 방지·재시도 금지·
     보수적 재조회를, 예약 라이프사이클(rsvn_ord_seq·체결개념 없음)에 맞춰 구현한다.
@@ -221,8 +239,10 @@ def place_reserved_order(
 
     조회전용 계좌(``orderable=False``, 퇴직연금 등)면 :class:`AccountNotOrderableError`, 잘못된 인자/계좌
     미설정은 :class:`KISUsageError`, 접수 거부는 :class:`OrderRejectedError`, 접수 불명(타임아웃)은
-    :class:`OrderTimeoutError`(:func:`reconcile_reserved_order` 로 확인), 순번 부재/예상밖 상태는
-    :class:`OrderError`.
+    :class:`OrderTimeoutError`. 저장된 유효 예약번호가 없으면 재조회도 None 이므로 수동 확인하고
+    재전송하지 않는다. 순번 부재/예상밖 상태는
+    :class:`OrderError`. risk 는 수량/지정 단가 기준 금액을 검사한다. 참조가를 조회하지 않으므로
+    참조가가 필요한 설정은 확인 불가로 거부하며, 완료 replay 는 새 리스크 검사 전에 반환한다.
     """
     if not orderable:
         raise AccountNotOrderableError(
@@ -242,6 +262,23 @@ def place_reserved_order(
         limit_price="" if terms.limit_price is None else format_wire_decimal(terms.limit_price),
         end_date=end_date or "", exchange=_RESERVED_EXCHANGE,
     )
+    # 완료/미확인/충돌은 새 검사로 재해석하지 않는다. 이 조회는 저장소를 변경하지 않으며,
+    # fresh 요청만 리스크 검사 뒤 try_claim 에서 원자적으로 전송 권한을 확보한다.
+    peek = store.classify(client_order_id, fingerprint)
+    if isinstance(peek, Completed):
+        return peek.report
+    if isinstance(peek, Conflict):
+        raise KISUsageError(
+            f"client_order_id {client_order_id!r} 는 이미 다른 주문에 사용됐다. 새 id를 발행하라."
+        )
+    if isinstance(peek, InFlight):
+        raise KISUsageError(
+            f"예약주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 재전송하지 말고 "
+            "HTS/MTS나 계좌 주문·체결 조회로 확인하라."
+        )
+    _check_reserved_risk(symbol=symbol, side=side, terms=terms, risk=risk)
     body = _make_reserved_order_fields(
         cano=cano, product_code=product_code, symbol=symbol, side=side, terms=terms, end_date=end_date,
     )
@@ -256,7 +293,9 @@ def place_reserved_order(
     if isinstance(claim, InFlight):
         raise KISUsageError(
             f"예약주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
-            f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 판단하라."
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 재전송하지 말고 "
+            "HTS/MTS나 계좌 주문·체결 조회로 확인하라."
         )
     if not isinstance(claim, Claimed):
         raise OrderError(f"예상치 못한 claim 결과: {claim!r}")
@@ -268,7 +307,9 @@ def place_reserved_order(
     except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"예약주문 전송 시간초과 -- 접수 여부가 불명이다. 재전송하지 말고 "
-            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 "
+            "HTS/MTS나 계좌 주문·체결 조회로 확인하라.",
             client_order_id=client_order_id,
         ) from err
     except KISAuthError:
@@ -282,7 +323,9 @@ def place_reserved_order(
         # 수도 있는 예약을 새 id 로 재전송해 이중 예약이 난다(중복 전송 방지 가드, 해외 예약과 동일).
         raise OrderTimeoutError(
             f"예약주문 전송 중 전송계층 오류 -- 접수 여부가 불명이다. 재전송하지 말고 "
-            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 "
+            "HTS/MTS나 계좌 주문·체결 조회로 확인하라.",
             client_order_id=client_order_id,
         ) from err
 
@@ -309,11 +352,20 @@ def reconcile_reserved_order(
     transport: Transport, store: OrderStore, client_order_id: str, *,
     cano: str, product_code: str, environment: Environment, force_refresh: bool = False,
 ) -> ExecutionReport | None:
-    """미확인 예약주문을 **예약주문조회**로 재조회한다 -- 보수적. 완료 리포트가 있으면 반환.
-    in-flight 면 최근 창의 (처리/미처리 모두) 유효 예약을 지문으로 매칭: 정확히 1건이면 확정, 0건이면
-    미접수로 단정하지 않고 ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`.
-    ``force_refresh`` 면 저장 리포트가 있어도 단락하지 않고 예약주문조회를 다시 스캔한다(사후확정)."""
-    prior, fingerprint = store.snapshot_for(client_order_id)
+    """저장된 국내 예약순번으로 예약주문조회를 재조회한다.
+
+    기존 리포트가 있고 force_refresh 가 아니면 그대로 반환한다. 저장된 유효 증권사 예약번호가
+    없으면 종목·방향·수량·가격·접수일 등의 일치만으로 초기 요청을 자동 귀속하지 않고 None 을
+    반환한다. 미확인 기록과 재전송 차단을 유지하며 저장 번호의 레거시 출처는 증명하지 않는다.
+
+    force_refresh 는 처리/미처리 예약을 조회하고 저장 rsvn_ord_seq 로 로컬 비교한다. 조회 시작은
+    현재 주문번호 세대에 고정된 저장소 조회 기준의 과거 창이며 끝은 현재 기준의 제한된 미래 창이다.
+    레거시 관측 시각은 약한 조회 계획일 뿐이며 기준 미상일 때는 조회일로 폴백한다.
+    조회 계획은 접수 증거나 날짜 간 번호 유일성을 증명하지 않는다. 서버의 접수일/집행예정일 기준과
+    창 밖 예약의 조회 가능성은 이 코드가 보장하지 않는다.
+    0건은 None 이고 다건·조회 실패는 오류다. 어떤 결과도 미접수를 뜻하거나 재전송을 허용하지 않는다."""
+    snapshot = store._recovery_snapshot_for(client_order_id)
+    prior, fingerprint, query_anchor, _ = snapshot
     if prior is not None and not force_refresh:
         return prior
     if fingerprint is None:
@@ -325,12 +377,14 @@ def reconcile_reserved_order(
             f"client_order_id {client_order_id!r} 의 지문이 예약주문이 아니다"
             f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
+    # 저장된 유효 증권사 주문번호가 없으면 경제 조건이나 날짜만으로 요청을 귀속하지 않는다.
+    # 미확인 상태와 재전송 차단을 유지하며 HTS/MTS 등에서 수동 확인한다.
+    if prior is None or not (prior.order_id or "").strip().lstrip("0"):
+        return None
     today = datetime.now(_KST).date()
-    # 조회창과 매칭창을 **발주일**(store 의 claim 확보일)에 함께 앵커한다 -- 예약은 며칠 뒤 체결되므로
-    # 늦은 reconcile 이 정상인데, 호출일 고정창이면 발주 T+2 부터 접수일자가 매칭창 밖으로 떨어지고(영구
-    # 미확정->수동 재주문->이중체결 위험), 조회 start 가 호출일-7 에 묶이면 더 늦은 reconcile 은 발주일 행을
-    # 애초에 안 받아온다. start 를 발주일까지 뒤로 늘려 양 창을 일치시킨다(과거로의 확대라 안전).
-    anchor = _claim_date(store.claim_time_for(client_order_id))
+    # 같은 원자 스냅샷의 현재 주문번호 세대 기준을 사용한다. 접수/refresh 시각으로 이동하지 않는다.
+    # 레거시 관측 기준은 약한 계획이며, 기준 미상일 때만 조회일을 사용한다(저장소에 추정 시각을 쓰지 않음).
+    anchor = _claim_date(query_anchor[0])
     query_from = min(anchor, today) if anchor is not None else today
     start = f"{query_from - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
     end = f"{today + timedelta(days=_RECONCILE_FORWARD_DAYS):%Y%m%d}"
@@ -347,13 +401,11 @@ def reconcile_reserved_order(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    recent = _reconcile_recency_window(anchor, today)
     prior_seq = prior.order_id if prior is not None else None
     if prior_seq:
-        # 확정 원주문의 예약순번으로 정확히 매칭한다 -- 동일 형제 예약으로 재바인딩 방지(지문 폴백 금지).
         matches = [r for r in rows if str(r.get("rsvn_ord_seq") or "").strip() == prior_seq]
     else:
-        matches = _filter_matching_reserved(rows, fingerprint, recent)  # prior 없는 타임아웃 복구 전용
+        matches = []  # 초기 번호 없는 요청은 조회 전에 반환한다.
     if len(matches) > 1:
         raise KISError(
             f"예약주문 {client_order_id} 의 지문과 일치하는 예약이 {len(matches)}건이라 "
@@ -368,7 +420,7 @@ def reconcile_reserved_order(
         client_order_id, sequence=sequence, symbol=fingerprint.symbol, side=fingerprint.side,
         raw=matches[0],
     )
-    if not store.record_if_unchanged(report, fingerprint, expected=(prior, fingerprint)):
+    if not store._record_recovery_if_unchanged(report, fingerprint, expected=snapshot):
         return store.report_for(client_order_id)
     return report
 
@@ -403,7 +455,7 @@ def cancel_reserved_order(
 def modify_reserved_order(
     transport: Transport, *, reserved_order_id: str, symbol: str, side: Side, quantity: Numeric,
     limit_price: Numeric | None = None, end_date: str | None = None, order_date: str | None = None,
-    cano: str, product_code: str, environment: Environment,
+    cano: str, product_code: str, environment: Environment, risk: RiskLimits | None = None,
 ) -> None:
     """예약주문을 정정한다 -- 브로커 규격상 **전체 재지정**(종목/방향/수량/단가/종료일)을 요구한다.
     ``reserved_order_id`` 로 대상을 지목한다. 정상 처리면 조용히 반환(응답에 새 순번/리포트가 없다), 아니면 예외.
@@ -413,7 +465,9 @@ def modify_reserved_order(
     브로커가 순번을 바꿀 수 있으므로(응답은 새 순번을 주지 않는다) 이후 정정·취소가 필요하면
     :func:`fetch_reserved_orders` 로 현재 순번을 재확인하라. 정정도 순번 대상의 절대 재지정이라 dedup
     스토어를 거치지 않되 타임아웃엔 재전송하지 않는다. 실패 예외는 :func:`cancel_reserved_order` 와 같고,
-    인자 검증(side/quantity/limit_price/end_date)은 :class:`KISUsageError`."""
+    인자 검증(side/quantity/limit_price/end_date)은 :class:`KISUsageError`.
+    risk 는 변경량이 아니라 교체 후 전체 수량/지정 금액을 검사한다. 참조가가 필요한 설정은
+    조회 없이 확인 불가로 거부한다."""
     if environment == "paper":
         raise KISUsageError("예약주문 정정(order-resv-rvsecncl)은 모의투자 미지원 -- 실전에서만.")
     if not str(reserved_order_id).strip():
@@ -423,6 +477,7 @@ def modify_reserved_order(
     )
     if order_date is not None:
         validate_yyyymmdd(order_date, "order_date")
+    _check_reserved_risk(symbol=symbol, side=side, terms=terms, risk=risk)
     body = _make_reserved_order_fields(
         cano=cano, product_code=product_code, symbol=symbol, side=side, terms=terms, end_date=end_date,
     )

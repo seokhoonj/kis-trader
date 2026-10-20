@@ -22,7 +22,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import KISClient, Order, OrderStore
+from kis_trader import KISClient, Order, OrderStatus, OrderStore
 from kis_trader.domestic._engine import derivative_orders as fo
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
@@ -167,9 +167,10 @@ def test_night_paper_reconcile_fails_closed_usage_error():
     # 야간은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 KISUsageError.
     store = OrderStore()
     store.try_claim("n1", _fp())
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     with pytest.raises(KISUsageError):
-        fo.reconcile(fake, store, "n1", cano="1", product_code="03", environment="paper")
+        fo.reconcile(fake, store, "n1", cano="1", product_code="03", environment="paper", force_refresh=True)
     assert fake.request_count == 0
 
 
@@ -177,7 +178,7 @@ def test_night_paper_reconcile_fails_closed_usage_error():
 # T2: 야간 취소 -- 신선 잔량(로컬 리포트 stale) + 조회 실패 fail-closed
 # =====================================================================
 def test_night_cancel_uses_fresh_remaining():
-    store = OrderStore()
+    store = OrderStore(now=lambda: _ANCHOR)
     place = FakeTransport()
     place.queue(_PLACE, _PLACE_OK)
     rep = _real_client(place, store=store)._place_order(_order())   # 로컬 리포트: quantity 2, filled 0
@@ -199,7 +200,7 @@ def test_night_cancel_uses_fresh_remaining():
 
 
 def test_night_cancel_fetch_error_fails_closed_no_wire():
-    store = OrderStore()
+    store = OrderStore(now=lambda: _ANCHOR)
     place = FakeTransport(); place.queue(_PLACE, _PLACE_OK)
     rep = _real_client(place, store=store)._place_order(_order())
 
@@ -212,7 +213,7 @@ def test_night_cancel_fetch_error_fails_closed_no_wire():
 
 
 def test_night_cancel_zero_remaining_rows_fails_closed():
-    store = OrderStore()
+    store = OrderStore(now=lambda: _ANCHOR)
     place = FakeTransport(); place.queue(_PLACE, _PLACE_OK)
     rep = _real_client(place, store=store)._place_order(_order())
 
@@ -279,78 +280,86 @@ def _reconcile(fake, store, cid="n1"):
 def test_night_reconcile_a_only_confirms():
     # 이관 전: 야간 테이블(A)에만 1건, 주간(B) 0건 -> 확정.
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000005605")]))
     fake.queue(_DAY_INQUIRY, _day_ccnl([]))
-    report = _reconcile(fake, store)
+    report = _reconcile_refresh(fake, store)
     assert report is not None and report.order_id == "0000005605"
 
 
 def test_night_reconcile_b_only_confirms_t_plus_one_dated():
     # 이관 후: 주간(B)에만 1건(T+1 일자), 야간(A) 0건 -> 확정.
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([]))
     fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="0000005605", ord_dt="20220117")]))
-    report = _reconcile(fake, store)
+    report = _reconcile_refresh(fake, store)
     assert report is not None and report.order_id == "0000005605"
 
 
 def test_night_reconcile_merges_on_equal_odno_and_ord_dt():
     # 이관 중: 양 테이블에 (odno, ord_dt) 둘 다 동일한 같은 주문 -> 병합 확정(이중확정 아님).
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000005605", ord_dt="20220114")]))
     fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="0000005605", ord_dt="20220114")]))
-    report = _reconcile(fake, store)
+    report = _reconcile_refresh(fake, store)
     assert report is not None and report.order_id == "0000005605"
 
 
-def test_night_reconcile_blank_odno_in_both_tables_raises():
+def test_night_reconcile_blank_odno_in_both_tables_ignored():
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="", tot_ccld_qty="2")]))
     fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="", tot_ccld_qty="2")]))
-    with pytest.raises(KISError):
-        _reconcile(fake, store)
+    assert _reconcile_refresh(fake, store) is None
+    assert store.report_for("n1").order_id == "0000005605"
 
 
-def test_night_reconcile_differing_odno_raises():
+def test_night_reconcile_differing_sibling_odno_ignored():
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000005605")]))
     fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="0000009999")]))
-    with pytest.raises(KISError):
-        _reconcile(fake, store)
+    report = _reconcile_refresh(fake, store)
+    assert report is not None and report.order_id == "0000005605"
 
 
 def test_night_reconcile_differing_ord_dt_raises():
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000005605", ord_dt="20220114")]))
     fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="0000005605", ord_dt="20220117")]))
     with pytest.raises(KISError):
-        _reconcile(fake, store)
+        _reconcile_refresh(fake, store)
 
 
 def test_night_reconcile_leg_a_failure_raises_even_if_b_ok():
     # all-or-nothing: 다리 A 실패면 B 가 정상이라도 확정하지 않는다.
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, RawResponse(rt_cd="7", msg_cd="E", msg1="야간 조회 실패", body={}))
     fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="0000005605")]))
     with pytest.raises(KISError):
-        _reconcile(fake, store)
+        _reconcile_refresh(fake, store)
 
 
 def test_night_reconcile_leg_b_failure_raises_even_if_a_matches():
     # all-or-nothing 반대 순서: 다리 A 가 단일매칭이어도 B 실패면 확정하지 않는다.
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000005605")]))
     fake.queue(_DAY_INQUIRY, RawResponse(rt_cd="7", msg_cd="E", msg1="주간 조회 실패", body={}))
     with pytest.raises(KISError):
-        _reconcile(fake, store)
+        _reconcile_refresh(fake, store)
 
 
 def test_night_reconcile_both_zero_returns_none():
@@ -427,17 +436,16 @@ def test_night_timeout_recovery_blank_odno_nonterminal_not_recorded():
     assert store.is_in_flight("n1")                         # in-flight 유지
 
 
-def test_night_timeout_recovery_blank_odno_terminal_is_confirmed():
-    # 야간 union 타임아웃 복구가 odno 빈 **종료**(전량체결) 행을 물면 ODNO 없어도 확정·기록한다 --
-    # 종료는 refresh 교착이 없고, 진짜 체결을 버리면 이중체결 위험이 크다. A-only 승자.
-    from kis_trader import OrderStatus
+def test_night_timeout_recovery_blank_odno_terminal_remains_unknown():
     store = _night_store()  # claim 만, report 없음 -> prior None
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="", tot_ccld_qty="2")]))  # 전량체결 빈 odno
     fake.queue(_DAY_INQUIRY, _day_ccnl([]))
     report = _reconcile(fake, store)
-    assert report is not None and report.status is OrderStatus.FILLED and report.order_id is None
-    assert store.report_for("n1") is report and not store.is_in_flight("n1")
+    assert report is None
+    cid = "n1"
+    assert store.report_for(cid) is None and store.is_in_flight(cid)
+    assert not any(call["method"] == "GET" for call in fake.calls)
 
 
 def test_night_refresh_unusable_odno_prior_does_not_fingerprint_confirm_sibling():
@@ -502,39 +510,43 @@ def test_night_derivative_refresh_returns_concurrent_rebind_generation():
 
 def test_night_reconcile_two_in_night_table_raises():
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
-    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="1"), _night_row(odno="2")]))
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000005605"), _night_row(odno="0000005605")]))
     fake.queue(_DAY_INQUIRY, _day_ccnl([]))
     with pytest.raises(KISError):
-        _reconcile(fake, store)
+        _reconcile_refresh(fake, store)
 
 
 def test_night_reconcile_two_in_day_table_raises():
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([]))
-    fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="1"), _day_row(odno="2")]))
+    fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="0000005605"), _day_row(odno="0000005605")]))
     with pytest.raises(KISError):
-        _reconcile(fake, store)
+        _reconcile_refresh(fake, store)
 
 
 def test_night_reconcile_non_list_output1_fails_closed():
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
                                            body={"output1": {"odno": "x"}}))
     fake.queue(_DAY_INQUIRY, _day_ccnl([]))
     with pytest.raises(KISError):
-        _reconcile(fake, store)
+        _reconcile_refresh(fake, store)
 
 
 def test_night_reconcile_date_window_is_deterministic():
     # 앵커(2022-01-13 목요일) 기준 T-0 ~ T+3 영업일: 목-금-(주말 롤)-월-화 = 20220113 ~ 20220118.
     store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([]))
     fake.queue(_DAY_INQUIRY, _day_ccnl([]))
-    _reconcile(fake, store)
+    _reconcile_refresh(fake, store)
     day_params = next(c["params"] for c in fake.calls if c["path"] == _DAY_INQUIRY)
     ngt_params = next(c["params"] for c in fake.calls if c["path"] == _NIGHT_INQUIRY)
     assert day_params["STRT_ORD_DT"] == "20220113"
@@ -548,12 +560,14 @@ def test_night_reconcile_legacy_blank_anchor_uses_wide_window():
     # 구 v7 레코드(claim 시각 "") -> 최광폭 창(now 기준 T-7 ~ 오늘).
     store = OrderStore()
     store.try_claim("n1", _fp())
+    _record_night_prior(store, status=OrderStatus.NEW)
     # v7 폴백을 흉내내려 claim 시각을 ""로 만든다(구 저장소 로드 경로와 동일한 앵커).
     store._in_flight["n1"] = ""      # 시각 미상 폴백 앵커
+    store._submission_anchors["n1"] = (None, None, None)  # 구 레코드는 고정 조회 기준도 미상
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([]))
     fake.queue(_DAY_INQUIRY, _day_ccnl([]))
-    _reconcile(fake, store)
+    _reconcile_refresh(fake, store)
     day_params = next(c["params"] for c in fake.calls if c["path"] == _DAY_INQUIRY)
     assert day_params["STRT_ORD_DT"] == "20220107"       # 20220114 - 7
     assert day_params["END_ORD_DT"] == "20220114"
@@ -583,24 +597,26 @@ class _DateWindowNightTransport:
 
 def _recorded_night_store(*, recorded, cid="n1", quantity="2", filled="0", order_id="0000005605"):
     # 접수 확정 상태(in-flight 아님)로 스토어를 심는다 -- 정정·취소는 확정 주문에만 걸리므로
-    # 이 상태가 실제 변경 경로의 입력이다. recorded_at 을 고정해 신선조회 날짜창을 결정적으로.
+    # 이 상태가 실제 변경 경로의 입력이다. 합성 최초 claim 시각을 고정해 조회창을 결정적으로.
     from kis_trader.report import ExecutionReport, OrderStatus
-    store = OrderStore()
+    store = OrderStore(now=lambda: recorded)
+    _real_client(FakeTransport(), store=store)  # 합성 야간 원장의 소유 계좌를 먼저 확정
     report = ExecutionReport(client_order_id=cid, order_id=order_id, symbol="101S03",
                              side="buy", status=OrderStatus.NEW, filled_quantity=Decimal(filled),
                              average_price=None, recorded_at=recorded)
+    store.try_claim(cid, _fp(quantity=quantity))
     store.record(report, _fp(quantity=quantity))
     return store
 
 
 # =====================================================================
-# 야간 취소 공개경로 -- 신선조회 앵커는 접수(recorded) 일자(claim 이 아님)
+# 야간 취소 공개경로 -- 신선조회는 현재 주문번호 세대의 고정 claim 기준
 # =====================================================================
 _REC = datetime(2022, 1, 14, 23, 30, tzinfo=_KST)      # 금요일 야간 세션(T)
 _TPLUS1 = "20220117"                                    # 야간 주문일자 T+1(다음 거래일=월)
 
 
-def test_night_cancel_public_route_anchors_on_recorded_date():
+def test_night_cancel_public_route_anchors_on_claim_date():
     # 확정 야간주문을 공개경로로 취소한다. 신선조회 창은 접수일(T) 기준 전방창이라 T+1 일자
     # 행을 포함해 신선잔량이 잡히고 TTTN1103U 취소가 와이어에 닿는다(예전엔 claim 앵커가 None
     # 이라 뒷방향 창 -> T+1 미포함 -> 0행 -> KISError 로 취소가 와이어에 닿지 못했다).
@@ -712,10 +728,167 @@ def test_day_session_reconcile_still_single_day():
     # 회귀: 주간(regular) 지문은 종전대로 당일 하루만 조회한다(union 경로로 새지 않는다).
     store = OrderStore()
     store.try_claim("d1", _fp(session="regular"))
+    _record_night_prior(store, status=OrderStatus.NEW, cid="d1")
+    store.record(store.report_for("d1"), _fp(session="regular"))
     fake = FakeTransport()
     fake.queue(_DAY_INQUIRY, _day_ccnl([]))
     fo.reconcile(fake, store, "d1", cano="1", product_code="03", environment="real",
-                 now=datetime(2022, 1, 14, 10, 0, tzinfo=_KST))
+                 now=datetime(2022, 1, 14, 10, 0, tzinfo=_KST), force_refresh=True)
     params = next(c["params"] for c in fake.calls if c["path"] == _DAY_INQUIRY)
     assert params["STRT_ORD_DT"] == params["END_ORD_DT"] == "20220114"
     assert not any(c["path"] == _NIGHT_INQUIRY for c in fake.calls)
+
+
+
+class _StrictAnchorNightTransport:
+    def __init__(self, *, start, end, day_rows=(), night_rows=()):
+        self.start, self.end = start, end
+        self.day_rows, self.night_rows = list(day_rows), list(night_rows)
+        self.calls = []
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
+        self.calls.append({"path": path, "params": params, "body": body})
+        if path == _PLACE:
+            return _PLACE_OK
+        if path == _CHANGE:
+            return _CHANGE_OK
+        assert params["STRT_ORD_DT"] == self.start
+        if path == _NIGHT_INQUIRY:
+            expected = datetime.strptime(self.end, "%Y%m%d") + timedelta(days=1)
+            assert params["END_ORD_DT"] == expected.strftime("%Y%m%d")
+            return _ngt_ccnl(self.night_rows)
+        assert path == _DAY_INQUIRY
+        assert params["END_ORD_DT"] == self.end
+        return _day_ccnl(self.day_rows)
+
+
+def test_night_accepted_refresh_and_restart_keep_first_broker_anchor(tmp_path):
+    friday = datetime(2022, 1, 14, 23, 30, tzinfo=_KST)
+    monday = friday + timedelta(days=3)
+    tuesday = friday + timedelta(days=4)
+    path = tmp_path / "night-anchor.json"
+    transport = _StrictAnchorNightTransport(start="20220114", end="20220119",
+        day_rows=[_day_row(ord_dt="20220117")])
+    with OrderStore(path, now=lambda: friday, retention_days=0) as store:
+        client = _real_client(transport, store=store)
+        client._place_order(_order())
+        assert fo.reconcile(transport, store, "n1", cano="synthetic", product_code="03", environment="real",
+                            now=monday, force_refresh=True) is not None
+    with OrderStore(path, retention_days=0) as store:
+        assert fo.reconcile(transport, store, "n1", cano="synthetic", product_code="03", environment="real",
+                            now=tuesday, force_refresh=True) is not None
+
+
+@pytest.mark.parametrize("date", ["20220214", "", "bad", "20220230", None])
+def test_night_known_odno_rejects_incompatible_returned_date(date):
+    store = _night_store()
+    _record_night_prior(store, status=fo.OrderStatus.NEW)
+    prior = store.report_for("n1")
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(ord_dt=date)]))
+    fake.queue(_DAY_INQUIRY, _day_ccnl([]))
+    assert _reconcile_refresh(fake, store) is None
+    assert store.report_for("n1") is prior
+
+
+def test_night_query_same_clock_clear_reclaim_does_not_commit_stale_rows():
+    store = _night_store()
+    original = store.query_anchor_for("n1")
+    class Recycle(FakeTransport):
+        def request(self, **kwargs):
+            if kwargs["path"] == _NIGHT_INQUIRY:
+                store.clear_in_flight("n1")
+                store.try_claim("n1", _fp())
+            return super().request(**kwargs)
+    fake = Recycle()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row()]))
+    fake.queue(_DAY_INQUIRY, _day_ccnl([]))
+    assert _reconcile(fake, store) is None
+    assert store.report_for("n1") is None
+    assert store.is_in_flight("n1")
+    assert store.query_anchor_for("n1") == original
+
+
+
+def test_night_remaining_after_refresh_uses_same_fixed_query_anchor(monkeypatch):
+    friday = datetime(2022, 1, 14, 23, 30, tzinfo=_KST)
+    monday = friday + timedelta(days=3)
+    tuesday = friday + timedelta(days=4)
+    class Frozen(datetime):
+        current = monday
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current
+    monkeypatch.setattr(fo, "datetime", Frozen)
+    transport = _StrictAnchorNightTransport(start="20220114", end="20220119",
+        day_rows=[_day_row(ord_dt="20220117", tot_ccld_qty="0")],
+        night_rows=[_night_row(ord_dt="20220117", tot_ccld_qty="0")])
+    store = OrderStore(now=lambda: friday)
+    client = _real_client(transport, store=store)
+    client._place_order(_order())
+    for observation in (monday, tuesday):
+        Frozen.current = observation
+        assert fo.reconcile(transport, store, "n1", cano="synthetic", product_code="03", environment="real",
+                            now=observation, force_refresh=True) is not None
+    assert store.report_for("n1").recorded_at == tuesday
+    client.orders.cancel("n1")
+    assert any(call["path"] == _CHANGE for call in transport.calls)
+
+
+@pytest.mark.parametrize("date", ["20220214", "", "bad", "20220230", None])
+def test_night_remaining_rejects_wrong_row_date_before_change_claim(date):
+    store = _recorded_night_store(recorded=_REC)
+    prior = store._recovery_snapshot_for("n1")
+    transport = _StrictAnchorNightTransport(start="20220114", end="20220119",
+        night_rows=[_night_row(ord_dt=date, tot_ccld_qty="0")])
+    with pytest.raises(KISError):
+        _real_client(transport, store=store).orders.cancel("n1")
+    assert store._recovery_snapshot_for("n1") == prior
+    assert store.in_flight_change_for("n1") is None
+    assert all(call["path"] != _CHANGE for call in transport.calls)
+
+
+
+def test_night_modified_broker_number_uses_change_anchor_after_restart(tmp_path, monkeypatch):
+    friday = datetime(2022, 1, 14, 23, 30, tzinfo=_KST)
+    monday = friday + timedelta(days=3)
+    tuesday = friday + timedelta(days=4)
+    current = [friday]
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return tuesday
+    monkeypatch.setattr(fo, "datetime", Frozen)
+    class Changed(_StrictAnchorNightTransport):
+        def request(self, **kwargs):
+            response = super().request(**kwargs)
+            if kwargs["path"] == _CHANGE:
+                self.start, self.end = "20220117", "20220120"
+                self.night_rows = []
+                self.day_rows = [_day_row(odno="0000005606", ord_dt="20220118", tot_ccld_qty="0")]
+            return response
+    transport = Changed(start="20220114", end="20220119",
+        night_rows=[_night_row(ord_dt="20220117", tot_ccld_qty="0")])
+    path = tmp_path / "modified-night.json"
+    with OrderStore(path, now=lambda: current[0], retention_days=0) as store:
+        client = _real_client(transport, store=store)
+        client._place_order(_order())
+        current[0] = monday
+        client.orders.modify("n1", limit_price=Decimal("401.00"))
+        assert store.report_for("n1").order_id == "0000005606"
+        assert client.orders.reconcile("n1", refresh=True) is not None
+    with OrderStore(path, retention_days=0) as store:
+        assert _real_client(transport, store=store).orders.reconcile("n1", refresh=True) is not None
+        assert store.query_anchor_for("n1") == (monday.isoformat(), "first_claim")
+
+
+def test_night_remaining_ambiguous_valid_rows_preserve_state_before_change_claim():
+    store = _recorded_night_store(recorded=_REC)
+    prior = store._recovery_snapshot_for("n1")
+    transport = _StrictAnchorNightTransport(start="20220114", end="20220119",
+        night_rows=[_night_row(ord_dt="20220117", tot_ccld_qty="0"),
+                    _night_row(ord_dt="20220117", tot_ccld_qty="1")])
+    with pytest.raises(KISError, match="2건"):
+        _real_client(transport, store=store).orders.cancel("n1")
+    assert store._recovery_snapshot_for("n1") == prior
+    assert store.in_flight_change_for("n1") is None
+    assert all(call["path"] != _CHANGE for call in transport.calls)

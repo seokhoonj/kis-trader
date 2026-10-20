@@ -85,15 +85,24 @@ def build_client(args: Namespace) -> KISClient:
     account = getattr(args, "account", None) or None
     environment = getattr(args, "environment", None)
     try:
-        # 계좌·환경을 먼저 해석해 그에 맞는 영속 저장소 경로를 정한다(세션 생성이 파일을 한 번 더
-        # 읽지만 같은 저장분이라 일관된다). 자격증명 누락/형상 오류는 여기서 KISUsageError 로 난다.
+        # 자격증명은 한 번만 해석하고 저장소와 세션에 같은 값을 전달한다.
+        # 자격증명 누락/형상 오류는 여기서 KISUsageError 로 난다.
         credentials = resolve_credentials(args.profile, environment=environment)
         store_account = account or credentials.account
         store = (
             OrderStore(path=order_store_path(account=store_account, environment=credentials.environment))
             if store_account is not None else None
         )
-        return KISClient(profile=args.profile, account=account, environment=environment, store=store)
+        try:
+            return KISClient(
+                profile=args.profile, app_key=credentials.app_key, app_secret=credentials.app_secret,
+                account=store_account, environment=credentials.environment, hts_id=credentials.hts_id,
+                account_password=credentials.account_password, store=store,
+            )
+        except BaseException:
+            if store is not None:
+                store.close()
+            raise
     except KISUsageError as err:
         # 자격증명 누락/형상 오류(변수 이름만 담김) -> CLI 설정 오류로 번역(값은 노출 안 됨).
         raise CliConfigError(str(err)) from err

@@ -57,7 +57,7 @@ index = kis.domestic.index("KOSPI")
 index.quote()                       # 지수 현재가
 index.bars("1d", start="20240101")  # 지수 차트 (일/주/월)
 index.categories()                  # 시장 요약 + 하위 업종 지수 목록
-index.recent_prices()               # 스냅샷 + 최근 100건 일/주/월 지수 시세+보조지표
+index.recent_prices()               # 스냅샷 + 최근 최대 100건 일/주/월 지수 시세+보조지표
 index.intraday()                    # 당일 시간대별 (1m/5m/10m)
 index.ticks()                       # 당일 10초 시계열
 ```
@@ -87,7 +87,9 @@ kis.overseas.index("FX@KRW", kind="fx").bars("1m", max_bars=100)      # 환율 �
 
 ::: {.callout-note}
 ## 알아두면 좋은 용어
-- **VI (변동성완화장치)** — 가격이 급변하면 2~10분 단일가로 전환하는 안전장치. `vi_events` 로 발동 현황.
+- **VI (변동성완화장치)** — 가격이 급변하면 단일가매매로 전환하는 안전장치.
+  [KRX 안내](https://data.krx.co.kr/contents/MDC/STAT/issue/MDCSTAT224.jsp)는 기본 2분과 30초 이내의
+  임의종료시간을 설명하며, 단일가매매가 연장되면 실제 해제시각도 늦어질 수 있습니다. `vi_events` 로 발동 현황.
 - **프로그램매매** — 여러 종목을 바스켓으로 한 번에 사고파는 기관 매매. **차익**(선물-현물 차익거래)과
   **비차익**으로 나뉩니다. 일별 종합은 `program_trades`, 당일 시간대별 흐름은 `program_flow`.
 - **대주(貸株)** — 없는 주식을 빌려서 파는 공매도의 재원. `lendable_stocks` 로 빌릴 수 있는 종목·한도를 봅니다.

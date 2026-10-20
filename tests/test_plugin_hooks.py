@@ -14,6 +14,8 @@ import pathlib
 import subprocess
 import sys
 
+import pytest
+
 _HOOKS = pathlib.Path(__file__).resolve().parent.parent / "plugins" / "kis-trader" / "hooks"
 
 
@@ -106,6 +108,7 @@ def _run_hook(filename: str, tool_input: dict, env: dict | None = None) -> dict:
         input=json.dumps({"tool_input": tool_input}),
         capture_output=True, text=True, env=run_env, check=False,
     )
+    assert completed_process.returncode == 0, f"hook process failed (exit={completed_process.returncode})"
     hook_output = completed_process.stdout.strip()
     return json.loads(hook_output) if hook_output else {}
 
@@ -147,3 +150,12 @@ def test_secret_guard_allows_placeholder_and_benign_code_end_to_end():
     assert _run_hook("kis-secret-guard.py",
                      {"content": 'app_secret = "YOUR_APP_SECRET_HERE_1234567890"'}) == {}
     assert _run_hook("kis-secret-guard.py", {"command": "cano = resultvar"}) == {}
+
+
+
+def test_run_hook_rejects_crashed_process_instead_of_silent_allow(tmp_path, monkeypatch):
+    script = tmp_path / "failing-hook.py"
+    script.write_text("raise SystemExit(7)\n")
+    monkeypatch.setitem(globals(), "_HOOKS", tmp_path)
+    with pytest.raises(AssertionError, match="hook process failed"):
+        _run_hook(script.name, {})

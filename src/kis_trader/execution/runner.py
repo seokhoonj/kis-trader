@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from .._internal._datetime import _KST
 from ..errors import KISError, KISUsageError, OrderRejectedError, OrderTimeoutError
@@ -38,11 +38,13 @@ class TWAPSliceOutcome:
 
     ``client_order_id`` 는 **결과 미확정** 슬라이스에만 실린다 -- 타임아웃(체결 불명)이거나, 접수는
     됐지만 발주 직후 재조회(reconcile)가 실패해 체결을 확정 못 한 경우다. 그 주문은 살아 있을 수 있어
-    ``kis.orders.reconcile(client_order_id)`` 로 사후 확인해야 하므로 그 id 를 유실하지 않고 실어 둔다.
+    요청 ID를 유실하지 않고 실어 둔다. 저장된 유효한 증권사 주문번호가 있으면
+    ``kis.orders.reconcile(client_order_id, refresh=True)`` 로 갱신할 수 있지만, 최초 타임아웃으로
+    번호가 없으면 불명으로 유지하므로 재전송하지 말고 HTS/MTS나 계좌 주문·체결 조회로 확인한다.
     ``client_order_id`` 가 실리는(= pending, shortfall 에서 제외) 경우: (1) 발주 타임아웃, (2) 재조회
     읽기 실패, (3) 재조회가 모호(0건 -> ``None``), (4) 재조회가 **비종료** 리포트(NEW/부분체결 등 아직
     살아있음), (5) ``reconcile=False``, (6) 발주 호출 중 ``KeyboardInterrupt`` 로 접수 여부가 불명(살아
-    있을 수 있어 재전송 금지·사후 reconcile 대상). 종료상태(체결/취소/거부/만료)로 확정된 슬라이스와
+    있을 수 있어 재전송 금지·저장 상태 및 수동 확인 대상). 종료상태(체결/취소/거부/만료)로 확정된 슬라이스와
     거부 슬라이스는 ``None``(거부는 재조회 불필요, 확정은 ``report`` 로 집계)."""
 
     at: datetime
@@ -60,6 +62,26 @@ class TWAPExecutionResult:
 
     schedule: TWAPSchedule
     outcomes: tuple[TWAPSliceOutcome, ...]
+    interrupted: bool = False
+
+    @property
+    def outcome(self) -> Literal["completed", "incomplete", "unknown", "interrupted"]:
+        """실행 분류. 중단을 우선하며 미확정 주문은 pending 목록으로 별도 보존한다.
+
+        미확정 물량은 shortfall 에서 제외되므로 shortfall 이 0 이어도 완료가 아니다.
+        모든 슬라이스가 오류 없이 종료 확인되고 목표 수량이 체결돼야 완료다.
+        """
+        if self.interrupted:
+            return "interrupted"
+        if self.pending_reconcile_ids:
+            return "unknown"
+        if len(self.outcomes) != len(self.schedule.slices) or any(
+            outcome.error is not None or outcome.report is None
+            or outcome.report.status not in TERMINAL_ORDER_STATUSES
+            for outcome in self.outcomes
+        ) or self.shortfall != 0:
+            return "incomplete"
+        return "completed"
 
     @property
     def submitted_quantity(self) -> int:
@@ -78,7 +100,8 @@ class TWAPExecutionResult:
     @property
     def pending_quantity(self) -> Decimal:
         """사후 재조회가 필요한(체결 여부 불명) 슬라이스의 발주 수량 합 -- :attr:`pending_reconcile_ids`
-        와 같은 모집단. shortfall 에서 제외돼, 이 물량은 재주문이 아니라 reconcile 로 확정해야 한다."""
+        와 같은 모집단. shortfall 에서 제외된다. 알려진 증권사 주문번호는 상태를 갱신하고,
+        번호 없는 불명 요청은 재전송하지 말고 HTS/MTS나 계좌 주문·체결 조회로 확인한다."""
         return sum((Decimal(o.quantity) for o in self.outcomes if o.client_order_id is not None),
                    Decimal(0))
 
@@ -87,14 +110,16 @@ class TWAPExecutionResult:
         """목표 대비 미체결 수량 -- 총 수량에서 확정 체결과 **pending(불명) 물량을 함께 뺀다**.
         pending 을 빼므로 이 값을 그대로 재주문해도 아직 살아 있을 수 있는 pending 슬라이스를
         이중매수하지 않는다. pending 이 있으면(:attr:`pending_reconcile_ids` 비지 않음) 그 물량은
-        재주문이 아니라 ``kis.orders.reconcile`` 로 먼저 확정하라."""
+        재주문하지 말고 저장 상태를 확인하라. 알려진 증권사 주문번호는 재조회할 수 있지만,
+        번호 없는 불명 요청은 HTS/MTS나 계좌 주문·체결 조회로 수동 확인한다."""
         return Decimal(self.schedule.total_quantity) - self.filled_quantity - self.pending_quantity
 
     @property
     def pending_reconcile_ids(self) -> tuple[str, ...]:
         """사후 재조회가 필요한 슬라이스의 ``client_order_id`` 들 -- 타임아웃(체결 불명)이거나 발주 직후
         재조회가 실패해 미확정인 슬라이스. 이 목록이 비지 않으면 그 주문들이 살아 있을 수 있으니
-        ``kis order reconcile <id>`` 로 확인해야 한다."""
+        ``kis order reconcile <id>`` 로 저장 상태를 확인한다. 번호 없는 불명 요청은
+        재전송하지 말고 HTS/MTS나 계좌 주문·체결 조회로 수동 확인한다."""
         return tuple(o.client_order_id for o in self.outcomes if o.client_order_id is not None)
 
     @property
@@ -123,14 +148,14 @@ def execute_twap(
     reconcile: bool = True,
 ) -> TWAPExecutionResult:
     """``schedule`` 을 블로킹으로 실행한다 -- 각 슬라이스 시각까지 ``sleep_fn`` 으로 대기한 뒤 시장가로
-    발주하고, ``reconcile`` 이면 재조회로 체결을 확정해 :class:`TWAPExecutionResult` 로 모은다.
+    발주하고, ``reconcile`` 이면 알려진 주문번호로 현재 상태를 조회해 :class:`TWAPExecutionResult` 로 모은다.
 
     슬라이스 발주가 :class:`~kis_trader.errors.OrderRejectedError`/:class:`~kis_trader.errors.
     OrderTimeoutError` 로 실패하면 그 슬라이스만 오류로 기록하고 **다음 슬라이스를 계속**한다(부분 실행,
     최종 ``shortfall`` 로 미달 보고). ``KeyboardInterrupt`` (Ctrl-C)면 남은 슬라이스를 멈추고 여기까지의
     부분 결과를 반환한다(이미 낸 시장가 주문은 되돌리지 않는다). 그 밖의 오류(조회전용 계좌·인증·설정
     오류나 KIS 스로틀 등 매 슬라이스 반복될 오류)는 **전파**한다 -- 단, 이미 발주된 슬라이스는 안전 코어가
-    로컬 저장소에 기록해 두므로(``kis.orders.reconcile`` 로 사후 확인 가능) 유실되지 않으며, 몇 개까지
+    로컬 저장소에 기록해 둔다. 알려진 주문번호는 재조회하고 번호 없는 불명 요청은 수동 확인한다. 몇 개까지
     발주됐는지를 예외 노트로 덧붙인다. ``now_fn``/``sleep_fn`` 은 시각·대기 주입점(테스트 결정성)이며,
     ``sleep_fn`` 은 ``now_fn`` 을 전진시켜야 한다(멈춘 시계면 무한 대기를 막고자 오류로 올린다)."""
     stock = kis.domestic.stock(schedule.symbol)
@@ -142,6 +167,7 @@ def execute_twap(
         raise KISUsageError(f"side 는 buy/sell 여야 한다: {schedule.side!r}")
     outcomes: list[TWAPSliceOutcome] = []
     in_flight: TWAPSliceOutcome | None = None
+    interrupted = False
     try:
         for entry in schedule.slices:
             outcomes_before_slice = len(outcomes)   # 이 슬라이스가 아직 결과를 안 실었는지 판별용
@@ -165,7 +191,7 @@ def execute_twap(
             try:
                 report = place(quantity=entry.quantity, client_order_id=slice_id)
             except OrderTimeoutError as error:
-                # 타임아웃 슬라이스는 살아 있을 수 있다 -- client_order_id 를 실어 사후 reconcile 가능하게.
+                # 타임아웃 슬라이스는 살아 있을 수 있다 -- 저장 상태 및 수동 확인에 쓸 요청 ID를 보존.
                 outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, None, str(error),
                                                  client_order_id=error.client_order_id))
                 in_flight = None
@@ -199,6 +225,7 @@ def execute_twap(
             outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, report, None, client_order_id=pending_reconcile_id))
             in_flight = None
     except KeyboardInterrupt:
+        interrupted = True
         # 발주 호출 중 중단이면 그 슬라이스는 접수됐을 수 있어 pending 으로 실어 둔다. 단 결과가 이미
         # 커밋됐으면(append~in_flight=None 사이의 좁은 창에서 인터럽트) 같은 슬라이스를 두 번 세지 않게
         # outcomes 길이로 확인한다(중복 집계 시 pending_quantity 과대 -> shortfall 과소 -> 미달주문).
@@ -206,9 +233,9 @@ def execute_twap(
             outcomes.append(in_flight)
     except Exception as error:
         # 조회전용/인증/스로틀 등 전파 오류: 이미 발주된 슬라이스가 유실로 보이지 않게 몇 개까지
-        # 접수됐는지 노트를 남기고 재전파한다(발주분은 저장소에 기록돼 reconcile 로 사후 확인 가능).
+        # 접수됐는지 노트를 남기고 재전파한다(발주분의 저장 상태와 계좌 주문·체결 조회로 확인).
         submitted = sum(1 for o in outcomes if o.report is not None)
         if submitted:
             error.add_note(f"TWAP 부분 실행됨: {submitted}/{len(schedule.slices)} 슬라이스 접수 후 중단.")
         raise
-    return TWAPExecutionResult(schedule=schedule, outcomes=tuple(outcomes))
+    return TWAPExecutionResult(schedule=schedule, outcomes=tuple(outcomes), interrupted=interrupted)

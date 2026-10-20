@@ -15,5 +15,5 @@ stock.etf_order_book()                # 10단계 호가 + LP(유동성공급자)
 
 ```python
 stock.nav_history(start="20240101", end="20240630")  # 일별 NAV-가격 추이 (괴리율)
-stock.nav_intraday(interval_minutes=1)               # 분별 시장가-NAV 비교 (최근 30개)
+stock.nav_intraday(interval_minutes=1)               # 분별 시장가-NAV 비교 (반환 개수는 응답에 따름)
 ```

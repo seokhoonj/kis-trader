@@ -1,6 +1,6 @@
 """클라이언트측 호출 유량 조절 -- sliding window rate limiter.
 
-KIS 유량제한(앱키 단위 합산, 실전 초당 18건 / 모의 1건)에 걸리기 전에 클라이언트가 선제적으로
+KIS 유량제한(앱키 단위 합산, 실전 초당 20건 / 모의 2건)에 걸리기 전에 클라이언트가 선제적으로
 호출 속도를 조절한다. 최근 ``window_seconds`` 창 안의 요청 수가 ``max_requests`` 미만이 되도록,
 필요하면 가장 오래된 요청이 창 밖으로 밀려날 때까지 블록(sleep)한다. KIS 서버가 sliding window
 로 세는 것으로 추정되어(커뮤니티 관찰) token bucket 보다 유량초과(EGW00201)를 덜 유발한다.
@@ -19,9 +19,9 @@ from typing import Self
 
 from ..errors import KISError
 
-#: 환경별 기본 초당 호출 한도. 공식 유량(실전 REST 18건/초, 모의 1건/초; 앱키 단위 합산)
-#: 아래로 마진을 둔 값이다 -- KIS 서버가 sliding window 로 세는 것으로 추정돼 경계값(18)에
-#: 붙이면 간헐 초과가 나므로 실전은 15 로 낮춘다. 모의는 원래 1 이라 그대로.
+#: 환경별 보수적 기본값. 공식 REST 유량은 실전 20건/초, 모의 2건/초(앱키 단위 합산)이며
+#: 기본값은 실전 15건/초, 모의 1건/초로 여유를 둔다. 다른 프로세스의 호출량은 공유하지 않는다.
+#: 공식 FAQ: https://apiportal.koreainvestment.com/community/10000000-0000-0011-0000-000000000002/post/bcfb94ee-5aa3-4915-bca6-d63378c620c2
 DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT: dict[str, float] = {"real": 15.0, "paper": 1.0}
 
 

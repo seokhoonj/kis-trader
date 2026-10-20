@@ -10,7 +10,9 @@
 
 ## 설치 (마켓플레이스, 터미널)
 
-Codex 도 플러그인 마켓플레이스가 있어 **터미널에서** 바로 설치합니다. (Codex CLI v0.122+)
+아래는 Codex CLI **0.163.0 기준**입니다. 먼저 `codex --version` 과
+`codex plugin --help` 로 설치된 버전의 명령을 확인하고,
+[공식 플러그인 안내](https://developers.openai.com/plugins/build/plugins)와 함께 사용하세요.
 
 ```bash
 codex plugin marketplace add seokhoonj/kis-trader
@@ -18,7 +20,7 @@ codex plugin add kis-trader@kis-trader
 ```
 
 설치 후 Codex 세션을 새로 시작하면 스킬이 잡히고, 채팅에서 `@kis-trader` 로 부릅니다.
-(옛 버전은 `codex marketplace add ...`.)
+설치된 CLI의 명령 형식이 위 예제와 다르면 해당 버전의 `--help` 를 따르세요.
 
 ## 대안 (AGENTS.md)
 
@@ -28,7 +30,7 @@ codex plugin add kis-trader@kis-trader
 ```text
 # AGENTS.md (사용자 각자)
 KIS 계좌 작업은 kis_trader 공개 API 로만 하고, plugins/kis-trader/skills/kis-trader/SKILL.md 의 규율을 따른다:
-심볼은 search_stocks 로 해석 후 주문, 실전 주문 전 티켓 확인, 타임아웃은 재전송 대신 reconcile.
+심볼은 search_stocks 로 해석 후 주문, 실전 주문 전 티켓 확인, 타임아웃은 재전송 금지. reconcile 은 저장된 유효한 증권사 주문번호가 없으면 불명으로 유지하므로 HTS/MTS나 계좌 주문·체결 조회로 수동 확인.
 ```
 
 ::: {.callout-note}

@@ -10,6 +10,7 @@ ORD_DT->receipt_date 가 리포트에 실려 이후 정정·취소(원주문일�
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 
@@ -353,14 +354,24 @@ def test_os_fo_modify_then_cancel_carries_receipt_date():
     assert cancel_call["body"]["ORGN_ODNO"] == "0000009999"  # 정정으로 채번된 새 ODNO
 
 
-def test_os_fo_change_paper_fails_closed():
+@pytest.mark.parametrize("environment", ["paper", "real"])
+def test_os_fo_change_environment_gate_uses_matching_original(environment):
     store = OrderStore()
+    _client(FakeTransport(), store=store, environment=environment)  # 합성 원장의 귀속을 기록 생성 전에 확정
     order = _order(client_order_id="osfo-paper")
-    store.record(_change_report(), order.fingerprint)
+    report = replace(_change_report(), client_order_id="osfo-paper")
+    store.record(report, order.fingerprint)
     change_t = FakeTransport(response=_CHANGE_ACCEPTED)
-    with pytest.raises(KISUsageError):
-        _client(change_t, environment="paper", store=store).orders.cancel("osfo-paper")
-    assert change_t.request_count == 0
+    assert store.report_for("osfo-paper") is report
+    if environment == "paper":
+        with pytest.raises(KISUsageError, match="모의투자 미지원"):
+            _client(change_t, environment=environment, store=store).orders.cancel("osfo-paper")
+        assert change_t.request_count == 0
+    else:
+        _client(change_t, environment=environment, store=store).orders.cancel("osfo-paper")
+        assert change_t.request_count == 1
+        assert change_t.calls[0]["path"] == _CHANGE
+        assert change_t.calls[0]["body"]["ORGN_ODNO"] == report.order_id
 
 
 def test_os_fo_change_partial_quantity_rejected():
@@ -407,6 +418,7 @@ def test_os_fo_reconcile_fails_closed_not_silent_none():
     # in-flight 해외선물옵션 지문의 재조회는 엉뚱한 테이블을 훑어 None 을 돌려주는 대신, 미지원임을
     # 명시하며 fail-closed 해야 한다(채권 fail-closed 분기와 대칭).
     store = OrderStore()
+    _client(FakeTransport(), store=store)  # 합성 원장의 귀속을 기록 생성 전에 확정
     order = _order(client_order_id="osfo-inflight")
     store.try_claim("osfo-inflight", order.fingerprint)
     client = _client(FakeTransport(), store=store)

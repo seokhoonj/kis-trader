@@ -300,28 +300,23 @@ def reconcile(
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
     force_refresh: bool = False,
 ) -> ExecutionReport | None:
-    """미확인 국내 파생(XKFE) 주문의 실제 상태를 체결내역에서 재조회한다 -- **보수적**.
+    """저장된 국내 파생(XKFE) 주문번호로 체결내역을 재조회한다.
 
-    주간(DAY) 주문은 일별체결내역(inquire-ccnl)을, 야간(STTN) 주문은 야간·주간 두 테이블의 union 스캔
-    (:func:`_night_union_reconcile`)을 쓴다. 아래 설명은 주간 경로이고, 야간은 그 함수 docstring 참조.
+    기존 리포트가 있고 force_refresh 가 아니면 그대로 반환한다. 저장된 유효 증권사 주문번호가
+    없으면 지문·날짜·시각만으로 초기 요청을 자동 귀속하지 않고 None 을 반환하며 미확인 기록과
+    재전송 차단을 유지한다. 저장 번호의 레거시 출처는 이 조회가 증명하지 않는다.
 
-    완료 리포트가 있으면 반환. in-flight 면 일별체결내역(inquire-ccnl)을 지문으로 스캔해 정확히
-    1건이면 확정(단 그 행에 쓸 수 있는 ODNO 가 없으면 비종료는 ``None`` 유지 -- order_id=None 리포트의
-    refresh 교착 방지; 종료 체결은 ODNO 없어도 확정), 0건이면 ``None``(재전송 금지 유지), 2건 이상이면
-    :class:`KISError`. **자동 해제는
-    절대 하지 않는다.** 매칭은 원장 output1 에 실재하는 ``nmpr_type_cd``(호가유형) 기반이다 -- 그
-    행에는 ``ord_dvsn_cd`` 가 없어 발주와 같은 리졸버(:func:`_resolve_fo_codes`)의 NMPR_TYPE_CD 로
-    맞춘다. 단 ``force_refresh`` 재조회로 prior 에 확정 ODNO 가 있으면 지문 대신 그 ODNO(정정/취소 행
-    제외)로 자기 행을 집어 형제 오귀속을 막는다 -- 지문은 ODNO 없는 타임아웃 복구 전용. ``now`` 는
-    조회 날짜창의 기준시각(주입하면 결정적; 생략 시 현재 KST).
+    주간(DAY)은 일별체결내역(inquire-ccnl)을, 야간(STTN)은 야간·주간 두 테이블의 union 스캔
+    (:func:`_night_union_reconcile`)을 쓴다. 주간은 저장 ODNO 를 정정/취소 행을 제외한 반환 행에서
+    찾는다. 0건은 비종료 prior 에 대해 None, 종료 prior 는 기존 결과 유지이며 다건은 KISError다.
+    now 는 조회 날짜창의 기준시각(주입하면 결정적; 생략 시 현재 KST)이다.
 
-    주간 조회창은 기준시각(``now``)의 국내(KST) **당일 하루**뿐이라, 주간 주문을 그 이후의 다른
-    달력일에 재조회하면 그 하루 창에 걸리지 않아 ``None``(재전송 금지의 in-flight 유지)이 된다 --
-    자동 해제 없이 수동 확인으로 드러나는 안전 방향이다.
-
-    야간(STTN) 주문은 주간 체결내역에 담기지 않아 여기서 확정하면 오확정이다 -- 야간 전용 조회
-    (union 스캔)는 별도 경로라, 야간 지문이면 fail-closed 로 올려 수동 확인을 유도한다."""
-    prior, fingerprint = store.snapshot_for(client_order_id)  # 리포트+지문 원자 스냅샷(세대 일관)
+    주간 조회창은 기준시각의 국내(KST) 당일 하루뿐이다. 다른 달력일에 조회하면 그 하루 창 밖의
+    주문은 찾지 못할 수 있으며, 미접수로 단정하거나 재전송하지 말고 수동 확인해야 한다.
+    야간은 현재 주문번호 세대의 고정 기준으로 두 테이블을 조회한다. 레거시 관측 기준은 약한
+    조회 계획일 뿐이며 기준 미상일 때는 제한된 과거 창을 쓴다(최초 제출 시각을 추정하지 않는다).
+    이 날짜창은 완전한 휴일 달력이나 범위 안 주문번호의 인과적 유일성을 보장하지 않는다."""
+    prior, fingerprint, query_anchor, generation = store._recovery_snapshot_for(client_order_id)
     if prior is not None and not force_refresh:
         return prior
     if fingerprint is None:
@@ -333,6 +328,10 @@ def reconcile(
             f"client_order_id {client_order_id!r} 의 지문이 즉시주문이 아니다"
             f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
+    # 저장된 유효 증권사 주문번호가 없으면 경제 조건이나 날짜만으로 요청을 귀속하지 않는다.
+    # 미확인 상태와 재전송 차단을 유지하며 HTS/MTS 등에서 수동 확인한다.
+    if prior is None or not (prior.order_id or "").strip().lstrip("0"):
+        return None
     if fingerprint.session == "night":
         # 야간(STTN)은 실전 전용이라 paper 야간 지문 도달은 지문 손상 신호다(애초에 paper 야간 발주가
         # 불가) -- 조용히 조회하지 않고 명확히 fail-closed.
@@ -345,6 +344,7 @@ def reconcile(
         # 주간 테이블(TTTO5201R)을 날짜창으로 함께 훑는 union 스캔으로 확인한다(:func:`_night_union_reconcile`).
         return _night_union_reconcile(
             transport, store, client_order_id, fingerprint, prior=prior,
+            query_anchor=query_anchor, generation=generation,
             cano=cano, product_code=product_code, environment=environment, now=now,
         )
     try:
@@ -360,21 +360,11 @@ def reconcile(
         ) from err
     want_odno = normalize_order_number(prior.order_id) if prior is not None and prior.order_id else ""
     if want_odno:
-        # force_refresh 재조회엔 place 가 실은 확정 거래소주문번호(ODNO)가 있다 -- 모호한 지문 대신
-        # 그 ODNO 로 자기 행을 집는다. 지문 매칭은 동일 종목·수량·가격의 형제 행을 이 주문으로 오귀속해
-        # (형제 ODNO 가 store.record 돼 이후 cancel/modify 가 살아있는 형제를 겨냥) phantom 확정을 낸다.
-        # ODNO 로 집더라도 정정/취소 행(orgn_odno != 0)은 제외한다 -- 그 행이 원주문과 같은 odno 로
-        # 돌아와도 원주문 체결로 오확정하지 않게(원주문 행만 매칭). 저장 ODNO 가 전부-0/빈값으로 정규화돼
-        # 비면 아래 elif/else: prior 없으면 지문(타임아웃 복구), prior 있으면 0건 처리(지문 폴백 금지,
-        # 국내주식과 대칭).
+        # 저장된 주문번호로 자기 행만 찾는다. 초기 번호 없는 요청은 조회 전에 반환한다.
         matches = [row for row in rows
                    if normalize_order_number(str(row.get("odno", ""))) == want_odno
                    and _is_original_odno(row.get("orgn_odno"))]
-    elif prior is None:
-        matches = _filter_matching_day_rows(rows, fingerprint)  # prior 없는 타임아웃 복구 전용
     else:
-        # prior 는 있는데 쓸 수 있는 ODNO 가 없다 -- 지문 폴백은 형제 오확정 위험이라 쓰지 않고 0건 분기의
-        # 종료-prior 폴백/None 으로 fail-closed(국내주식과 대칭).
         matches = []
     if len(matches) > 1:
         raise KISError(
@@ -513,22 +503,30 @@ def _filter_matching_day_rows(
 def _night_union_reconcile(
     transport: Transport, store: OrderStore, client_order_id: str,
     fingerprint: ImmediateOrderFingerprint, *, prior: ExecutionReport | None,
+    query_anchor: tuple[str | None, Literal["first_claim", "legacy_recorded", "unknown"]], generation: object | None,
     cano: str, product_code: str, environment: Environment, now: datetime | None,
 ) -> ExecutionReport | None:
-    """야간(STTN) 주문을 두 테이블의 union 으로 재조회한다(:func:`reconcile` 의 야간 분기).
+    """저장된 야간(STTN) 주문번호를 야간·주간 두 테이블에서 재조회한다.
 
-    야간 체결은 06:10 경 주간 테이블로 이관되고 주문일자가 T+1 이라, **다리 A**(야간 테이블
-    ``inquire-ngt-ccnl``)와 **다리 B**(주간 테이블 ``inquire-ccnl``)를 claim 앵커 날짜창으로 함께
-    훑는다. **all-or-nothing**: 어느 다리든 실패(rt_cd!=0/오형상)면 다른 다리 결과와 무관하게
-    :class:`KISError` -- 부분 스캔을 성공으로 오인하지 않는다. 테이블별 독립 매칭 후 병합:
-    A만/B만 1건이면 확정, A 1건+B 1건이면 ``(odno, ord_dt)`` **둘 다** 같을 때만 "이관 중 동일 주문"
-    으로 병합 확정(하나라도 다르면 모호 -> KISError), 어느 테이블이든 2건 이상이면 KISError, 양측
-    0건이면 ``None``(이관 과도기의 일시 부재 가능 -- in-flight 유지). odno 단독으로는 절대 dedup 하지
-    않는다(교차 테이블 odno 유일성 미확정). 확정(기록)은 승자 행에 쓸 수 있는 ODNO 가 있을 때만이다 --
-    **비종료** 승자 행의 odno 가 비면 ``None`` 유지(order_id=None 리포트의 refresh 교착 방지)이고,
-    **종료** 체결은 ODNO 없어도 확정한다(주간 경로와 동일)."""
-    anchor = store.claim_time_for(client_order_id)
-    start, end_inclusive = _night_date_window(anchor, now)
+    저장된 유효 증권사 주문번호가 없으면 지문 일치나 종료 체결 행만으로 초기 요청을 자동 귀속하지
+    않고 None 을 반환한다. 미확인 기록과 재전송 차단을 유지하며 저장 번호의 레거시 출처는 증명하지
+    않는다. 직접 호출해도 이 경계를 적용한다.
+
+    야간 체결은 06:10 경 주간 테이블로 이관되고 주문일자가 T+1 이라, 야간 inquire-ngt-ccnl 과
+    주간 inquire-ccnl 을 현재 주문번호 세대의 고정 기준 날짜창으로 함께 훑는다. 기준 미상은
+    제한된 과거 창이며 레거시 관측 시각은 약한 조회 기준이다. 완전한 휴일 달력은 아니다.
+    어느 다리든 실패(rt_cd!=0/오형상)면 다른 결과와 무관하게 KISError로 부분 성공을 막는다.
+
+    각 테이블에서 저장 ODNO 와 맞고 요청 날짜창에 드는 행을 찾는다. 한쪽만 1건이면 그 행을 쓰고,
+    양쪽 1건이면 (odno, ord_dt)가 모두 같을 때만 이관 중 같은 행으로 병합한다. 다르거나 어느
+    테이블이든 다건이면 KISError다. ODNO 단독으로 테이블 간 중복을 제거하지 않는다. 양쪽 0건이면
+    이관 과도기일 수 있어 비종료 prior 는 None, 종료 prior 는 기존 결과를 유지한다. 기록은
+    원자적 스냅샷의 세대가 바뀌지 않았을 때만 하며 날짜·번호 조건이 보편적 인과 증명은 아니다."""
+    # 저장된 유효 증권사 주문번호가 없으면 경제 조건이나 날짜만으로 요청을 귀속하지 않는다.
+    # 미확인 상태와 재전송 차단을 유지하며 HTS/MTS 등에서 수동 확인한다.
+    if prior is None or not (prior.order_id or "").strip().lstrip("0"):
+        return None
+    start, end_inclusive = _night_date_window(query_anchor[0], now)
     fuop = _fuop_dvsn_from_symbol(fingerprint.symbol)
     try:
         # 두 다리를 모두 먼저 소진 조회한다(all-or-nothing) -- 한 다리라도 raise 하면 병합에 이르지
@@ -548,24 +546,18 @@ def _night_union_reconcile(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
+    rows_a = [row for row in rows_a if _night_row_in_window(row, start, end_inclusive)]
+    rows_b = [row for row in rows_b if _night_row_in_window(row, start, end_inclusive)]
     want_odno = normalize_order_number(prior.order_id) if prior is not None and prior.order_id else ""
     if want_odno:
-        # 저장된 ODNO 가 있으면 두 테이블 모두 그 ODNO 로 집는다(지문 형제 오귀속 방지 -- 주간 경로와 대칭).
-        # 정정/취소 행(orgn_odno != 0)은 제외해 원주문 행만 매칭하고(같은 odno 로 돌아오는 변경 행 오확정
-        # 방지), 저장 ODNO 가 전부-0/빈값으로 정규화돼 비면 아래 elif/else(prior 없으면 지문, 있으면 0건
-        # 처리로 지문 폴백 금지). 교차 테이블 ODNO
-        # 유일성이 미확정이라, 아래 (odno, ord_dt) 동시일치 검사로 모호 병합을 막는다.
+        # 저장된 주문번호로 자기 행만 찾는다. 초기 번호 없는 요청은 조회 전에 반환한다.
         matches_a = [row for row in rows_a
                      if normalize_order_number(str(row.get("odno", ""))) == want_odno
                      and _is_original_odno(row.get("orgn_odno"))]
         matches_b = [row for row in rows_b
                      if normalize_order_number(str(row.get("odno", ""))) == want_odno
                      and _is_original_odno(row.get("orgn_odno"))]
-    elif prior is None:
-        matches_a = _filter_matching_night_rows(rows_a, fingerprint)  # prior 없는 타임아웃 복구 전용
-        matches_b = _filter_matching_day_rows(rows_b, fingerprint)
     else:
-        # prior 는 있는데 쓸 수 있는 ODNO 가 없다 -- 지문 폴백 형제 오확정 방지, 양측 0건 -> 종료-prior/None.
         matches_a = matches_b = []
     if len(matches_a) > 1 or len(matches_b) > 1:
         raise KISError(
@@ -600,7 +592,9 @@ def _night_union_reconcile(
     report = _fo_report(client_order_id, fingerprint, row)
     if not report.is_terminal and normalize_order_number(str(row.get("odno", ""))) == "":
         return None  # 비종료 + ODNO 없음 -> refresh 교착 유발; 종료는 ODNO 없어도 확정
-    if not store.record_if_unchanged(report, fingerprint, expected=(prior, fingerprint)):
+    if not store._record_recovery_if_unchanged(
+        report, fingerprint, expected=(prior, fingerprint, query_anchor, generation),
+    ):
         return store.report_for(client_order_id)  # 읽기~기록 사이 동시 재바인딩 -> 옛 세대로 덮어쓰지 않음
     return report
 
@@ -612,8 +606,9 @@ def fetch_night_remaining(
     """야간 정정·취소 직전 ``inquire-ngt-ccnl`` 로 원주문(``order_id``)의 **신선 잔량**을 읽는다.
 
     야간 취소·정정은 ``ORD_QTY`` 에 실잔량이 필수인데(0/공백 금지) 로컬 리포트의 잔량은 부분체결 직후
-    stale 할 수 있어, 와이어 직전에 이 조회로 확정한다. 원주문 odno 는 접수 시 확정된 값이라 **odno
-    단독 매칭**이 정확하다(재조회와 달리 대상이 명확). 정확히 1건이 아니거나(0행/다행) 조회 실패(rt_cd!=0/
+    stale 할 수 있어, 와이어 직전에 이 조회로 확인한다. 확인된 주문번호와 조회창 안의 유효한
+    주문일자로 후보를 제한한다. 이 창 안에서 재사용된 같은 번호의 인과적 동일성까지 증명하지는
+    않는다. 정확히 1건이 아니거나(0행/다행) 조회 실패(rt_cd!=0/
     오형상)면 :class:`KISError` 로 fail-closed -- 취소 와이어에 닿지 않는다. 읽기 전용이라 claim 전에
     수행할 수 있다.
 
@@ -628,6 +623,7 @@ def fetch_night_remaining(
         environment=environment, fuop_dvsn=_fuop_dvsn_from_symbol(symbol),
         strt_ord_dt=start, end_ord_dt=_plus_one_day(end_inclusive),
     )
+    rows = [row for row in rows if _night_row_in_window(row, start, end_inclusive)]
     matched = [row for row in rows if str(row.get("odno")) == str(order_id)]
     if len(matched) != 1:
         raise KISError(
@@ -766,13 +762,26 @@ def _fuop_dvsn_from_symbol(symbol: str) -> Literal["01", "02"]:
     )
 
 
+def _night_row_in_window(row: Mapping[str, Any], start: str, end_inclusive: str) -> bool:
+    """응답 주문일자가 유효하며 조회한 업무일 창에 드는지 확인한다(달력 제출일과 같을 필요는 없다)."""
+    stamp = row.get("ord_dt")
+    if not isinstance(stamp, str) or len(stamp) != 8 or not stamp.isdigit():
+        return False
+    try:
+        datetime.strptime(stamp, "%Y%m%d")
+    except ValueError:
+        return False
+    return start <= stamp <= end_inclusive
+
+
 def _night_date_window(anchor: str | None, now: datetime | None) -> tuple[str, str]:
     """야간 union/신선조회의 날짜창 (STRT_ORD_DT, 포함 끝일 END) YYYYMMDD 를 정한다.
 
-    창은 **제출 시점**(store v8 의 in-flight claim 시각)을 앵커로 잡아 재기동 후에도 T/T+1 을 정확히
-    복원한다: 기준일 T = claim 의 달력일(KST), 창 = T-0 ~ T+``_NIGHT_WINDOW_BUSINESS_DAYS`` 영업일
-    (주말 롤). 구 v7 레코드(claim 시각 미상 "")·손상 앵커는 폴백으로 ``now`` 기준 최광폭 창
-    (T-``_NIGHT_LEGACY_LOOKBACK_DAYS`` ~ 오늘)을 쓴다 -- 넉넉한 창의 비용은 다중매칭(→ KISError)뿐이다."""
+    현재 주문번호 세대의 고정 조회 기준 시각을 사용한다. 실제 claim 이나 레거시 관측 시각의
+    약한 폴백 모두 조회 계획에만 쓰며 접수 증거가 아니다: 기준일 T = 기준 시각의 달력일(KST), 창 = T-0 ~ T+``_NIGHT_WINDOW_BUSINESS_DAYS`` 영업일
+    (주말 롤). 기준 시각을 모르는 레거시 기록은 ``now`` 기준 제한된 과거 창
+    (T-``_NIGHT_LEGACY_LOOKBACK_DAYS`` ~ 오늘)을 쓴다. 넓은 창에는 같은 주문번호를 쓴 별개 주문이
+    포함될 수 있으며, 창 제한만으로 주문의 인과적 동일성을 증명하지 않는다."""
     stamp = datetime.now(_KST) if now is None else now
     base: date | None = None
     if anchor:
@@ -790,7 +799,7 @@ def _night_date_window(anchor: str | None, now: datetime | None) -> tuple[str, s
 
 def _add_business_days(start: date, business_days: int) -> date:
     """``start`` 에서 영업일(월~금) ``business_days`` 만큼 뒤 날짜(주말은 건너뛴다). 정밀 휴장
-    캘린더는 이후 슬라이스 -- 여기선 주말 롤만(넉넉한 창이라 휴일 미반영은 안전 방향)."""
+    캘린더는 반영하지 않는다 -- 월~금만 세며 공휴일·임시 휴장은 구분하지 않는다."""
     current = start
     added = 0
     while added < business_days:

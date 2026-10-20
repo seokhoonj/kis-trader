@@ -7,11 +7,13 @@ dailyprice 엔드포인트, GUBN(일/주/월) 매핑, MODP(수정주가), BYMD �
 from __future__ import annotations
 
 import threading
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
 
 from kis_trader import Bar, KISClient
+from kis_trader.errors import KISError
 from kis_trader.transport import RawResponse
 
 _OVERSEAS_BARS = "/uapi/overseas-price/v1/quotations/dailyprice"
@@ -151,3 +153,72 @@ def test_overseas_minute_bars_missing_output2_fails_closed():
     from kis_trader.errors import KISError
     with pytest.raises(KISError):
         _client(Bad()).overseas.stock("TSLA", exchange="NAS").bars(interval="1m")
+
+
+@pytest.mark.parametrize(
+    ("local_day", "local_time", "korean_day", "korean_time"),
+    [
+        ("20240222", "093000", "20240222", "233000"),
+        ("20240722", "093000", "20240722", "223000"),
+        ("20240222", "160000", "20240223", "060000"),
+    ],
+)
+def test_overseas_minute_timestamp_uses_korean_fields(
+    local_day, local_time, korean_day, korean_time,
+):
+    row = _min_row(local_day, local_time)
+    row.update(kymd=korean_day, khms=korean_time)
+    fake = FakeTransport(response=_resp([row]))
+    bar = _client(fake).overseas.stock("TSLA", exchange="NAS").bars("1m", max_bars=1)[0]
+    expected = datetime.strptime(korean_day + korean_time, "%Y%m%d%H%M%S").replace(
+        tzinfo=timezone(timedelta(hours=9)),
+    )
+    assert bar.timestamp == expected
+    assert bar.timestamp.utcoffset() == timedelta(hours=9)
+
+
+def test_overseas_minute_korean_timestamps_keep_local_pagination():
+    local_times = [f"2024022215{minute:02d}00" for minute in range(6)]
+    korean_times = [f"2024022305{minute:02d}00" for minute in range(6)]
+    minutes = {}
+    for local, korean in zip(local_times, korean_times, strict=True):
+        row = _min_row(local[:8], local[8:])
+        row.update(kymd=korean[:8], khms=korean[8:])
+        minutes[local] = row
+    fake = MinuteFakeTransport(minutes)
+    bars = _client(fake).overseas.stock("TSLA", exchange="NAS").bars("1m")
+    assert [f"{bar.timestamp:%Y%m%d%H%M%S}" for bar in bars] == korean_times
+    assert [call["params"]["KEYB"] for call in fake.calls] == [
+        "", "20240222150200", "20240222145900",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("kymd", None), ("khms", None),
+        ("kymd", ""), ("khms", "   "),
+        ("kymd", "20240230"), ("khms", "246000"),
+        ("kymd", "2024022"), ("khms", "93000"),
+        ("kymd", "not-date"), ("khms", "abcdef"),
+    ],
+)
+def test_overseas_minute_requires_valid_korean_timestamp(field, value):
+    row = _min_row("20240222", "093000")
+    if value is None:
+        row.pop(field)
+    else:
+        row[field] = value
+    fake = FakeTransport(response=_resp([row]))
+    with pytest.raises(KISError):
+        _client(fake).overseas.stock("TSLA", exchange="NAS").bars("1m", max_bars=1)
+
+
+@pytest.mark.parametrize("field", ["xymd", "xhms", "last"])
+def test_overseas_minute_blank_bar_still_skipped_without_korean_fields(field):
+    row = _min_row("20240222", "093000")
+    row[field] = ""
+    row.pop("kymd")
+    row.pop("khms")
+    fake = FakeTransport(response=_resp([row]))
+    assert _client(fake).overseas.stock("TSLA", exchange="NAS").bars("1m") == []

@@ -22,7 +22,7 @@ print(quote.current_price, quote.change_percent)  # 예: 71500  0.70
 | `currency` | 금액 통화 (국내 `KRW`) | str |
 | `current_price` | 현재가 | 원 |
 | `open` · `high` · `low` | 시가·고가·저가 | 원 |
-| `previous_close` | 기준가 (등락 산정 기준; 정상일엔 전일 종가, 권리락·배당락일엔 조정 기준가) | 원 |
+| `previous_close` | 국내 단일 현재가 응답의 `stck_sdpr`(기준가)를 저장한 값 | 원 |
 | `change` | 전일대비 (부호 포함) | 원 |
 | `change_percent` | 등락률 (부호 포함) | % |
 | `volume` | 누적 거래량 | 주 |
@@ -53,13 +53,17 @@ for bar in bars[-5:]:  # 최근 5봉
 
 ```python
 order_book = stock.order_book()
-best_bid = order_book.bids[0]                                        # 최우선 매수호가
-best_ask = order_book.asks[0]                                        # 최우선 매도호가
-print(best_bid.price, best_bid.quantity)
+if order_book.bids:
+    best_bid = order_book.bids[0]                    # 최우선 매수호가
+    print("매수", best_bid.price, best_bid.quantity)
+if order_book.asks:
+    best_ask = order_book.asks[0]                    # 최우선 매도호가
+    print("매도", best_ask.price, best_ask.quantity)
 print(order_book.total_bid_quantity, order_book.total_ask_quantity)  # 총 매수/매도 잔량
 ```
 
 `bids` · `asks` 는 각각 (가격 `price`, 잔량 `quantity`) 호가 단계 튜플입니다.
+가격이 없는 단계는 제외하므로 한쪽 또는 양쪽이 빈 튜플일 수 있습니다.
 
 ## 체결·최근가
 
@@ -102,6 +106,6 @@ stock.minute_bars_on("20240102")  # 특정 과거일의 1분봉
 지수는 [시장·지수](market.md), 해외는 [해외주식](overseas.md), ETF·ELW·선물옵션·채권은 각 상품 챕터를 보세요.
 
 ::: {.callout-tip}
-필드가 더 궁금하면 `help(type(quote))` — 각 필드의 한국어 설명과 KIS 원본 키(TR-ID 포함)가 나옵니다.
-원본 응답 전체는 `quote._raw` 로 접근.
+필드와 타입·클래스 설명은 `help(type(quote))` 로 확인합니다.
+`quote._raw` 는 이 시세를 파싱한 KIS `output` 블록의 원본 필드를 담는 읽기 전용 매핑입니다.
 :::

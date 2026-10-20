@@ -6,7 +6,7 @@
 
 자격증명은 **`--profile`**(계좌 종류), 환경(실전/모의)은 **`--environment`** 로 정합니다 -- 서로 다른 두
 축입니다. 프로필은 환경변수나 설정 파일에서 읽습니다. `--profile` 을 생략하면 기본 프로필
-(`KIS_DEFAULT_PROFILE` 환경변수 > `credentials.json` 의 `default_profile` 마커 > 해석된 환경 블록에서 먼저 나오는 프로필), `--environment`
+(`KIS_DEFAULT_PROFILE` 환경변수 > `credentials.json` 의 `default_profile` 마커 > 해석된 환경 블록에서 먼저 나오는 프로필, 그 블록에 이름이 없으면 다른 환경의 이름도 확인), `--environment`
 를 생략하면 기본 환경(`KIS_DEFAULT_ENVIRONMENT` > `default_environment` 마커 > **모의 `paper`**)을 씁니다.
 모의가 기본이어도, 주문은 `--execute` 전까지 전송되지 않아 안전합니다.
 
@@ -103,28 +103,35 @@ kis stock quote 005930 --format json --include-raw # KIS 원본 필드 포함
 일별 주문·체결 내역(기간)은 `kis account fills` 로 조회합니다. 기본은 국내주식(`--asset stock`),
 장내채권은 `--asset bond`. `--start`/`--end`(YYYYMMDD) 로 기간을 주고,
 `--side`(all/buy/sell)·`--symbol`(주식 6자리 / 채권 ISIN)·`--unfilled-only` 로 좁힙니다. 주식 체결내역은
-기본이 **최근 3개월 이내**이며, 그 이전은 `--older-than-three-months` 로 조회합니다(두 구간은 따로 조회).
+기본으로 **최근·과거 조회를 모두 수행**하므로, 오래된 기간에도 별도 플래그가 필요하지 않습니다.
+`--older-than-three-months` 를 명시하면 기존처럼 과거 조회만 합니다.
 체결내역(`fills`)은 국내주식은 실전·모의 모두, 장내채권은 실전 계좌 전용입니다(모의투자 미지원).
 미체결(정정·취소 대상)만 보려면 `kis account orders` 를 씁니다 -- 국내주식·장내채권 모두 실전 계좌
 전용입니다(정정취소가능주문조회는 모의투자 미지원).
 
 ```bash
-kis account fills --start 20240101 --end 20240131                              # 국내주식 체결내역(기간)
+kis account fills --start 20240101 --end 20240131                              # 최근·과거 자동 조회
 kis account fills --start 20240101 --end 20240131 --symbol 005930 --side buy   # 종목·매수만
 kis account fills --start 20230101 --end 20230331 --older-than-three-months    # 3개월 이전 체결내역
 kis account fills --asset bond --start 20240101 --end 20240131                 # 장내채권 체결내역
 kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only # 미체결만
 ```
 
+국내주식의 기본 결과는 결합한 `orders` 와 출처별 `recent`·`historical` 내역입니다. 기존 단일 조회의
+최상위 합계 필드를 읽던 스크립트는 출처별 요약을 확인해야 합니다. 평균 매입가격·추정 비용을 임의로 합친
+값은 제공하지 않습니다. 한쪽 조회 실패나 식별 정보가 갖춰진 동일 주문의 서로 다른 관측이 발견되면 결합 오류를 반환하며,
+조회 기간·보관 범위를 넘어선 내역의 존재까지 보장하지는 않습니다.
+
 예약주문(정규장이 열리기 전에 미리 걸어두는 예약) 목록은 `kis account reserved --start/--end` 로
 조회합니다(YYYYMMDD). 국내 조회는 `--process` 로 all/processed/unprocessed 를 골라 좁히며 실전 계좌
 전용입니다(모의투자 미지원). 해외 예약주문은 `--region overseas` 로 조회하고(미국+아시아 합산)
-`--process` 는 지원하지 않습니다.
+`--process` 는 지원하지 않습니다. 해외 조회 기간은 종료일과 시작일의 차이가 **6일 이하**여야 합니다
+(예: 1월 1일~7일).
 
 ```bash
 kis account reserved --start 20240101 --end 20240131                       # 국내 예약주문 목록
 kis account reserved --start 20240101 --end 20240131 --process unprocessed # 미처리분만
-kis account reserved --region overseas --start 20240101 --end 20240131     # 해외 예약주문 목록
+kis account reserved --region overseas --start 20240101 --end 20240107     # 해외 예약주문 목록
 ```
 
 기간별 실현손익은 `kis account profits --start/--end` 로 봅니다. `--symbol` 로 종목을 좁히는 건
@@ -229,7 +236,9 @@ kis order buy 005930 10 --limit-price 70000 --stop-price 69000 # dry-run (전송
 `reserved_order_id` 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
 브로커 규격상 `--symbol`/`--side`/`--quantity` 로 종목·방향·수량을 **전체 재지정**합니다 --
 `--limit-price` 를 생략하면 기존 단가 유지가 아니라 시장가로 바뀌니 주의하세요(`--end-date`/
-`--order-date` 도 지정 가능). 정정 후 예약 순번이 재배정될 수 있어(응답은 새 순번을 주지 않음)
+`--order-date` 도 지정 가능). 예약 신규·정정은 설정한 `RiskLimits` 의 수량·확정 가격 기준 한도를 검사합니다.
+참조 가격이 필요한 한도를 조회 없이 검사할 수 없으면 거부하며, 취소는 계속 사용할 수 있습니다.
+정정 후 예약 순번이 재배정될 수 있어(응답은 새 순번을 주지 않음)
 이어서 정정·취소하려면 `kis account reserved` 로 순번을 재확인하세요 -- 영수증에도 같은 안내가
 실립니다. 다른 주문과 같은 dry-run/`--execute` 안전장치를 씁니다.
 
@@ -237,15 +246,15 @@ kis order buy 005930 10 --limit-price 70000 --stop-price 69000 # dry-run (전송
 `--end-date` 미지원, **모의(paper) 허용**입니다. `--currency`(HKD/CNY/USD)는 **홍콩 예약 전용**이고
 미지정 시 홍콩은 HKD 입니다. 목록은 `kis account reserved --region overseas`(미국+아시아 합산),
 취소는 `kis order cancel-reserved --region overseas --receipt-date YYYYMMDD` 로 **미국 예약만** 됩니다
--- 아시아(일/중/홍/베) 예약 취소는 전용 엔드포인트가 없어 이 경로가 아니라 발주 리포트의
-client_order_id 로 `kis order cancel` 이 취소합니다. 정정(modify)은 해외 예약에 없습니다.
+-- 아시아(일/중/홍/베) 예약 취소는 발주 리포트의 `client_order_id` 로 `kis order cancel` 을 사용합니다.
+이 CLI는 해외 예약 정정(modify)을 지원하지 않습니다.
 
 ```bash
 kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131                          # 국내 예약매수(dry-run)
 kis order cancel-reserved SEQ7 --order-date 20240131                                               # 국내 예약 취소(dry-run)
 kis order modify-reserved SEQ7 --symbol 005930 --side buy --quantity 10 --limit-price 71000        # 국내 예약 정정(dry-run)
 kis order buy 00700 100 --region overseas --reserve --limit-price 350 --exchange HKS --currency HKD # 해외(홍콩) 예약매수(dry-run)
-kis account reserved --region overseas --start 20240101 --end 20240131                             # 해외 예약주문 목록
+kis account reserved --region overseas --start 20240101 --end 20240107                             # 해외 예약주문 목록
 kis order cancel-reserved US123 --region overseas --receipt-date 20240131                          # 해외(미국) 예약 취소(dry-run)
 ```
 
@@ -253,7 +262,10 @@ kis order cancel-reserved US123 --region overseas --receipt-date 20240131       
 `1h`/`1h30m`) 동안 `--slices`(분할 횟수)로 나눠 **시장가로 여러 번** 발주합니다. `--start HHMMSS`(KST,
 생략 시 지금부터, 과거는 거부)로 시작 시각을 정하며, 모든 슬라이스가 KRX 정규장(09:00~15:30 KST) 안이어야
 합니다. 다른 주문과 달리 실행 동안 **호출을 블로킹**하고, 기본은 스케줄만 보여주는 dry-run, `--execute`
-로 실제 집행합니다(슬라이스 거부/타임아웃은 기록하고 계속, 부분 실행+미달 보고).
+로 실제 집행합니다. 슬라이스별 거부·시간초과와 미달 수량을 결과에 기록합니다.
+결과가 `completed` 이면 종료 코드 0, `incomplete` 이면 5, `unknown` 이면 7, `interrupted` 이면 130입니다.
+중단과 결과 불명 주문이 함께 있으면 중단 결과와 미확인 주문 ID를 모두 보존하므로, 종료 코드만 보지 말고
+결과의 미확인 ID도 확인하세요.
 
 ```bash
 kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 # dry-run: 스케줄 미리보기
@@ -262,7 +274,9 @@ kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \
 ```
 
 미국주식 **algo 분할주문**(서버가 쪼개 집행)은 해외 매수/매도에 `--algo twap`/`vwap` 를 줍니다 --
-**미국·실전 전용·최소 10주**입니다. `--algo-start`/`--algo-end`(KST HHMMSS, 같은 날·시작<종료, 자정 넘김
+**미국·실전 전용**입니다. 주문유형별 거래단위는
+[KIS 미국시장 안내](https://securities.koreainvestment.com/main/bond/research/_static/TF03ce010000.jsp)와
+브로커의 주문 조건을 확인하세요. `--algo-start`/`--algo-end`(KST HHMMSS, 같은 날·시작<종료, 자정 넘김
 불가)로 시간창을 주거나 생략하면 정규장 종료까지 집행합니다(미국 정규장은 KST 로 자정을 넘어 한 창이 세션
 전체를 덮지 못하니 전체 집행은 시간창 생략). 자세한 규칙은 [주문](orders.md) 참조.
 
@@ -282,7 +296,10 @@ kis --profile general --environment real order buy 005930 10 --limit-price 70000
 ```
 
 정정·취소·확인은 `client_order_id` 로 지목합니다. 결과가 불명(타임아웃)이면 **재전송하지 말고**
-`reconcile` 로 실제 상태를 확정하세요.
+`reconcile` 로 저장된 상태를 확인하세요. 저장된 유효한 증권사 주문번호가 없으면 경제 조건만으로
+최초 연결하지 않고 `None` 과 처리 중 기록을 유지합니다. 번호가 있는 주문은 지원 자산군에서 상태를
+갱신합니다. 불명 상태는 HTS/MTS나 해당 계좌의 주문·체결 조회로 수동 확인하고, 결과가 없다는 이유로
+재전송하지 마세요. 해외선물옵션 주문의 `reconcile` 은 지원하지 않습니다.
 
 ```bash
 kis order modify <client_order_id> --limit-price 70500 --execute real --yes --confirm-account 7801
@@ -301,14 +318,14 @@ CLI 의 `--yes` 는 **오타 방어**용입니다. 에이전트(Claude 등)가 �
 
 | 코드 | 뜻 |
 |:--:|----|
-| 0 | 성공 |
+| 0 | 성공(TWAP은 `completed`) |
 | 2 | 인자 형식 오류 |
 | 3 | 로컬 구성·자격증명 문제 |
 | 4 | 도메인 검증·리스크 거부(전송 안 됨) |
-| 5 | 전송 실패 |
+| 5 | 전송 실패 또는 TWAP 미달(`incomplete`) |
 | 6 | 브로커 거부 |
-| 7 | 주문 결과 불확실(`reconcile` 필요) |
-| 130 | 사용자 중단(Ctrl-C) |
+| 7 | 주문 결과 불확실(저장 상태 및 계좌 조회·수동 확인 필요), TWAP `unknown` 포함 |
+| 130 | 사용자 중단(Ctrl-C), TWAP `interrupted` 포함 |
 
 이 종료 코드는 KIS 가 정한 게 아니라 **이 CLI 가 스크립트용으로 매긴 규약**입니다. `2` 는
 argparse 표준(인자 오류), `130` 은 유닉스 관례(Ctrl-C 중단 = 128 + 시그널 2)를 따른 것이고,

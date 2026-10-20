@@ -34,6 +34,7 @@ from .order import (
 from .overseas._engine import derivative_orders as overseas_deriv_orders_engine
 from .overseas._engine import orders as overseas_orders_engine
 from .overseas._engine import reserved_orders as overseas_reserved_orders_api
+from .store import Binding
 
 if TYPE_CHECKING:
     from ._literals import Numeric
@@ -102,6 +103,12 @@ class OrderEngine:
         self._risk = risk
         self._require_account = require_account
 
+    def _require_scoped_account(self) -> tuple[str, str]:
+        """계좌를 구하고 저장소 귀속을 검증한다 -- 조회·재생·리스크·전송보다 먼저 호출한다."""
+        cano, product_code = self._require_account()
+        self._store.bind_scope(cano=cano, product_code=product_code, environment=self._environment)
+        return cano, product_code
+
     def place_order(self, order: Order) -> ExecutionReport:
         """주문을 안전 엔진에 넘겨 전송한다(종목 핸들 buy/sell 이 호출). 계좌 정보 필요.
 
@@ -110,7 +117,7 @@ class OrderEngine:
         runner, 해외주식은 거래소별 해외 현재가와 결제통화별 금액 한도 runner 를 타, 두 lane 모두
         같은 fat-finger 보호(수량·금액·collar)를 받는다. 채권·파생(국내/해외)은 참조가 기반 검사가
         의미 없어 risk 세션에서 거부한다."""
-        cano, product_code = self._require_account()
+        cano, product_code = self._require_scoped_account()
         build_request: _order_core.PlaceRequestBuilder | None = None
         extract_output = None
         risk = self._risk
@@ -186,15 +193,15 @@ class OrderEngine:
         국내·해외 주식, 국내 파생(XKFE), 국내 장내채권(BOND), 해외선물옵션(OSFO) 즉시주문과 아시아
         해외예약(취소 전용)을 모두 처리한다 -- ``fingerprint`` 의 거래소/세션으로 자산별 정정·취소 와이어
         빌더를 골라 공유 안전 코어(:func:`~kis_trader._order_core.submit_change`)에 넘긴다."""
-        cano, product_code = self._require_account()
+        cano, product_code = self._require_scoped_account()
         # (지문, 리포트)를 한 락으로 원자 스냅샷 -- 잔량 계산이 둘의 세대 일관성에 의존하므로, 따로
         # 읽다 동시 정정/취소의 리바인드가 끼어들면 옛 지문 + 새 리포트로 잘못된 잔량이 나갈 수 있다.
-        binding = self._store.binding_for(client_order_id)
-        if binding is None:
+        report, fingerprint, query_anchor, _generation = self._store._recovery_snapshot_for(client_order_id)
+        if report is None or fingerprint is None:
             raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {client_order_id!r}")
-        report, fingerprint = binding
+        binding = Binding(report, fingerprint)
         # 이미 종료된 주문(체결/취소/거부/만료)은 정정·취소 대상이 아니다 -- 와이어/조회 전에 거부한다.
-        # 특히 재조회로 확정된 종료 리포트는 쓸 수 있는 ODNO 가 없을 수 있어(order_id=None), 밑에서
+        # 이전 형식으로 저장했거나 직접 구성한 종료 리포트는 ODNO 가 없을 수 있어(order_id=None), 밑에서
         # str(order_id) 로 "None" 을 조회·전송하는 대신 여기서 명확히 막는다.
         if report.is_terminal:
             raise KISUsageError(
@@ -256,16 +263,12 @@ class OrderEngine:
                     raise KISUsageError(
                         "파생 야간은 부분 정정·취소 미지원 -- quantity 를 생략해 전량으로 하라"
                     )
-                # ORD_QTY 에 실잔량이 필수라, 로컬 리포트의 stale 잔량 대신 inquire-ngt-ccnl 로 신선
-                # 잔량을 조회해 주입한다(읽기 -- claim 전). 날짜창 앵커는 접수(recorded) 일자다 -- 이
-                # 주문은 이미 확정돼 in-flight claim 시각이 없고(claim_time_for -> None -> 뒷방향
-                # 폴백창), 야간 주문일자는 T+1 이라 뒷방향 창엔 안 들어와 0행 KISError 로 취소가
-                # 와이어에 닿지 못한다. 접수 일자 앵커가 T+1 을 덮는 전방창을 만든다. 조회 실패/0행/
-                # 다행이면 여기서 fail-closed 로 올라가 취소 와이어에 닿지 않는다.
+                # 기록·지문과 같은 세대에서 얻은 고정 조회 기준을 쓴다. 관측 시각(recorded_at)은
+                # refresh 때 바뀌므로 날짜창 기준이 아니다. 모호/실패하면 변경 claim 전 거부한다.
                 change_quantity = derivative_orders_engine.fetch_night_remaining(
                     self._transport, order_id=str(report.order_id), symbol=fingerprint.symbol,
                     cano=cano, product_code=product_code, environment=self._environment,
-                    anchor=report.recorded_at.isoformat(),
+                    anchor=query_anchor[0],
                 )
                 builder = derivative_orders_engine.make_night_change_request
             else:
@@ -388,8 +391,9 @@ class OrderEngine:
         """미확인 주문(타임아웃 등)의 실제 상태를 브로커에 재조회한다 -- **보수적**. ``kis.orders.reconcile``.
 
         완료 리포트가 있으면 반환. in-flight 면 저장된 주문 종류에 따라 확인처를 고른다: 국내 즉시
-        주문은 일별체결조회, 해외 주문은 해외 체결내역, 예약주문은 예약주문조회. 어느 쪽이든 정확히
-        1건이면 확정, 모호(0/다건)하면 미접수로 단정하지 않는다(``None`` 또는 :class:`~kis_trader.
+        주문은 일별체결조회, 해외 주문은 해외 체결내역, 예약주문은 예약주문조회. 저장된 유효 증권사 주문번호가 없으면
+        경제 조건이나 날짜 일치만으로 자동 확정하지 않고 None 을 반환한다. 알려진 주문번호의
+        조회가 모호(0/다건)하면 미접수로 단정하지 않는다(``None`` 또는 :class:`~kis_trader.
         errors.KISError`). 모르는 id 는 :class:`~kis_trader.errors.KISUsageError`. 재조회 자체가
         시간초과면 :class:`~kis_trader.errors.OrderTimeoutError`(in-flight 유지, 잠시 후 재시도).
 
@@ -405,7 +409,7 @@ class OrderEngine:
         확인할 수 없어 변경이 처리 중 상태로 남을 수 있으므로, HTS/MTS 또는 계좌 조회에서 확인하고
         그곳에서 주문을 계속 관리할 수 있습니다.
         """
-        cano, product_code = self._require_account()
+        cano, product_code = self._require_scoped_account()
         # 해외 주문의 미확인(in-flight) 재조회는 국내 일별체결조회가 아니라 해외 체결내역으로 확인해야
         # 한다(엉뚱한 미접수 판정 방지) -- 지문의 거래소로 국내/해외 경로를 가른다. 완료 리포트가 있으면
         # 어느 엔진이든 그대로 반환한다.
@@ -420,7 +424,7 @@ class OrderEngine:
             #     해제하고(데드락 해소) 그 리포트를 돌려준다.
             #   - 모호(0건 None: 예를 들어 정정으로 수량·단가가 바뀌어 원 지문과 더 안 맞음)하거나 재조회
             #     가 실패(타임아웃/다건 예외)하면 해제하지 않고 그대로 올린다 -- 확인 안 된 것을 확인된
-            #     척하지 않는다(reconcile 이 유일한 사후 진실이고 캐시를 진실로 위장하지 않는다). 변경은
+            #     척하지 않는다(저장된 접수 스냅샷을 현재 체결 상태로 간주하지 않는다). 변경은
             #     in-flight 로 남고 사용자는 브로커(HTS/MTS)로 수동 확인한다.
             action = fingerprint.action
             pre_change_report = self._store.report_for(fingerprint.original_client_order_id)
@@ -514,14 +518,14 @@ class OrderEngine:
         """예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 호출). 계좌 정보 필요.
 
         즉시주문 안전 코어와 별개 흐름이되 dedup(OrderStore)·재시도 금지·보수적 재조회·주문가능 계좌
-        가드는 공유한다. risk 게이트는 예약주문엔 적용하지 않는다(집행이 향후라 현재가 기준 참조가
-        의미 없음)."""
-        cano, product_code = self._require_account()
+        가드는 공유한다. 예약 수량/지정 단가 기준 금액도 risk 한도를 검사한다. 미래 참조가를
+        조회·추정하지 않으므로 참조가가 필요한 설정은 확인 불가로 거부한다."""
+        cano, product_code = self._require_scoped_account()
         return reserved_orders_api.place_reserved_order(
             self._transport, self._store,
             symbol=symbol, side=side, quantity=quantity, limit_price=limit_price, end_date=end_date,
             client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
-            cano=cano, product_code=product_code, environment=self._environment,
+            cano=cano, product_code=product_code, environment=self._environment, risk=self._risk,
         )
 
     def place_overseas_reserved_order(
@@ -531,12 +535,13 @@ class OrderEngine:
     ) -> ExecutionReport:
         """해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출).
         ``exchange`` 의 시장이 미국/아시아 와이어를 가르고, ``currency`` 는 홍콩(HKS) 예약의 상품유형
-        선택 전용이다. ``algo_strategy``(twap/vwap)는 미국 예약주문의 알고리즘 분할(미국 실전 전용)이다."""
-        cano, product_code = self._require_account()
+        및 리스크 검사 통화 선택에 쓰인다. ``algo_strategy``(twap/vwap)는 미국 예약주문의 알고리즘 분할
+        (미국 실전 전용)이다. 수량/지정 금액에 risk 를 적용하며 참조가가 필요한 설정은 조회 없이 거부한다."""
+        cano, product_code = self._require_scoped_account()
         return overseas_reserved_orders_api.place_overseas_reserved_order(
             self._transport, self._store,
             symbol=symbol, side=side, quantity=quantity, limit_price=limit_price, exchange=exchange,
             currency=currency, algo_strategy=algo_strategy,
             client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
-            cano=cano, product_code=product_code, environment=self._environment,
+            cano=cano, product_code=product_code, environment=self._environment, risk=self._risk,
         )

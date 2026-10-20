@@ -10,7 +10,7 @@ import threading
 
 import pytest
 
-from kis_trader import KISClient
+from kis_trader import KISClient, RiskLimits
 from kis_trader.errors import (
     KISError,
     KISUsageError,
@@ -43,9 +43,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, environment="real", account="12345678-01"):
+def _client(transport, *, environment="real", account="12345678-01", risk=None):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     environment=environment, transport=transport)
+                     environment=environment, transport=transport, risk=risk)
 
 
 def test_cancel_overseas_reserved_wire():
@@ -120,3 +120,11 @@ def test_cancel_overseas_reserved_requires_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_OK), account=None).account.overseas.cancel_reserved_order(
             "0031111234", receipt_date="20250523")
+
+
+def test_us_reserved_cancel_remains_available_without_currency_cap():
+    fake = FakeTransport(response=_OK)
+    incompatible = RiskLimits(max_order_quantity=1, max_order_notional=1, price_collar_percent=1)
+    _client(fake, risk=incompatible).account.overseas.cancel_reserved_order("0031111234", receipt_date="20250523")
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["tr_id"] == "TTTT3017U"

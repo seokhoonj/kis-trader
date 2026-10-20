@@ -9,7 +9,7 @@
 ```python
 realtime = kis.realtime()                           # /oauth2/Approval 로 접속키 발급
 
-realtime.subscribe("H0STCNT0", "005930", on=print)  # 삼성전자 실시간 체결(콜백)
+realtime.subscribe(tr_id="H0STCNT0", tr_key="005930", on=print)  # 삼성전자 실시간 체결(콜백)
 realtime.start()                                    # 백그라운드 스레드에서 수신 시작
 
 for tick in realtime.stream():                      # 또는 이터레이터로
@@ -20,7 +20,9 @@ realtime.stop()                                     # 종료 (with 문도 가능
 
 `subscribe`는 `start` 전에 불러도 되고(연결 후 자동 전송), 후에 불러도 됩니다. 수신 메시지는
 등록한 **콜백**과 `stream()` **이터레이터** 양쪽으로 전달됩니다. `with kis.realtime() as realtime:`로
-쓰면 블록을 벗어날 때 자동으로 `stop()`됩니다.
+쓰면 블록을 벗어날 때 자동으로 `stop()`됩니다. 콜백은 전용 스레드에서 순서대로 실행되므로
+오래 걸리는 작업은 별도 작업으로 넘기세요. 각 큐는 기본 상한 10,000건이며 소비가 느려 차면 오래된
+데이터를 버릴 수 있습니다. 구독을 닫은 뒤에는 새 항목을 받지 않고 이미 큐에 있던 항목만 소비합니다.
 
 각 메시지는 `RealtimeMessage(tr_id, tr_key, data)`이고, `data`는 그 TR의 결과 엔티티(파서가 있으면)
 또는 원시 필드 리스트입니다. 값을 꺼낼 땐 엔티티 종류로 좁혀 씁니다:
@@ -33,7 +35,7 @@ def on_tick(msg):
     if isinstance(tick, StockTick):
         print(tick.symbol, tick.current_price, tick.change_percent)
 
-realtime.subscribe("H0STCNT0", "005930", on=on_tick)
+realtime.subscribe(tr_id="H0STCNT0", tr_key="005930", on=on_tick)
 ```
 
 ## 타입 지정 구독 (권장)
@@ -88,7 +90,7 @@ with realtime.domestic.stock("005930").order_book(exchange="NXT") as sub:
     for book in sub:
         print(book.best_ask, book.best_bid)
 
-# 3) 콜백 -- on= 으로 넘기면 수신 스레드에서 호출됩니다
+# 3) 콜백 -- on= 으로 넘기면 네트워크 수신 루프와 분리된 콜백 전용 스레드에서 호출됩니다
 def on_notice(notice):
     print(notice.order_id, notice.filled_quantity)
 
@@ -111,7 +113,7 @@ TR을 직접 등록하거나, 여러 TR을 한 스트림으로 합쳐 받을 때
 
 `tr_id`는 KIS 실시간 거래 코드. `tr_key`는 TR 별로 형식이 다릅니다 — 국내주식은 종목번호(6자리),
 통보는 HTS ID, **해외주식은 `"D"` + 종목 마스터 RSYM**(예: `NASAAPL` → `DNASAAPL`; 접두 없이
-raw `subscribe` 하면 서버가 아무 프레임도 안 보냄 — 타입드 표면은 자동으로 붙임), 해외선물옵션은
+raw `subscribe` 에도 이 형식의 키를 직접 줍니다 — 타입드 표면은 자동으로 붙임), 해외선물옵션은
 시리즈코드. 자주 쓰는 것:
 
 | TR ID | 뜻 | tr_key |
@@ -128,12 +130,14 @@ raw `subscribe` 하면 서버가 아무 프레임도 안 보냄 — 타입드 �
 
 ::: {.callout-note}
 **체결통보(암호화)** — `H0STCNI0` 같은 `…CNI0`/통보 계열은 AES-CBC로 암호화되어 옵니다. 접속키
-발급 응답의 키/IV로 자동 복호화되므로 사용법은 동일합니다(그래서 `cryptography`가 필요).
+발급 응답이 아니라 **구독 확인 응답(ACK)** 에서 받은 키/IV를 TR별로 보관해 자동 복호화합니다
+(그래서 `cryptography`가 필요).
 :::
 
 ## async 앱에 붙이기 (FastAPI 등)
 
-async 서버는 동기 래퍼 대신 **코어를 직접** 씁니다:
+async 서버는 동기 래퍼 대신 **코어를 직접** 씁니다. 아래 `fetch_approval_key` 는 동기 REST 호출이므로,
+서버의 다른 작업을 막지 않도록 시작 단계에서 실행하거나 별도 스레드로 넘기세요:
 
 ```python
 from kis_trader.realtime import RealtimeConnection, fetch_approval_key, websocket_url
@@ -147,12 +151,13 @@ async with RealtimeConnection(approval, websocket_url("real")) as conn:
 
 ## 알아둘 것
 
-- **등록 상한**: 접속키 하나당 실시간 등록 **41건**. 초과 시, `start()` 전에 등록했거나 실행 중
+- **등록 상한**: [KIS 공식 FAQ](https://apiportal.koreainvestment.com/community/10000000-0000-0011-0000-000000000002/post/171eef4d-06c1-4d75-980e-dedffb54386a)에 따르면 실시간 등록은
+  체결·호가·통보와 전 자산군을 **합쳐 41건**입니다. 한 계좌·앱키의 연결은 한 세션입니다. 초과 시, `start()` 전에 등록했거나 실행 중
   raw `subscribe()` 로 등록한 건은 `KISUsageError` 로 올라옵니다(전자는 `start()` 가 대신 올림).
   단, `start()` **후** 연 타입 지정 구독은 wire 등록이 비동기(fire-and-forget)라 초과가 예외로
   오르지 않고 연결 계층 경고 로그로만 남습니다 — 실행 중 타입 구독을 늘릴 땐 로그를 보거나 41건
   아래로 유지하세요.
-- **끊김 복원**: 연결이 끊기면 자동 재연결 + 기존 구독 재등록(백오프 -- 재시도 간격을 점점 늘려 다시 붙음). 깨진 프레임은 스트림을
+- **끊김 복원**: 기본 설정(`reconnect=True`)에서는 연결이 끊기면 자동 재연결 + 기존 구독 재등록(백오프 -- 재시도 간격을 점점 늘려 다시 붙음). 깨진 프레임은 스트림을
   죽이지 않고 드롭됩니다(로그로 남김).
 - **부호**: 실시간 `change`/`change_percent`(및 `nav_change`)는 REST `Quote` 와 같이 **부호를 포함**합니다
   (하락이면 음수). 벤더 원본 부호코드는 `change_sign`(NAV 는 `nav_change_sign`)에 그대로 유지됩니다.

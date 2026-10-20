@@ -9,6 +9,7 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from contextlib import closing
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, get_args
 
@@ -197,6 +198,15 @@ def build_parser() -> argparse.ArgumentParser:
                            help="비대화형(기본 병합을 자동 수락; 개명이 필요한 프로필이 있으면 거부)")
     migrate_p.set_defaults(func=credentials.cmd_config_migrate, needs_client=False)
 
+    orders_migrate_p = config_sub.add_parser(
+        "migrate-orders", help="모든 주문 저장소 사용자를 중지한 뒤 주문 디렉터리 이전·복구",
+    )
+    orders_migrate_p.add_argument(
+        "--offline", action="store_true",
+        help="모든 계좌의 구·신 프로세스와 자동 재시작을 중지하고 완료까지 유지했다는 운영자 선언(기술적 차단 아님)",
+    )
+    orders_migrate_p.set_defaults(func=credentials.cmd_config_migrate_orders, needs_client=False)
+
     # kis search
     search_p = leaf(groups, "search", help="이름/코드로 국내 종목 검색")
     search_p.add_argument("query")
@@ -307,7 +317,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="미체결만")
             sp.add_argument("--older-than-three-months", dest="older_than_three_months",
                             action="store_true",
-                            help="3개월 이전 체결내역(기본은 3개월 이내; 주식 전용)")
+                            help="3개월 이전 내역만 조회(기본은 최근·과거 모두 조회; 주식 전용)")
         if name == "reserved":
             sp.add_argument("--process", dest="process",
                             choices=list(get_args(ReservedProcess)), default=None,
@@ -428,12 +438,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _emit(result: Any, args: argparse.Namespace, kis: KISClient) -> None:
+def _emit(result: Any, args: argparse.Namespace, kis: KISClient, *, ok: bool = True) -> None:
     # 환경·계좌는 세션(kis)이 생성 시 이미 해석한 값을 재사용한다(자격증명 재조회 없음).
     meta = {"environment": kis.environment,
             "account_suffix": account_suffix(kis._account)}
     print(render(result, fmt=args.fmt, include_raw=args.include_raw,
-                 no_header=args.no_header, meta=meta))
+                 no_header=args.no_header, meta=meta, ok=ok))
 
 
 def _emit_error(translated: Translated, args: argparse.Namespace) -> None:
@@ -456,8 +466,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     needs_client = getattr(args, "needs_client", True)
     try:
         if needs_client:
-            kis = build_client(args)
-            result = args.func(kis, args)
+            with closing(build_client(args)) as kis:
+                result = args.func(kis, args)
+                if isinstance(result, order.TWAPCommandResult):
+                    exit_code = {"completed": 0, "incomplete": 5, "unknown": 7, "interrupted": 130}[result.outcome]
+                    _emit(result.payload, args, kis, ok=result.outcome == "completed")
+                    return exit_code
+                _emit(result, args, kis)
         else:
             args.func(args)
     except KeyboardInterrupt:
@@ -470,6 +485,4 @@ def main(argv: Sequence[str] | None = None) -> int:
         translated = translate(exc)
         _emit_error(translated, args)
         return translated.exit_code
-    if needs_client:
-        _emit(result, args, kis)
     return 0

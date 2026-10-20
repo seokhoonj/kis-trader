@@ -142,7 +142,10 @@ def test_domestic_account_balance_hits_balance_tr():
 
 
 def test_overseas_account_present_balance_delegates():
-    body = {"output1": [], "output2": [], "output3": {}}
+    body = {"output1": [], "output2": [], "output3": {
+        "pchs_amt_smtl_amt": "0", "evlu_amt_smtl_amt": "0", "tot_evlu_pfls_amt": "0",
+        "tot_asst_amt": "0", "evlu_erng_rt1": "0",
+    }}
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     fake = FakeTransport(response=resp)
     k = _client(fake)

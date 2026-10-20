@@ -1,6 +1,9 @@
 # API 함수 트리
 
-공개 파사드 전체를 한 화면에 담은 함수 지도입니다. 각 함수의 상세는 해당 주제 페이지를 보세요. 핸들이 반환하는 결과 타입(`Quote`, `Balance` 등)은 트리에 펼치지 않습니다.
+공개 API의 함수 지도입니다. 트리의 인자 목록은 읽기 위한 **축약 표기**이며 실행 코드가 아닙니다.
+`...` 는 생략된 인자를, `*` 뒤의 이름은 키워드 전용 인자를 뜻합니다. 이름만 있는 `(...)` 항목의
+필수 인자·기본값은 `help()` 와 해당 주제 페이지에서 확인하세요. 핸들이 반환하는 결과 타입
+(`Quote`, `Balance` 등)은 트리에 펼치지 않습니다.
 
 ## 세션 — `KISClient`
 
@@ -77,7 +80,7 @@ kis.domestic
 │   ├── nav()                           # ETF/ETN 순자산가치
 │   ├── nav_comparison()                # ETF 시장가-NAV 비교
 │   ├── nav_intraday()                  # ETF 시장가-NAV 분별
-│   ├── nav_history(start, end)         # 일별 NAV-가격 추이
+│   ├── nav_history(*, start, end)         # 일별 NAV-가격 추이
 │   ├── etf_order_book()                # ETF 10단계 호가·LP
 │   ├── etf_components()                # ETF 구성종목(PDF, Portfolio Deposit File)
 │   │  ── 주문가능 조회(여력) ────────────────────────
@@ -85,17 +88,17 @@ kis.domestic
 │   ├── credit_buyable()                # 신용 매수가능 여력
 │   ├── sellable()                      # 매도가능 수량
 │   │  ── 주문 실행 ──────────────────────────────
-│   ├── buy(quantity, ...)              # 매수 주문(KRX 주문구분)
-│   ├── sell(quantity, ...)             # 매도 주문(KRX 주문구분)
+│   ├── buy(*, quantity, ...)              # 매수 주문(KRX 주문구분)
+│   ├── sell(*, quantity, ...)             # 매도 주문(KRX 주문구분)
 │   ├── credit_buy(...)                 # 신용 매수 주문
 │   ├── credit_sell(...)                # 신용 매도 주문
 │   ├── reserve_buy(...)                # 예약매수
 │   ├── reserve_sell(...)               # 예약매도
-│   └── twap(side, quantity, over, slices, ...)  # 클라이언트 TWAP 분할(정규장 내 시장가 여러 번)
+│   └── twap(*, side, quantity, over, slices, ...)  # 클라이언트 TWAP 분할(정규장 내 시장가 여러 번)
 ├── index(code)                         # 지수/업종 핸들
 │   ├── quote()                         # 지수 현재가
 │   ├── bars(interval='1d', ...)        # 지수 봉
-│   ├── intraday(interval='1m')         # 당일 시간대별 시계열
+│   ├── intraday(*, interval='1m')         # 당일 시간대별 시계열
 │   ├── ticks()                         # 당일 10초 시계열
 │   ├── recent_prices()                 # 최근 일·주·월 지수 시세+보조지표
 │   ├── expected_trend()                # 동시호가 예상 지수 추이
@@ -107,11 +110,11 @@ kis.domestic
 │   ├── quote()                         # 채권 현재가
 │   ├── bars(interval='1d')             # 채권 일별 OHLCV
 │   ├── daily_prices()                  # 날짜별 현재가·OHLCV
-│   ├── valuations(start, end)          # 평가기관별 단가·수익률
+│   ├── valuations(*, start, end)          # 평가기관별 단가·수익률
 │   ├── order_book()                    # 채권 호가창(5단계)
 │   ├── trades()                        # 채권 최근 체결
-│   ├── buy(quantity, limit_price)      # 채권 매수 주문
-│   └── sell(quantity, ...)             # 채권 lot 매도 주문
+│   ├── buy(*, quantity, limit_price)      # 채권 매수 주문
+│   └── sell(*, quantity, ...)             # 채권 lot 매도 주문
 ├── elw(symbol)                         # ELW 고유 지표 핸들
 │   ├── quote()                         # ELW 현재가·그릭스
 │   ├── sensitivity_trend()             # 민감도(그릭스) 추이
@@ -126,17 +129,17 @@ kis.domestic
 │   ├── underlying_quote()              # 선물+기초자산(베이시스)
 │   ├── orderable(side)                 # 주간 주문가능수량
 │   ├── night_orderable(side)           # 야간장 주문가능수량
-│   ├── buy(quantity, ...)              # 계약 매수 주문
-│   └── sell(quantity, ...)             # 계약 매도 주문
-├── option(symbol, right=None)          # 지수옵션 계약 핸들
+│   ├── buy(*, quantity, ...)              # 계약 매수 주문
+│   └── sell(*, quantity, ...)             # 계약 매도 주문
+├── option(symbol, *, right=None)          # 지수옵션 계약 핸들
 │   ├── quote()                         # 계약 현재가
 │   ├── order_book()                    # 계약 호가창(5단계)
 │   ├── expected_execution_trend()      # 예상체결 요약·추이
 │   ├── bars(interval='1d', ...)        # OHLCV 봉
 │   ├── orderable(side)                 # 주간 주문가능수량
 │   ├── night_orderable(side)           # 야간장 주문가능수량
-│   ├── buy(quantity, ...)              # 계약 매수 주문
-│   └── sell(quantity, ...)             # 계약 매도 주문
+│   ├── buy(*, quantity, ...)              # 계약 매수 주문
+│   └── sell(*, quantity, ...)             # 계약 매도 주문
 │  ── 파생 전광판 ─────────────────────────────────
 ├── option_expiries()                   # 지수옵션 만기 월물 목록
 ├── option_board(expiry)                # 옵션 콜/풋 전광판
@@ -198,12 +201,12 @@ kis.domestic
 │   ├── vi_events()                     # 전 시장 VI 발동
 │   ├── limit_stocks()                  # 상/하한가 도달 종목
 │   │  ── 의견·뉴스·일정 ───────────────────────────
-│   ├── broker_opinions(member_code)    # 증권사 종목 투자의견
+│   ├── broker_opinions(*, member_code)    # 증권사 종목 투자의견
 │   ├── news()                          # 시황/공시 뉴스 피드
 │   ├── trading_calendar()              # 거래 캘린더(영업/개장)
 │   └── futures_market_schedule()       # 국내선물 영업일·장 시각
 ├── calendar                            # 기업행위 캘린더 질의
-│   ├── dividends(start, end)           # 배당 일정
+│   ├── dividends(*, start, end)           # 배당 일정
 │   ├── ipo_subscriptions(...)          # 공모주 청약 일정
 │   ├── rights_offerings(...)           # 유상증자 일정
 │   ├── bonus_issues(...)               # 무상증자 일정
@@ -225,9 +228,9 @@ kis.domestic
     ├── underlyings()                   # 상장 기초자산 목록
     ├── by_underlying(underlying)       # 한 기초자산 ELW 목록
     ├── comparables(underlying)         # 비교대상 ELW 목록
-    ├── newly_listed(base_date)              # 신규상장 ELW 목록
-    ├── expiring(start, end)            # 만기예정 ELW 목록
-    └── search()                        # 조건검색 ELW 목록
+    ├── newly_listed(*, base_date)              # 신규상장 ELW 목록
+    ├── expiring(*, start, end)            # 만기예정 ELW 목록
+    └── screen()                        # 조건검색 ELW 목록
 ```
 
 ## `kis.overseas` — 해외 시세·발주·순위
@@ -240,8 +243,8 @@ kis.overseas
 │   ├── bars(interval='1d', ...)        # OHLCV 봉
 │   ├── order_book()                    # 호가창
 │   ├── trades()                        # 최근 체결 목록
-│   ├── buy(quantity, ...)              # 매수
-│   ├── sell(quantity, ...)             # 매도
+│   ├── buy(*, quantity, ...)              # 매수
+│   ├── sell(*, quantity, ...)             # 매도
 │   ├── overnight_buy(...)              # 미국 오버나이트 매수
 │   ├── overnight_sell(...)             # 미국 오버나이트 매도
 │   ├── reserve_buy(...)                # 예약매수
@@ -251,11 +254,11 @@ kis.overseas
 ├── futures(symbol)                     # 해외 선물 계약 핸들
 │   ├── quote()                         # 계약 현재가
 │   ├── order_book()                    # 계약 호가창(5단계)
-│   ├── bars(exchange, ...)             # 분·일·주·월 OHLCV
-│   ├── trades(exchange, ...)           # 최근 틱 체결
+│   ├── bars(*, exchange, ...)             # 분·일·주·월 OHLCV
+│   ├── trades(*, exchange, ...)           # 최근 틱 체결
 │   ├── detail()                        # 계약 명세
-│   ├── buy(quantity, ...)              # 계약 매수
-│   └── sell(quantity, ...)             # 계약 매도
+│   ├── buy(*, quantity, ...)              # 계약 매수
+│   └── sell(*, quantity, ...)             # 계약 매도
 ├── option(symbol)                      # 해외 옵션 핸들(선물과 동일 메서드)
 ├── futures_details(symbols)            # 선물 명세 배치(최대 32)
 ├── option_details(symbols)             # 옵션 명세 배치(최대 30)
@@ -265,25 +268,25 @@ kis.overseas
 ├── quotes(symbols)                     # 여러 종목 현재가(최대 10)
 ├── screen_stocks(exchange, ...)        # 조건검색(exchange='US'는 NAS/NYS/AMS 통합)
 ├── resolve_instrument(symbol, *, exchange=None)  # 해외 심볼 마스터 조회(심볼->거래소)
-├── product_info(exchange, symbol)      # 상품기본정보
+├── product_info(symbol, *, exchange)      # 상품기본정보
 ├── industries(exchange)                # 업종(섹터) 코드 목록
-├── industry_stocks(exchange, industry_code, *, min_volume=0)  # 업종 소속 종목 시세
+├── industry_stocks(exchange, *, industry_code, min_volume=0)  # 업종 소속 종목 시세
 ├── collateral_stocks(...)              # 담보대출 가능종목
 ├── news(...)                           # 해외뉴스 제목 피드
 ├── breaking_news(...)                  # 해외속보 제목 피드
-├── rights(start, end, ...)             # 기간별 권리(배당·증자)
-├── corporate_actions(country, symbol)  # 기업행사 종합 일정
+├── rights(*, start, end, ...)             # 기간별 권리(배당·증자)
+├── corporate_actions(symbol, *, country, ...)  # 기업행사 종합 일정
 └── ranking                             # 시장 순위 질의
-    ├── by_volume(exchange)             # 거래량 순위
-    ├── by_trading_amount(exchange)             # 거래대금 순위
-    ├── by_volume_growth(exchange)       # 거래증가율 순위
-    ├── by_market_cap(exchange)         # 시가총액 순위
-    ├── by_change(exchange, ...)        # 등락률 순위
-    ├── by_volume_surge(exchange)       # 거래량 급증 순위
-    ├── by_execution_strength(exchange)       # 매수 체결강도 순위
-    ├── by_turnover(exchange)           # 거래 회전율 순위
-    ├── by_sharp_change(exchange)  # 가격 급등/급락 순위
-    └── by_new_high_low(exchange, ...)   # 신고가/신저가 순위
+    ├── by_volume(*, exchange)             # 거래량 순위
+    ├── by_trading_amount(*, exchange)             # 거래대금 순위
+    ├── by_volume_growth(*, exchange)       # 거래증가율 순위
+    ├── by_market_cap(*, exchange)         # 시가총액 순위
+    ├── by_change(*, exchange, ...)        # 등락률 순위
+    ├── by_volume_surge(*, exchange)       # 거래량 급증 순위
+    ├── by_execution_strength(*, exchange)       # 매수 체결강도 순위
+    ├── by_turnover(*, exchange)           # 거래 회전율 순위
+    ├── by_sharp_change(*, exchange)  # 가격 급등/급락 순위
+    └── by_new_high_low(*, exchange, ...)   # 신고가/신저가 순위
 ```
 
 ## `kis.account` — 계좌 조회 (상품코드로 분기)
@@ -300,32 +303,33 @@ kis.account
 │   │   ├── assets()                          # 투자계좌 자산현황
 │   │   ├── realized_profit_balance()         # 실현손익 체결기준잔고
 │   │   ├── integrated_margin()               # 통합증거금
-│   │   ├── trade_profits(start, end)         # 종목별 실현손익
-│   │   ├── daily_profits(start, end)         # 일별 매매손익
-│   │   ├── rights(start, end)                # 계좌 권리 내역
+│   │   ├── trade_profits(*, start, end)         # 종목별 실현손익
+│   │   ├── daily_profits(*, start, end)         # 일별 매매손익
+│   │   ├── rights(*, start, end)                # 계좌 권리 내역
 │   │   ├── open_orders()                     # 미체결 주문
-│   │   ├── order_history(start, end)         # 일별 주문·체결 내역
-│   │   ├── reserved_orders(start, end)       # 예약주문 목록
+│   │   ├── order_history(*, start, end)         # 일별 주문·체결 내역
+│   │   ├── combined_order_history(*, start, end) # 최근·과거 주문·체결 결합
+│   │   ├── reserved_orders(*, start, end)       # 예약주문 목록
 │   │   ├── cancel_reserved_order(seq)        # 예약주문 취소
 │   │   ├── modify_reserved_order(...)        # 예약주문 정정
 │   │   └── bonds                             # 장내채권 계좌 조회
 │   │       ├── balance()                     # 채권 보유 잔고
 │   │       ├── buyable(symbol)               # 채권 매수가능
 │   │       ├── open_orders(order_date)       # 채권 미체결 주문
-│   │       └── order_history(start, end)     # 채권 주문·체결 내역
+│   │       └── order_history(*, start, end)     # 채권 주문·체결 내역
 │   ├── overseas                              # 해외주식 계좌 조회
 │   │   ├── positions()                       # 보유 종목(시장·통화별)
-│   │   ├── balance(market)                   # 계좌 손익 요약(시장별)
-│   │   ├── buyable(symbol, exchange, limit_price)  # 매수가능금액
+│   │   ├── balance(*, market)                   # 계좌 손익 요약(시장별)
+│   │   ├── buyable(symbol, *, exchange, limit_price)  # 매수가능금액
 │   │   ├── foreign_margin()                  # 통화별 외화 예수금·증거금
 │   │   ├── present_balance()                 # 체결기준현재잔고
-│   │   ├── settlement_balance(basis_date)    # 결제기준잔고
-│   │   ├── trade_profits(start, end)         # 기간손익
-│   │   ├── transactions(start, end)          # 일별 거래내역
+│   │   ├── settlement_balance(*, basis_date)    # 결제기준잔고
+│   │   ├── trade_profits(*, start, end)         # 기간손익
+│   │   ├── transactions(*, start, end)          # 일별 거래내역
 │   │   ├── open_orders()                     # 미체결 주문
 │   │   ├── algo_orders()                     # 알고주문 목록
 │   │   ├── algo_executions(...)              # 알고주문 체결내역
-│   │   ├── reserved_orders(start, end)       # 예약주문 목록
+│   │   ├── reserved_orders(*, start, end)       # 예약주문 목록
 │   │   └── cancel_reserved_order(...)        # 미국 예약주문 취소
 │   ├── pension                               # IRP(29) 퇴직연금 조회 렌즈(조회전용)
 │   │   ├── deposit()                         # 예수금 요약
@@ -341,9 +345,9 @@ kis.account
 │   ├── open_orders()                         # 미체결 주문(모의 지원)
 │   ├── deposit()                             # 총자산현황
 │   ├── valuation_pnl()                        # 잔고평가손익
-│   ├── settlement_pnl(base_date)              # 잔고정산손익
-│   ├── base_date_fills(order_date)           # 기준일체결내역
-│   ├── commissions(start, end)               # 기간약정수수료
+│   ├── settlement_pnl(*, base_date)              # 잔고정산손익
+│   ├── base_date_fills(*, order_date)           # 기준일체결내역
+│   ├── commissions(*, start, end)               # 기간약정수수료
 │   ├── night_balance()                       # 야간 잔고현황
 │   └── night_margin()                        # 야간 증거금상세
 └── [OverseasDerivativesAccount]  해외선물옵션 08
@@ -354,10 +358,10 @@ kis.account
     ├── positions()                           # 미결제내역
     ├── orderable(symbol, side)               # 주문가능수량
     ├── today_orders()                        # 당일 주문내역
-    ├── daily_fills(start, end)               # 일별 체결내역
-    ├── daily_orders(start, end)              # 일별 주문내역
-    ├── period_pnl(start, end)                # 기간 손익
-    └── cash_transactions(start, end)         # 기간 입출금내역
+    ├── daily_fills(*, start, end)               # 일별 체결내역
+    ├── daily_orders(*, start, end)              # 일별 주문내역
+    ├── period_pnl(*, start, end)                # 기간 손익
+    └── cash_transactions(*, start, end)         # 기간 입출금내역
 ```
 
 ## `kis.orders` — 주문 라이프사이클
@@ -365,7 +369,7 @@ kis.account
 ```text
 kis.orders
 ├── open_orders()                 # 미체결 주문 통합 조회(계좌별 -> OpenOrders)
-├── reconcile(client_order_id, *, refresh=False)  # 미확정 주문 상태 재조회(refresh=True 면 브로커 재스캔)
+├── reconcile(client_order_id, *, refresh=False)  # 저장 리포트 반환; refresh=True 는 저장된 유효한 증권사 주문번호가 있을 때 상태 조회
 ├── cancel(client_order_id, ...)  # 접수주문 취소(부분가능)
 └── modify(client_order_id, ...)  # 가격/수량 정정
 ```

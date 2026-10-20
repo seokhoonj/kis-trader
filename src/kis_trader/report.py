@@ -1,7 +1,7 @@
 """주문 결과(RESULT) 타입 -- :class:`ExecutionReport` 와 :class:`OrderStatus`.
 
 주문의 '현재 상태'는 낙관적으로 앞서가지 않고 **거래소가 준 리포트로만** 전이한다
-(FIX 라이프사이클 규칙). 로컬 상태는 캐시이며, 이 리포트가 진실 원천이다.
+(FIX 라이프사이클 규칙). 이 리포트는 관측 시점의 상태이며, 이후의 증권사 상태와 다를 수 있다.
 """
 
 from __future__ import annotations
@@ -48,13 +48,13 @@ TERMINAL_ORDER_STATUSES = frozenset({
 
 @dataclass(frozen=True, slots=True)
 class ExecutionReport:
-    """한 주문의 상태 스냅샷(진실 원천).
+    """한 주문의 관측 시점 상태 스냅샷.
 
     ``client_order_id`` (우리가 발행한 멱등키)로 요청과 리포트를 잇고, ``order_id`` 는 브로커가
     접수 시 부여한 식별자다 -- 즉시주문은 거래소 주문번호(KIS ``ODNO``), 예약주문은 예약 식별자
     (국내 ``rsvn_ord_seq`` / 해외 ``ovrs_rsvn_odno``, 정정·취소 지목용)가 담긴다. 보통 두 id를 모두
-    보관하지만, 재조회로 확정한 **종료** 리포트는 체결 행에 쓸 수 있는 ODNO 가 없으면 ``order_id`` 가
-    ``None`` 일 수 있다 -- 그런 리포트는 상태 확인용이고 이후 정정·취소 대상으로는 쓸 수 없다(종료라 불필요).
+    보관하지만, 이전 형식으로 저장했거나 직접 구성한 리포트는 ``order_id`` 가 ``None`` 일 수 있다.
+    이 경우 자동 재조회로 다른 주문번호를 연결하지 않는다. 종료 리포트는 정정·취소 대상으로 쓸 수 없다.
     """
 
     client_order_id: str

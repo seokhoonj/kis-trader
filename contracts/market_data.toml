@@ -13,4 +13,4 @@ optional_params = []
 response_fields = []
 invariants      = ["no_trailing_zero_volume_padding"]
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/inquire_time_itemchartprice"
-notes           = "당일 1분봉. 2026-10-16 라이브: 09:00-23:59 900봉 중 ~509 플랫 vol=0 패딩 관측(마감후). KIS 원본 패딩을 트림할지/문서화할지 Task 5 에서 결정."
+notes           = "당일 1분봉. 2026-10-16 라이브: 09:00-23:59 900봉 중 ~509 플랫 vol=0 패딩 관측(마감후). 응답 말미의 0거래량 평탄봉을 확인하고, 패딩 처리 정책과 반환 결과의 일치를 검증해야 함."

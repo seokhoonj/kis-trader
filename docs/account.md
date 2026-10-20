@@ -72,24 +72,39 @@ account.realized_profit_balance()                        # 실현손익 포함 �
 
 ::: {.callout-note}
 ## 평가손익 vs 실현손익
-- **평가손익 (미실현, `unrealized_pnl`)** — 아직 **안 판** 보유종목의 장부상 손익. 현재가로
-  계산돼 계속 바뀌고, 팔기 전엔 확정이 아닙니다.
-- **실현손익 (`trade_profits` / `daily_profits`)** — 실제로 **팔아서 확정된** 손익.
+- **평가손익 (미실현, `unrealized_pnl`)** — 보유 중인 자산을 평가한 손익으로, 평가가격에 따라 달라집니다.
+- **실현손익 (`trade_profits` / `daily_profits`)** — 매매로 발생한 종목별·일별 손익을 조회합니다.
 
-"평가손익 +100만"이라도 팔기 전엔 내 돈이 아닙니다. 판 순간 실현손익으로 고정됩니다.
+수수료·세금·환율 등의 반영 기준과 실제 정산·출금 가능 시점은 해당 조회의 응답 정의와 브로커 안내를 확인하세요.
 :::
 
 ## 미체결·주문가능
 
 ```python
 account.open_orders()                                    # 미체결 / 정정취소 가능 주문
-account.order_history(start="20240101", end="20240229")  # 일별 주문·체결 내역(StockOrderHistory)
+history = account.combined_order_history(start="20240101", end="20240229")
+history.orders                         # 최근·과거 조회를 결합한 주문·체결 행
+history.recent.average_purchase_price  # 최근 조회의 원본 요약
+history.historical.estimated_expenses  # 과거 조회의 원본 요약
+account.order_history(start="20240101", end="20240229", older_than_three_months=True)  # 과거 조회만
 stock = kis.domestic.stock("005930")
 stock.buyable()                       # 매수 가능 수량·금액
 stock.sellable()                      # 매도 가능 수량
 ```
 
-`order_history()` 의 각 `StockOrder` 는 주문·체결 상태(수량·단가·평균가·거래소)를 담고, 스톱지정가 체결이면
+`combined_order_history()` 는 지정한 기간을 최근·과거 조회 양쪽에 보내고, 각각의 연속조회를 끝까지
+수행합니다. `StockOrderHistoryCollection` 의 `orders` 는 결합한 행이며, `recent` 와 `historical` 은
+각 조회의 `StockOrderHistory` 를 그대로 보존합니다. 평균 매입가격·추정 비용은 합산하지 않습니다.
+한쪽 조회가 실패하면 부분 결과를 성공으로 반환하지 않습니다. 날짜·주문번호·지점·조직 정보가 갖춰진
+동일 주문의 관측 내용이 두 출처에서 다르면 결합 오류로 알립니다. 조회 사이의 정상적인 상태 변화일 수도
+있으므로, 이 오류 자체가 증권사 데이터 손상을 뜻하지는 않습니다. 식별 정보가 부족한 행은 임의로 합쳐
+없애지 않으며, 양쪽 조회에 모두 있으면 결합 목록에 함께 남을 수 있습니다.
+
+기존 `order_history()` 는 기본으로 최근 조회만 하며, `older_than_three_months=True` 이면 과거 조회만
+합니다. 두 방식 모두 증권사의 조회 가능 기간·보관 범위 안에서 동작하며, 다년간의 완전한 보관을 보장하지
+않습니다. 미체결·거부 주문도 포함하므로 체결된 주문만의 목록으로 해석하지 마세요.
+
+각 `StockOrder` 는 주문·체결 상태(수량·단가·평균가·거래소)를 담고, 스톱지정가 체결이면
 `.stop` 에 `StopTrigger`(조건가격·효력발생시각)를 싣습니다.
 
 ## 권리·증거금
@@ -168,5 +183,12 @@ print("원화 총평가", balance.total_evaluation, "  평가손익", balance.to
 
 ::: {.callout-note}
 ## 왜 단일 총자산 하나로 안 합치나
-통화별 예수금(`deposits`)이 기준이 되는 값이고, `total_evaluation` 은 서로 겹치지 않는 국내·해외 **보유 평가**만 더한 값입니다. 현금까지 더한 단일 총자산은 두지 않습니다 — 국내 순자산과 해외 총자산이 같은 위탁계좌의 원화 예수금을 공유(이중계상)하고 net/gross 기준이 달라 신뢰 있게 합칠 수 없기 때문입니다. 채권은 시장가가 없어 매입금액 기준이라 평가 합계에 넣지 않습니다(`bonds` 로 따로 봅니다).
+이 객체의 `total_evaluation` 은 `domestic.market_value + overseas.total_evaluation_amount`,
+`total_unrealized_pnl` 은 `domestic.unrealized_pnl + overseas.total_unrealized_pnl` 로 계산합니다.
+통화별 예수금은 `deposits`, 채권 lot 은 `bonds` 로 따로 제공합니다. 합계의 해석은 각 API가 제공하는
+평가 기준에 의존하므로, 이를 현금·채권까지 포함한 단일 총자산으로 사용하려면 브로커 응답 기준을 먼저 확인하세요.
 :::
+
+해외 `present_balance()` 는 야간에 실시간으로 반영되지 않을 수 있습니다. 오늘 체결분이 즉시
+나타난다고 가정하지 말고 수량은 보유 조회와 함께 확인하세요
+([KIS 공식 FAQ](https://apiportal.koreainvestment.com/community/10000000-0000-0011-0000-000000000002/post/1f4b60d6-017d-4b85-8ce3-d92efd8fc39a)).

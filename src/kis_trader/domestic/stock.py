@@ -364,7 +364,7 @@ class DomesticStock(_StockBase):
         return etf_api.fetch_etf_nav_comparison(self._client.transport, symbol=self.symbol)
 
     def nav_intraday(self, *, interval_minutes: int = 1) -> list[ETFNAVMinutePoint]:
-        """최근 30개 ETF 시장가격-NAV 분별 비교."""
+        """ETF 시장가격-NAV 분별 비교(반환 개수는 응답에 따른다)."""
         return etf_api.fetch_etf_nav_intraday(
             self._client.transport, symbol=self.symbol, interval_minutes=interval_minutes
         )
@@ -436,7 +436,7 @@ class DomesticStock(_StockBase):
         현금 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·타임아웃 재시도 금지)을 공유한다. **모의투자
         미지원**. **신용주문은 기본 비활성**이라 ``KISClient(..., allow_credit=True)`` 로 명시적으로 켜야
         한다(고위험 보호). 잘못된 조합/계좌 미설정/비활성은 ``KISUsageError``, 접수 거부는
-        ``OrderRejectedError``, 타임아웃(체결 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
+        ``OrderRejectedError``, 타임아웃(체결 불명)은 ``OrderTimeoutError``(저장 상태를 확인하고 증권사 주문번호가 없으면 재전송 없이 HTS/MTS나 계좌 주문·체결 조회로 수동 확인)."""
         self._client._require_credit_enabled()
         if division is None:  # 일반 신용은 KRX 전용; 애프터마켓/GTP 는 exchange 게이트를 Order 가 판정
             self._require_krx_exchange("신용주문")
@@ -503,7 +503,7 @@ class DomesticStock(_StockBase):
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 미설정은
         :class:`~kis_trader.errors.KISUsageError`, 조회전용 계좌면 :class:`~kis_trader.errors.
         AccountNotOrderableError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결 불명)은
-        ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다."""
+        ``OrderTimeoutError`` -- 후자는 저장 상태를 확인하고 증권사 주문번호가 없으면 재전송 없이 HTS/MTS나 계좌 주문·체결 조회로 수동 확인한다."""
         return self._client._place_order(self._make_domestic_order(
             "buy", quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
             division=division, stop_price=stop_price, client_order_id=client_order_id,
@@ -528,7 +528,9 @@ class DomesticStock(_StockBase):
         번 시장가로 나눠 발주한다. ``start`` 미지정이면 지금부터(과거 시각은 거부). 모든 슬라이스는 KRX
         정규장(09:00~15:30) 안이어야 하며(아니면 :class:`~kis_trader.errors.KISUsageError`), 스케줄 기간
         내내 호출 스레드를 점유한다. 반환 :class:`~kis_trader.execution.TWAPExecutionResult` 는 슬라이스별
-        결과·체결 집계."""
+        결과·체결 집계. KRX 핸들만 지원하며 NXT/UN 핸들은 계획 전에 거부한다."""
+        if self.exchange != "KRX":
+            raise KISUsageError(f"TWAP 분할주문은 KRX 거래소만 지원한다(exchange={self.exchange!r}).")
         schedule = make_twap_schedule(
             symbol=self.symbol, side=side, quantity=quantity, duration=over, slices=slices,
             start=start,
@@ -580,7 +582,9 @@ class DomesticStock(_StockBase):
             return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                                time_in_force=time_in_force, division=division,
                                exchange=self._to_order_exchange(), client_order_id=client_order_id)
-        # 여기 도달 = division is None (위 두 집합이 DomesticDivision 을 남김없이 덮으므로).
+        if division is not None:
+            raise KISUsageError(f"지원하지 않는 division 이다: {division!r}")
+        # division 생략 시에만 가격 유무로 일반 시장가/지정가를 고른다.
         if limit_price is None:
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, exchange=self._to_order_exchange(),

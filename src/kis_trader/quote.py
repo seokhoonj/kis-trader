@@ -21,8 +21,8 @@ from ._internal._freeze import freeze_vendor_payload
 class Quote:
     """한 종목의 현재가 스냅샷(불변).
 
-    ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수. ``previous_close`` 는 기준가
-    (정상 세션에선 전일 종가). ``as_of`` 는 데이터 유효(조회) 시각. 금액은 종목 통화의 Decimal.
+    ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수. ``previous_close`` 는 조회 API의
+    기준가격이다. ``as_of`` 는 데이터 유효(조회) 시각. 금액은 종목 통화의 Decimal.
     """
 
     symbol: str

@@ -11,7 +11,7 @@ An unofficial Python client for the Korea Investment & Securities (KIS) **Open A
 
 - **Broad coverage** — domestic and overseas stocks, indices, ETFs/ETNs, ELWs, futures/options, and bonds: quotes, financials and flows, account balances and P&L, rankings and conditional screens, market data and calendars, retirement pensions.
 - **Orders** — buy/sell/modify/cancel, plus credit, reserved, and TWAP/VWAP-split orders.
-- **Safety core** — duplicate order sends are blocked by default; on a timeout nothing is resent — you confirm acceptance with `reconcile()`. Credit trading is blocked by default. Pre-trade risk limits are an explicit opt-in through `KISClient(..., risk=RiskLimits(...))`.
+- **Safety core** — duplicate order sends are blocked by default; on a timeout nothing is resent and uncertainty is preserved. `reconcile()` supports state refresh for orders with a stored broker order ID. Credit trading is blocked by default. Pre-trade risk limits are an explicit opt-in through `KISClient(..., risk=RiskLimits(...))`.
 - **Real-time** — WebSocket subscriptions for quotes, order books, and execution notices.
 - **Three interfaces** — a Python API, the `kis` CLI, and an MCP server / skills for AI agents.
 
@@ -76,9 +76,13 @@ kis.orders.modify(report.client_order_id, limit_price=70500)   # amend the price
 kis.orders.cancel(report.client_order_id)                      # cancel
 ```
 
-Only when acceptance is uncertain — for example after a send timeout — do you settle the
-state with `kis.orders.reconcile(report.client_order_id)` (for a completed order it just returns
-the stored report — it does not re-query the broker).
+For supported assets, `kis.orders.reconcile(client_order_id)` returns the stored report if available.
+Use `refresh=True` to query the current state of an order with a usable stored broker order ID.
+If an initial send times out without that ID, matching economic terms do not automatically bind
+a broker row: the result stays `None` and the pending record remains. Keep the request ID chosen
+before sending, since `report` may not exist. Do not resend; check HTS/MTS or the account's order
+and execution inquiries. See the [order guide](https://seokhoonj.github.io/kis-trader/orders.html)
+for examples and limitations.
 
 Orders cannot be undone. A duplicate-order safeguard is on by default (credit trading is blocked
 by default); the full rules are in the [Orders](https://seokhoonj.github.io/kis-trader/orders.html)

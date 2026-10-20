@@ -21,10 +21,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
-from ..._internal._datetime import (
-    _claim_date,
-    _reconcile_recency_window,
-)
+from ..._internal._datetime import _claim_date
 from ..._internal._datetime import (
     _parse_optional_date as _parse_date,
 )
@@ -39,16 +36,24 @@ from ...errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from ...order import AlgoStrategy, ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
+from ...order import (
+    AlgoStrategy,
+    Order,
+    ReservedOrderFingerprint,
+    Side,
+    coerce_decimal,
+    validate_yyyymmdd,
+)
 from ...report import ExecutionReport, OrderStatus
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeoutError
 from ..entities.orders import OverseasReservedOrder
 from ._parse import _MAX_PAGES, _decimal_or_zero, _side_from_code
-from .orders import _ALGO_TMD_CLOSE, _ORD_DVSN_ALGO, _ORDER_EXCHANGE
+from .orders import _ALGO_TMD_CLOSE, _ORD_DVSN_ALGO, _ORDER_EXCHANGE, resolve_risk_currency
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
+    from ...risk import RiskLimits
 
 _KST = timezone(timedelta(hours=9))
 
@@ -194,23 +199,25 @@ def place_overseas_reserved_order(
     symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
     currency: str | None = None, algo_strategy: AlgoStrategy | None = None,
     client_order_id: str, orderable: bool = True,
-    cano: str, product_code: str, environment: Environment,
+    cano: str, product_code: str, environment: Environment, risk: RiskLimits | None = None,
 ) -> ExecutionReport:
     """해외주식 예약주문을 안전 규칙으로 발주한다 -- 즉시주문(place)과 같은 이중발주 방지·재시도
     금지·보수적 재조회를, 예약 라이프사이클(예약번호·체결개념 없음)에 맞춰 구현한다. **지정가만**
     (``limit_price`` 필수). ``exchange`` 의 시장이 와이어를 가른다: 미국(NAS/NYS/AMS)은 매수/매도
     TR 분리 body(ORD_DVSN), 아시아(홍콩/상해/심천/일본/베트남)는 공용 TR(TTTS3013U) body
     (SLL_BUY_DVSN_CD + RVSE_CNCL_DVSN_CD=00 + 거래소에서 파생한 PRDT_TYPE_CD). ``currency`` 는
-    홍콩(HKS) 예약의 상품유형 선택(HKD/CNY/USD)에만 쓰이며(미지정이면 HKD) 그 외 거래소에
+    홍콩(HKS) 예약의 상품유형 및 리스크 통화 선택(HKD/CNY/USD)에 쓰이며(미지정이면 HKD) 그 외 거래소에
     ``currency`` 를 주면 fail-closed. 발주는 모의(V* TR)를 지원한다.
 
     반환 :class:`ExecutionReport` 의 ``order_id`` 는 해외예약주문번호(미국 발주 Output ODNO = 취소 시
     OVRS_RSVN_ODNO / 아시아 OVRS_RSVN_ODNO), ``receipt_date`` 는 아시아 접수일자(RSVN_ORD_RCIT_DT;
     미국은 ``None``), ``status`` 는 :attr:`OrderStatus.PENDING_NEW`. 조회전용 계좌면
     :class:`AccountNotOrderableError`, 접수 거부는 :class:`OrderRejectedError`, 접수 불명(타임아웃)은
-    :class:`OrderTimeoutError`(:func:`reconcile_us_reserved_order` /
-    :func:`reconcile_asia_reserved_order` 로 확인 -- 단 재조회는 실전전용). 미지원 거래소·잘못된
+    :class:`OrderTimeoutError`. 저장된 유효 예약번호가 없으면 재조회도 None 이므로 수동 확인하고
+    재전송하지 않는다(재조회는 실전전용). 미지원 거래소·잘못된
     side/수량/가격/통화·client_order_id 재사용은 :class:`KISUsageError`, 순번 부재는 :class:`OrderError`.
+    risk 는 수량/지정 단가 기준 금액을 검사한다. 홍콩 명시 통화 외에는 기존 시장별 검사 통화를 쓰며,
+    해당 통화 한도가 없거나 참조가가 필요한 설정이면 조회 없이 거부한다. 완료 replay 는 먼저 반환한다.
     """
     if not orderable:
         raise AccountNotOrderableError(
@@ -252,14 +259,14 @@ def place_overseas_reserved_order(
             transport, store, symbol=symbol, side=side, qty=qty, limit=limit,
             order_exchange=order_exchange, exchange=exchange, algo_strategy=algo_strategy,
             client_order_id=client_order_id, cano=cano, product_code=product_code,
-            environment=environment,
+            environment=environment, risk=risk,
         )
     if order_market in _ASIA_MARKETS:
         return _place_asia_reserved(
             transport, store, symbol=symbol, side=side, qty=qty, limit=limit,
             order_exchange=order_exchange, exchange=exchange, currency=currency,
             client_order_id=client_order_id, cano=cano, product_code=product_code,
-            environment=environment,
+            environment=environment, risk=risk,
         )
     # _ORDER_EXCHANGE 전 항목이 미국/아시아라 현재는 도달 불가 -- 맵 확장 대비 fail-closed
     raise KISUsageError(f"해외 예약주문을 지원하지 않는 시장이다: {exchange!r}({order_market}).")
@@ -269,18 +276,19 @@ def _place_us_reserved(
     transport: Transport, store: OrderStore, *,
     symbol: str, side: Side, qty: Decimal, limit: Decimal, order_exchange: str,
     exchange: str, client_order_id: str, algo_strategy: AlgoStrategy | None = None,
-    cano: str, product_code: str, environment: Environment,
+    cano: str, product_code: str, environment: Environment, risk: RiskLimits | None = None,
 ) -> ExecutionReport:
     """미국(NAS/NYS/AMS) 예약 발주 와이어를 만들어 공용 안전 셸에 넘긴다 -- 매수/매도 분리 TR +
     ORD_DVSN body. 미국은 통화 선택이 없다(``currency`` 는 홍콩 전용이며, 미국에 주면 상위
     :func:`place_overseas_reserved_order` 가 이미 fail-closed 한다). 응답은 예약번호 ODNO 만 돌려주고
     접수일자는 없다. ``algo_strategy`` 가 있으면(TWAP/VWAP) ORD_DVSN 을 35/36 으로 바꾸고
     ALGO_ORD_TMD_DVSN_CD="02"(정규장 종료 집행)를 싣는다 -- 예약 algo 는 시간창이 없다(공지
-    2025-05-23). 비-algo 는 ORD_DVSN="00"·algo 필드 없음이라 와이어·지문이 종전과 바이트 동일하다."""
+    2025-05-23). 비-algo 는 ORD_DVSN="00"·algo 필드 없음이다. 지문에는 실제 전송 거래소도 기록한다."""
     fingerprint = ReservedOrderFingerprint(
         symbol=symbol, side=side, order_type="limit",
         quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
-        end_date="", exchange=_RESERVED_EXCHANGE, algo_strategy=algo_strategy or "",
+        end_date="", exchange=_RESERVED_EXCHANGE, overseas_exchange=order_exchange,
+        algo_strategy=algo_strategy or "",
     )
     body = {
         "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
@@ -294,7 +302,7 @@ def _place_us_reserved(
         body["ALGO_ORD_TMD_DVSN_CD"] = _ALGO_TMD_CLOSE  # 예약 algo 는 정규장 종료 집행 고정(시간창 없음)
     return _submit_reserved(
         transport, store, client_order_id, fingerprint, body,
-        _PLACE_TR["US"][side][environment], _extract_us_reserved,
+        _PLACE_TR["US"][side][environment], _extract_us_reserved, exchange=exchange, risk=risk,
     )
 
 
@@ -302,7 +310,7 @@ def _place_asia_reserved(
     transport: Transport, store: OrderStore, *,
     symbol: str, side: Side, qty: Decimal, limit: Decimal, order_exchange: str,
     exchange: str, currency: str | None, client_order_id: str,
-    cano: str, product_code: str, environment: Environment,
+    cano: str, product_code: str, environment: Environment, risk: RiskLimits | None = None,
 ) -> ExecutionReport:
     """아시아(홍콩/상해/심천/일본/베트남) 예약 발주 와이어를 만들어 공용 안전 셸에 넘긴다 -- 공용 TR
     (TTTS3013U) + SLL_BUY_DVSN_CD + RVSE_CNCL_DVSN_CD=00 + 거래소·통화에서 파생한 PRDT_TYPE_CD.
@@ -327,6 +335,7 @@ def _place_asia_reserved(
     return _submit_reserved(
         transport, store, client_order_id, fingerprint, body,
         _PLACE_TR["ASIA"]["any"][environment], _extract_asia_reserved,
+        exchange=exchange, currency=currency, risk=risk,
     )
 
 
@@ -334,11 +343,37 @@ def _submit_reserved(
     transport: Transport, store: OrderStore, client_order_id: str,
     fingerprint: ReservedOrderFingerprint, body: dict[str, str], tr_id: str,
     extract_reservation: Callable[[Mapping[str, Any]], tuple[str, str | None]],
+    *, exchange: str, currency: str | None = None, risk: RiskLimits | None = None,
 ) -> ExecutionReport:
     """해외예약 발주의 공용 안전 셸 -- 이중발주 방지(claim)·무재시도 타임아웃·거부 처리·기록을 미국/
     아시아 공통으로 한 곳에서 처리한다(복제하면 두 경로의 이중발주 방어가 어긋날 수 있어 반드시 단일).
     시장별 body/TR/지문은 호출부(:func:`_place_us_reserved`/:func:`_place_asia_reserved`)가 만들고,
     응답의 예약번호/접수일자 추출만 ``extract_reservation`` 으로 주입받는다(미국은 접수일자 None)."""
+    # 저장된 결과를 새 리스크 설정으로 재해석하지 않고 fresh 만 검사 뒤 원자적으로 claim 한다.
+    peek = store.classify(client_order_id, fingerprint)
+    if isinstance(peek, Completed):
+        return peek.report
+    if isinstance(peek, Conflict):
+        raise KISUsageError(
+            f"client_order_id {client_order_id!r} 는 이미 다른 주문에 사용됐다. 새 id를 발행하라."
+        )
+    if isinstance(peek, InFlight):
+        raise KISUsageError(
+            f"해외 예약주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 재전송하지 말고 "
+            "HTS/MTS나 계좌 주문·체결 조회로 확인하라."
+        )
+    if risk is not None:
+        # 지문의 예약 네임스페이스가 아닌 실제 거래소/해외주식으로 검사한다. 이 객체는 전송하지 않는다.
+        order = Order(
+            symbol=fingerprint.symbol, side=fingerprint.side, order_type="limit",
+            quantity=Decimal(fingerprint.quantity), limit_price=Decimal(fingerprint.limit_price),
+            region="overseas", asset_class="stock", exchange=exchange,
+            client_order_id=client_order_id,
+        )
+        risk_currency = currency if exchange == "HKS" and currency is not None else resolve_risk_currency(exchange)
+        risk.check(order, reference_price=None, currency=risk_currency)
     claim = store.try_claim(client_order_id, fingerprint)
     if isinstance(claim, Completed):
         return claim.report
@@ -349,7 +384,9 @@ def _submit_reserved(
     if isinstance(claim, InFlight):
         raise KISUsageError(
             f"해외 예약주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
-            f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 판단하라."
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 재전송하지 말고 "
+            "HTS/MTS나 계좌 주문·체결 조회로 확인하라."
         )
     if not isinstance(claim, Claimed):
         raise OrderError(f"예상치 못한 claim 결과: {claim!r}")
@@ -361,7 +398,9 @@ def _submit_reserved(
     except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"해외 예약주문 전송 시간초과 -- 접수 여부가 불명이다. 재전송하지 말고 "
-            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 "
+            "HTS/MTS나 계좌 주문·체결 조회로 확인하라.",
             client_order_id=client_order_id,
         ) from err
     except KISAuthError:
@@ -375,7 +414,9 @@ def _submit_reserved(
         # 수도 있는 예약을 새 id 로 재전송해 이중 예약이 난다(중복 전송 방지 가드, _order_core 와 동일).
         raise OrderTimeoutError(
             f"해외 예약주문 전송 중 전송계층 오류 -- 접수 여부가 불명이다. 재전송하지 말고 "
-            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 "
+            "HTS/MTS나 계좌 주문·체결 조회로 확인하라.",
             client_order_id=client_order_id,
         ) from err
     if not resp.ok:
@@ -413,10 +454,12 @@ def reconcile_us_reserved_order(
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
     force_refresh: bool = False,
 ) -> ExecutionReport | None:
-    """미확인 미국 해외예약주문을 **예약주문조회**로 재조회한다 -- 보수적. 완료 리포트가 있으면 반환.
-    in-flight 면 최근 창의 예약을 지문으로 매칭: 정확히 1건이면 확정, 0건이면 ``None``(재전송 금지 유지),
-    2건 이상이면 :class:`KISError`. ``now`` 는 날짜창 기준시각(주입하면 결정적; 생략 시 현재 KST).
-    조회 TR 이 실전전용이라 모의(paper)면 :class:`KISUsageError` 로 fail-closed(in-flight 유지)."""
+    """저장된 미국 예약번호로 예약주문조회를 재조회한다.
+
+    기존 리포트는 force_refresh 가 아닐 때 반환한다. 저장된 유효 증권사 예약번호가 없는 초기
+    요청은 지문 일치만으로 자동 확정하지 않고 None 으로 유지한다. 상세 조회창·접수일 제한은
+    :func:`_reconcile_reserved` 를 따른다. now 는 날짜창 기준시각(생략 시 현재 KST)이다.
+    조회 TR 이 실전전용이라 paper 는 KISUsageError이며 미확인 기록과 재전송 차단을 유지한다."""
     if environment == "paper":
         raise KISUsageError(
             "해외 예약주문 재조회는 예약주문조회(실전전용) 기반이라 모의투자 미지원 -- 실전에서만."
@@ -432,10 +475,11 @@ def reconcile_asia_reserved_order(
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
     force_refresh: bool = False,
 ) -> ExecutionReport | None:
-    """미확인 아시아 해외예약주문을 아시아 예약주문조회(TTTS3014R)로 재조회한다 -- 매칭 규칙은
-    :func:`reconcile_us_reserved_order` 와 같은 보수적 계약(정확히 1건 확정 / 0건 ``None`` /
-    2건 이상 :class:`KISError`). 조회 TR 이 실전전용이라 모의(paper)면 :class:`KISUsageError` 로
-    fail-closed(in-flight 유지, 재전송 금지)."""
+    """저장된 아시아 예약번호로 예약주문조회(TTTS3014R)를 재조회한다.
+
+    초기 요청을 경제 조건·날짜만으로 자동 귀속하지 않는다. 기존 리포트와 force_refresh,
+    저장 예약번호·접수일·조회창은 :func:`reconcile_us_reserved_order` 와 같은 제한을 따른다.
+    조회 TR 은 실전전용으로 paper 는 KISUsageError이며 미확인 기록과 재전송 차단을 유지한다."""
     if environment == "paper":
         raise KISUsageError(
             "아시아 예약주문 재조회는 실전전용(TTTS3014R 모의투자 미지원) -- 실전에서만."
@@ -451,10 +495,20 @@ def _reconcile_reserved(
     cano: str, product_code: str, market: Literal["US", "ASIA"], now: datetime | None,
     force_refresh: bool = False,
 ) -> ExecutionReport | None:
-    """미국/아시아 공용 예약 재조회 코어 -- 완료 리포트 우선, in-flight 면 최근 창을 지문 매칭.
-    확정 리포트엔 행의 접수일자(RSVN_ORD_RCIT_DT)를 실어 이후 취소(아시아)가 재조회 없이 가능하다.
-    ``force_refresh`` 면 저장 리포트가 있어도 단락하지 않고 예약주문조회를 다시 스캔한다(사후확정)."""
-    prior, fingerprint = store.snapshot_for(client_order_id)
+    """미국/아시아 공용 예약 재조회 코어 -- 저장 예약번호와 접수일 문맥을 사용한다.
+
+    기존 리포트가 있고 force_refresh 가 아니면 그대로 반환한다. 저장된 유효 증권사 예약번호가
+    없으면 경제 조건·날짜만으로 초기 요청을 자동 귀속하지 않고 None 을 반환한다. 미확인 기록과
+    재전송 차단을 유지하며 저장 번호의 레거시 출처는 이 조회가 증명하지 않는다.
+
+    조회는 현재 주문번호 세대의 고정 기준 주변에 제한된 창을 쓴다. 레거시 관측 기준은 약한 계획이며
+    기준 미상일 때만 조회일로 폴백한다. KIS 조회기간 제한과 접수일/집행일 필터 차이 때문에 창 밖의
+    예약을 못 찾을 수 있다. 저장된 유효 접수일이 있으면 같은 번호여도 그 날짜와 다른 행은 제외한다.
+    0건은 None, 다건·조회 실패는 오류이며 미접수로 단정하지 않는다. 접수일을 모르는 미국 주문에
+    조회 기준 날짜를 접수일로 만들어 넣지 않는다. 날짜창과 번호만으로 보편적 인과성을 증명하지 않는다.
+    force_refresh 는 캐시를 건너뛰지만 이 날짜창과 자산별 제한은 그대로다."""
+    snapshot = store._recovery_snapshot_for(client_order_id)
+    prior, fingerprint, query_anchor, _ = snapshot
     if prior is not None and not force_refresh:
         return prior
     if fingerprint is None:
@@ -466,15 +520,14 @@ def _reconcile_reserved(
             f"client_order_id {client_order_id!r} 의 지문이 예약주문이 아니다"
             f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
+    # 저장된 유효 증권사 주문번호가 없으면 경제 조건이나 날짜만으로 요청을 귀속하지 않는다.
+    # 미확인 상태와 재전송 차단을 유지하며 HTS/MTS 등에서 수동 확인한다.
+    if prior is None or not (prior.order_id or "").strip().lstrip("0"):
+        return None
     today = (now or datetime.now(_KST)).date()
-    # 조회창을 예약 발주일(store claim 확보일)에 앵커한 ≤6일폭으로 둔다 -- KIS 가 7일 이상 조회기간을
-    # 거부하므로(위 _RESERVED_QUERY_MAX_SPAN_DAYS) 국내처럼 넓게 못 쓴다. 접수일자(rsvn_ord_rcit_dt)는
-    # 발주일 근처라, 발주일 하루 전부터 폭만큼 앞으로 긁으면 매칭창 {anchor-1,anchor,anchor+1} 을 덮으면서
-    # 한도를 지킨다(발주일 미상이면 오늘 기준). 늦은 reconcile 도 발주일에 앵커해 그 행을 받아온다.
-    # 잔여 한계(needs-live-probe): KIS 가 INQR 기간을 어느 날짜(접수일 vs 집행예정일)로 거르는지 미확인
-    # 이라, 발주 후 >5일(폭-1) 뒤 집행되는 예약은 이 ≤6일창 밖으로 떨어져 reconcile 이 못 받아올 수 있다
-    # -- 7일 한도상 창을 더 넓힐 수 없는 구조적 잔여다(옵션 시리즈코드 확보 시 날짜필드 라이브 확정 권장).
-    anchor = _claim_date(store.claim_time_for(client_order_id))
+    # 같은 원자 스냅샷의 현재 주문번호 세대 기준에 최대 6일 창을 고정한다.
+    # KIS의 서버 날짜 필터 기준과 창 밖 집행은 보장하지 않는다. 미상 기준만 조회일로 폴백한다.
+    anchor = _claim_date(query_anchor[0])
     anchored = anchor if anchor is not None else today
     start = f"{anchored - timedelta(days=1):%Y%m%d}"
     end = f"{anchored + timedelta(days=_RESERVED_QUERY_MAX_SPAN_DAYS - 1):%Y%m%d}"
@@ -486,12 +539,15 @@ def _reconcile_reserved(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    recent = _reconcile_recency_window(anchor, today)
     prior_seq = prior.order_id if prior is not None else None
     if prior_seq:
         matches = [r for r in rows if str(r.get("ovrs_rsvn_odno") or "").strip() == prior_seq]
     else:
-        matches = _filter_matching(rows, fingerprint, recent)
+        matches = []  # 초기 번호 없는 요청은 조회 전에 반환한다.
+    known_receipt = _parse_date(prior.receipt_date)
+    if known_receipt is not None:
+        matches = [row for row in matches
+                   if _parse_date(row.get("rsvn_ord_rcit_dt")) == known_receipt]
     if len(matches) > 1:
         raise KISError(
             f"해외 예약주문 {client_order_id} 의 지문과 일치하는 예약이 {len(matches)}건이라 "
@@ -505,7 +561,7 @@ def _reconcile_reserved(
     receipt_date = str(matches[0].get("rsvn_ord_rcit_dt") or "").strip() or None
     report = _make_report(client_order_id, reserved_id, fingerprint.symbol, fingerprint.side,
                           matches[0], receipt_date=receipt_date)
-    if not store.record_if_unchanged(report, fingerprint, expected=(prior, fingerprint)):
+    if not store._record_recovery_if_unchanged(report, fingerprint, expected=snapshot):
         return store.report_for(client_order_id)
     return report
 
@@ -603,7 +659,9 @@ def cancel_asia_reserved_order(
     if not report.order_id or not report.receipt_date:
         raise KISError(
             f"아시아 예약 취소에 필요한 예약번호/접수일자가 리포트에 없다 -- "
-            f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 다시 취소하라."
+            f"저장된 유효 예약번호가 있으면 kis.orders.reconcile({client_order_id!r}, refresh=True) 로 "
+            "접수일을 조회하라. 필요한 번호나 접수일을 확인할 수 없으면 취소를 재전송하지 말고 "
+            "HTS/MTS나 계좌 주문·체결 조회로 수동 확인하라."
         )
     try:
         order_exchange, order_market = _ORDER_EXCHANGE[fingerprint.overseas_exchange]

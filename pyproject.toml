@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 # REST(requests) + 실시간 WebSocket(websockets) + 체결통보 AES-CBC 복호화(cryptography).
 dependencies = ["requests>=2.31", "websockets>=12", "cryptography>=42"]
@@ -52,6 +53,7 @@ dev = [
     "mypy>=1.11",
     "pytest>=8.0",
     "ruff>=0.6",
+    "markdown-it-py>=4.2",
     "mcp>=2",
     "anyio>=4",
     "pydantic>=2",
@@ -72,7 +74,8 @@ build-backend = "hatchling.build"
 packages = ["src/kis_trader"]
 
 [tool.hatch.build.targets.sdist]
-# Ship the package source, its tests, README.en.md, and CHANGELOG.md. The allowlist
+# Ship the package source, standalone tests, their pure helper and taxonomy fixture.
+# Repository-only plugin and contract-registry tests remain in checkout CI. The allowlist
 # below (plus pyproject.toml / README / LICENSE, always added by the backend) governs
 # the shipped set; CI config, editor/agent tooling, plugin manifests, and the docs
 # site are left out. ignore-vcs so the build comes from the allowlist, not the VCS
@@ -80,7 +83,15 @@ packages = ["src/kis_trader"]
 # ignore-vcs/include, so the artifact carries it -- that is expected, and this repo's
 # .gitignore is generic (no sensitive content).
 ignore-vcs = true
-include = ["/src", "/tests", "/README.en.md", "/CHANGELOG.md"]
+include = [
+    "/src", "/tests", "/README.en.md", "/CHANGELOG.md",
+    "/tools/__init__.py", "/tools/param_extract.py", "/docs/taxonomy.md",
+]
+exclude = [
+    "/tests/test_plugin_hooks.py", "/tests/test_plugin_manifests.py",
+    "/tests/test_contracts.py", "/tests/test_contracts_loader.py",
+    "/tests/test_check_docs.py", "/tests/test_docs_workflows.py", "/tests/docs_contracts.json",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]

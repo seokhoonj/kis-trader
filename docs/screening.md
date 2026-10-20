@@ -10,11 +10,17 @@ kis.domestic.search_stocks("삼성전자")
 kis.domestic.search_stocks("에코프로", market="KOSDAQ")  # 부분매치, 시장 한정(all/KOSPI/KOSDAQ)
 
 hits = kis.domestic.search_stocks("카카오")
-kis.domestic.stock(hits[0].symbol).quote()
+if not hits:
+    print("일치하는 종목이 없습니다")
+else:
+    for candidate in hits:
+        print(candidate.symbol, candidate.name, candidate.market)
+    # 후보를 직접 확인한 뒤 선택한 symbol로 stock(symbol).quote()를 호출하세요.
 ```
 
 각 후보(`DomesticListing`)는 `symbol`(6자리 코드) / `name` / `market`. 첫 호출은 KOSPI·KOSDAQ
-종목 마스터를 받아 저장해 둡니다(이후로는 저장된 걸 재사용).
+종목 마스터를 받아 저장합니다. 인덱스를 불러올 때 캐시가 없거나 오래됐으면 다시 받습니다
+(기본 유효기간 24시간). 이미 클라이언트에 로드한 인덱스는 그 클라이언트에서 재사용합니다.
 
 ## 오늘의 순위
 
@@ -30,14 +36,19 @@ ranking.by_volume(metric="average_volume")  # 평균거래량 상위
 ranking.by_market_cap()                 # 시가총액 상위
 ```
 
-각 행(`DomesticRankedStock`)은 `rank / symbol / name / price / change / change_percent / volume`:
+`by_change()` 의 각 행은 `DomesticRankedStock`, `by_volume()` 은 `VolumeRanking`,
+`by_market_cap()` 은 `MarketCapRanking` 입니다. 이 세 결과는
+`rank / symbol / name / price / change / change_percent / volume` 필드를 함께 갖습니다:
 
 ```python
 for row in ranking.by_change(direction="gainers")[:10]:
     print(f"{row.rank:2d}. {row.name:10s} {row.price:>8,}  {row.change_percent:>6}%")
 ```
 
-순위별 고유 지표(공매도량·신용잔고 등)는 각 결과의 `_raw` 에 있습니다.
+순위마다 반환 타입과 고유 필드가 다릅니다. 예를 들어 `VolumeRanking.average_volume`,
+`MarketCapRanking.market_cap`, `ShortSaleRanking.short_volume`,
+`CreditBalanceRanking.margin_loan_shares` 를 읽습니다. 타입화하지 않은 추가 벤더 필드는
+각 결과의 `_raw` 에 있습니다.
 
 더 있는 순위:
 
@@ -54,8 +65,8 @@ ranking.by_views()                                     # HTS 조회 상위
 ## 조건검색 (HTS 저장조건)
 
 HTS(홈트레이딩) 앱에 **저장해둔 조건검색**을 불러 실행합니다. 조건검색·관심종목은 HTS 로그인
-아이디(`user_id`)가 필요합니다. HTS 아이디는 **사용자당 하나**라 `credentials.json` **최상위**에
-한 번 넣어 두면(`KISConfig.set_hts_id("...")`; 또는 `KIS_HTS_ID` 환경변수) 모든 프로필이 공유하고
+아이디(`user_id`)가 필요합니다. 기본값을 `credentials.json` **최상위**에
+넣어 두면(`KISConfig.set_hts_id("...")`; 또는 `KIS_HTS_ID` 환경변수) 모든 프로필이 그 설정값을 공유하고
 `user_id` 를 생략할 수 있습니다. 아니면 호출마다 직접 넘깁니다.
 
 ```python

@@ -455,7 +455,7 @@ GOLDEN_FINGERPRINT: dict[str, tuple[str, ...]] = {
     'overseas_derivative_osfo': ('6AU24', 'buy', 'limit', '2', '0.655', '', 'day', 'OSFO', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'us_algo_twap_window': ('TSLA', 'buy', 'limit', '20', '250', '', 'day', 'NAS', '', '', 'regular', '', 'KRX', '', '', 'HKD', 'twap', '100000', '110000'),
     'reserved_domestic': ('005930', 'buy', 'limit', '10', '70000', '', 'day', 'reserved', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
-    'reserved_overseas_us': ('AAPL', 'buy', 'limit', '3', '150', '', 'day', 'overseas-reserved', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
+    'reserved_overseas_us': ('AAPL', 'buy', 'limit', '3', '150', '', 'day', 'overseas-reserved', '', '', 'regular', '', 'KRX', '', 'NASD', 'HKD', '', '', ''),
     'reserved_overseas_asia_hk': ('00700', 'buy', 'limit', '100', '350', '', 'day', 'overseas-reserved-asia', '', '', 'regular', '', 'KRX', '', 'HKS', 'CNY', '', '', ''),
     'domestic_stock_change': ('20261006-000000000000cafe', 'buy', 'limit', '5', '71000', 'modify', 'day', 'action:XKRX', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'domestic_stock_nxt_change': ('20261006-000000000000cafe', 'buy', 'limit', '5', '71000', 'modify', 'day', 'action:XKRX', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
@@ -473,7 +473,7 @@ GOLDEN_FINGERPRINT: dict[str, tuple[str, ...]] = {
     'domestic_stock_limit_ioc': ('005930', 'buy', 'limit', '10', '70000', '', 'ioc', 'XKRX', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'domestic_stock_best_quote': ('005930', 'buy', 'market', '10', '', '', 'day', 'XKRX', '', '', 'regular', 'immediate_limit', 'KRX', '', '', 'HKD', '', '', ''),
     'reserved_domestic_dated': ('005930', 'buy', 'limit', '10', '70000', '20261031', 'day', 'reserved', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
-    'reserved_overseas_us_twap': ('AAPL', 'buy', 'limit', '3', '150', '', 'day', 'overseas-reserved', '', '', 'regular', '', 'KRX', '', '', 'HKD', 'twap', '', ''),
+    'reserved_overseas_us_twap': ('AAPL', 'buy', 'limit', '3', '150', '', 'day', 'overseas-reserved', '', '', 'regular', '', 'KRX', '', 'NASD', 'HKD', 'twap', '', ''),
 }
 
 GOLDEN_WIRE: dict[str, dict[str, str]] = {

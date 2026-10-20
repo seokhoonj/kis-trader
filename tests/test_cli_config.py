@@ -458,6 +458,41 @@ def test_set_app_key_via_getpass_preserves_other_fields(tmp_path, monkeypatch):
     assert bundle["account"] == "50001234-01"
 
 
+def test_set_reloads_after_prompt_preserving_concurrent_save(tmp_path, monkeypatch):
+    _seed_v2(tmp_path)
+    def answer(prompt=""):
+        from kis_trader.config import KISConfig
+        KISConfig(profile="general", environment="paper", app_key="PK",
+                  app_secret="CONCURRENT", account="99998888-02").save()
+        KISConfig.set_hts_id("concurrent_hts")
+        return "NEWKEY"
+    monkeypatch.setattr(cred, "getpass", answer)
+    assert cli_main.main(["config", "set", "general.paper.app_key"]) == 0
+    data = _creds(tmp_path)
+    assert data["paper"]["general"] == {
+        "app_key": "NEWKEY", "app_secret": "CONCURRENT", "account": "99998888-02"}
+    assert data["hts_id"] == "concurrent_hts"
+    assert data["real"]["general"]["app_key"] == "RK"
+
+
+@pytest.mark.parametrize("mutation", ["removed", "invalid"])
+def test_set_rejects_slot_changed_during_prompt_without_write(tmp_path, monkeypatch, mutation):
+    _seed_v2(tmp_path)
+    changed = []
+    def answer(prompt=""):
+        data = _creds(tmp_path)
+        if mutation == "removed":
+            del data["paper"]["general"]
+        else:
+            data["paper"]["general"] = "invalid"
+        _write_raw(tmp_path, data)
+        changed.append((_cfg_dir(tmp_path) / "credentials.json").read_bytes())
+        return "NEWKEY"
+    monkeypatch.setattr(cred, "getpass", answer)
+    assert cli_main.main(["config", "set", "general.paper.app_key"]) == (3 if mutation == "removed" else 4)
+    assert (_cfg_dir(tmp_path) / "credentials.json").read_bytes() == changed[0]
+
+
 def test_set_account_accepts_argv_value(tmp_path):
     _seed_v2(tmp_path)
     code = cli_main.main(["config", "set", "general.real.account", "99998888-02"])
@@ -732,6 +767,72 @@ def test_migrate_yes_merges_main_and_paper_into_general(tmp_path):
     assert data["paper"]["general"]["app_key"] == "PAPERKEY5678"
     assert "main" not in data and "paper" not in data.get("real", {})
     assert "environment" not in data["real"]["general"]   # 묶음에 environment 필드 없음
+
+
+@pytest.mark.parametrize("interactive", [False, True])
+def test_migrate_main_paper_preserves_swapped_environments(tmp_path, monkeypatch, capsys, interactive):
+    _legacy(tmp_path)
+    data = _creds(tmp_path)
+    data["main"]["environment"] = "paper"
+    data["paper"]["environment"] = "real"
+    data["main"]["account_password"] = "1111"
+    data["pension"] = {"app_key": "PENSIONKEY", "app_secret": "PENSIONSECRET",
+                       "account": "99999999-01", "environment": "real"}
+    _write_raw(tmp_path, data)
+    prompts = []
+    if interactive:
+        def answer(prompt=""):
+            prompts.append(prompt)
+            return "y" if "합칠까요" in prompt else "general"
+        monkeypatch.setattr("builtins.input", answer)
+    assert cli_main.main(["config", "migrate"] + ([] if interactive else ["--yes"])) == 0
+    migrated = _creds(tmp_path)
+    assert migrated["paper"]["general"]["app_key"] == "MAINKEY1234"
+    assert migrated["real"]["general"]["app_key"] == "PAPERKEY5678"
+    assert migrated["paper"]["general"]["account_password"] == "1111"
+    assert migrated["real"]["pension"]["app_key"] == "PENSIONKEY"
+    assert migrated["account_password"] == "0000"
+    assert migrated["hts_id"] == "myhts"
+    assert migrated["default_environment"] == "paper"
+    assert migrated["default_profile"] == "general"
+    output = capsys.readouterr().out
+    assert "KIS_APP_KEY -> KIS_GENERAL_PAPER_APP_KEY" in output
+    assert "KIS_PAPER_APP_KEY -> KIS_GENERAL_REAL_APP_KEY" in output
+    assert "MAINSEC" not in output and "PAPERSEC" not in output
+    if interactive:
+        assert any("paper 슬롯 = 기존 'main'" in prompt and
+                   "real 슬롯 = 기존 'paper'" in prompt for prompt in prompts)
+
+
+@pytest.mark.parametrize("environment", ["real", "paper"])
+@pytest.mark.parametrize("interactive", [False, True])
+def test_migrate_main_paper_same_environment_rejects_without_write(tmp_path, monkeypatch, environment, interactive):
+    _legacy(tmp_path)
+    data = _creds(tmp_path)
+    data["main"]["environment"] = environment
+    data["paper"]["environment"] = environment
+    _write_raw(tmp_path, data)
+    path = _cfg_dir(tmp_path) / "credentials.json"
+    before = path.read_bytes()
+    if interactive:
+        _answer(monkeypatch, {"합칠까요": "y", "합친 프로필 이름": "general"})
+    assert cli_main.main(["config", "migrate"] + ([] if interactive else ["--yes"])) == 3
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("environment", [None, "invalid", 7])
+def test_migrate_main_missing_invalid_environment_keeps_real_fallback(tmp_path, environment):
+    _legacy(tmp_path)
+    data = _creds(tmp_path)
+    if environment is None:
+        del data["main"]["environment"]
+    else:
+        data["main"]["environment"] = environment
+    _write_raw(tmp_path, data)
+    assert cli_main.main(["config", "migrate", "--yes"]) == 0
+    migrated = _creds(tmp_path)
+    assert migrated["real"]["general"]["app_key"] == "MAINKEY1234"
+    assert migrated["paper"]["general"]["app_key"] == "PAPERKEY5678"
 
 
 def test_migrate_writes_default_markers_explicitly(tmp_path):
@@ -1032,3 +1133,43 @@ def test_concurrent_saves_preserve_all_profiles(tmp_path):
     data = json.loads((cfg_dir / "credentials.json").read_text())["paper"]
     for i in range(8):
         assert f"prof{i}" in data, f"prof{i} 가 유실됨(동시 저장 레이스)"
+
+
+@pytest.mark.parametrize("command,expected", [(["stock", "quote", "005930"], 3), (["config", "show"], 4)])
+@pytest.mark.parametrize("payload", [b'{"secret":"SYNTHETIC_D12_MARKER",\xff', b'{"secret":"SYNTHETIC_D12_MARKER",'])
+def test_cli_corrupt_credentials_safe_domain_exit(tmp_path, capsys, command, expected, payload):
+    directory = _cfg_dir(tmp_path)
+    directory.mkdir(parents=True)
+    path = directory / "credentials.json"
+    path.write_bytes(payload)
+    assert cli_main.main(["--format", "json", *command]) == expected
+    output = capsys.readouterr()
+    assert "SYNTHETIC_D12_MARKER" not in output.out + output.err
+    assert "Traceback" not in output.out + output.err
+    assert json.loads(output.err)["error"]["retryable"] is False
+    assert path.read_bytes() == payload
+
+
+def test_migrate_orders_requires_explicit_offline_without_client_or_credentials(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    monkeypatch.setattr(cred, "_load_credentials", lambda *args: pytest.fail("must not resolve credentials"))
+    assert cli_main.main(["config", "migrate-orders"]) == 4
+    assert "--offline" in capsys.readouterr().err
+    assert not (tmp_path / "state").exists()
+
+
+def test_migrate_orders_cli_preserves_journal_and_keeps_backup(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    monkeypatch.setattr(cred, "_load_credentials", lambda *args: pytest.fail("must not resolve credentials"))
+    source = tmp_path / "cache" / "kis-trader" / "orders"
+    source.mkdir(parents=True)
+    original = b'{"schema_version":9,"reports":{},"fingerprints":{},"in_flight":{}}'
+    (source / "synthetic.json").write_bytes(original)
+    assert cli_main.main(["config", "migrate-orders", "--offline"]) == 0
+    destination = tmp_path / "state" / "kis-trader" / "orders"
+    assert source.is_symlink() and source.samefile(destination)
+    assert (destination / "synthetic.json").read_bytes() == original
+    backups = list(source.parent.glob(".orders-backup-*"))
+    assert len(backups) == 1 and (backups[0] / "synthetic.json").read_bytes() == original
+    assert "모든" in capsys.readouterr().out
+    assert cli_main.main(["config", "migrate-orders", "--offline"]) == 0

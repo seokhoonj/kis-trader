@@ -15,8 +15,17 @@ from kis_trader.order import ReservedOrderFingerprint
 class _Store:
     def __init__(self, fingerprint: ReservedOrderFingerprint) -> None:
         self._fingerprint = fingerprint
+        self.scopes = []
+        self.expected_scope = None
+
+    def bind_scope(self, *, cano, product_code, environment, adopt_legacy=False):
+        scope = (cano, product_code, environment)
+        assert scope == self.expected_scope
+        assert adopt_legacy is False
+        self.scopes.append(scope)
 
     def fingerprint_for(self, client_order_id: str) -> ReservedOrderFingerprint:
+        assert self.scopes
         return self._fingerprint
 
     def report_for(self, client_order_id: str) -> ExecutionReport:
@@ -28,8 +37,13 @@ class _Store:
             recorded_at=datetime(2024, 1, 1, tzinfo=UTC),
         )
 
+    def _recovery_snapshot_for(self, client_order_id):
+        assert self.scopes
+        return self.report_for(client_order_id), self._fingerprint, (None, "unknown"), None
+
     def binding_for(self, client_order_id: str) -> tuple[object, ReservedOrderFingerprint]:
         # change_order 는 (리포트, 지문)을 한 락으로 원자 스냅샷한다 -- 둘 다 있으면 쌍을 돌려준다.
+        assert self.scopes
         return self.report_for(client_order_id), self._fingerprint
 
 
@@ -41,10 +55,13 @@ def _reserved_fingerprint(token: str) -> ReservedOrderFingerprint:
 
 
 def _engine(fingerprint: ReservedOrderFingerprint) -> OrderEngine:
-    return OrderEngine(
+    engine = OrderEngine(
         transport=object(), store=_Store(fingerprint), environment="real",
         orderable=True, risk=None, require_account=lambda: ("12345678", "01"),
     )
+
+    engine._store.expected_scope = (*engine._require_account(), engine._environment)
+    return engine
 
 
 @pytest.mark.parametrize(

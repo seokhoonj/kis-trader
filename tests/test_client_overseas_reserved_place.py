@@ -12,7 +12,7 @@ from dataclasses import replace
 
 import pytest
 
-from kis_trader import ExecutionReport, KISClient, OrderStatus, OrderStore
+from kis_trader import ExecutionReport, KISClient, OrderStatus, OrderStore, RiskLimits
 from kis_trader.errors import (
     AccountNotOrderableError,
     KISAuthError,
@@ -21,6 +21,7 @@ from kis_trader.errors import (
     OrderError,
     OrderRejectedError,
     OrderTimeoutError,
+    PreTradeRiskError,
 )
 from kis_trader.transport import RawResponse, TransportTimeoutError
 
@@ -75,9 +76,9 @@ class FakeTransport:
         return outcome
 
 
-def _client(transport, *, environment="real", account="12345678-01", store=None, orderable=True):
+def _client(transport, *, environment="real", account="12345678-01", store=None, orderable=True, risk=None):
     return KISClient(app_key="k", app_secret="s", account=account, environment=environment,
-                     transport=transport, store=store, orderable=orderable)
+                     transport=transport, store=store, orderable=orderable, risk=risk)
 
 
 def test_overseas_reserved_orders_rejects_span_over_6_days():
@@ -290,13 +291,12 @@ def test_overseas_reserve_reconcile_confirms_single_match(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
     cid = "20240101-ovsresv-rc01"
-    place_t = FakeTransport(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
-            quantity=1, limit_price="150", client_order_id=cid)
+    place_t = FakeTransport(response=_ACCEPTED)
+    _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
+        quantity=1, limit_price="150", client_order_id=cid)
     body = {"output": [_list_row(qty="1", unpr="150")], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
-    report = _client(recon_t, store=store).orders.reconcile(cid)
+    report = _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
     assert report is not None
     assert report.order_id == "0031111234"
     assert all(c["method"] == "GET" for c in recon_t.calls)
@@ -320,12 +320,16 @@ def test_overseas_reserve_refresh_does_not_rebind_identical_sibling(monkeypatch)
     assert store.report_for(cid).order_id == "0031111234"
 
 
-def test_overseas_reserve_refresh_confirms_stored_sequence(monkeypatch):
+@pytest.mark.parametrize("legacy_venue", [False, True])
+def test_overseas_reserve_refresh_confirms_stored_sequence(monkeypatch, legacy_venue):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
     cid = "20240101-ovsresv-refresh-same"
     _client(FakeTransport(response=_ACCEPTED), store=store).overseas.stock(
         "AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="150", client_order_id=cid)
+    if legacy_venue:
+        prior, fingerprint = store.snapshot_for(cid)
+        store.record(prior, replace(fingerprint, overseas_exchange=""))
     body = {"output": [_list_row(odno="0031111234", qty="1", unpr="150")],
             "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
@@ -375,22 +379,24 @@ def test_overseas_reserve_reconcile_ignores_canceled_mismatch_and_old_receipt(mo
     recon_t = FakeTransport(by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     assert _client(recon_t, store=store).orders.reconcile(cid) is None
     assert store.fingerprint_for(cid) is not None
+    from kis_trader.overseas._engine.reserved_orders import _filter_matching
+    assert _filter_matching(rows, store.fingerprint_for(cid), {_dt.date(2024, 6, 3)}) == []
+    assert recon_t.calls == []
 
 
 def test_overseas_reserve_reconcile_multi_match_raises(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
     cid = "20240101-ovsresv-rc03"
-    place_t = FakeTransport(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
-            quantity=1, limit_price="150", client_order_id=cid)
+    place_t = FakeTransport(response=_ACCEPTED)
+    _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
+        quantity=1, limit_price="150", client_order_id=cid)
     rows = [_list_row(odno="0031111234", qty="1", unpr="150"),
-            _list_row(odno="0031111299", qty="1", unpr="150")]
+            _list_row(odno="0031111234", qty="1", unpr="150")]
     body = {"output": rows, "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     with pytest.raises(KISError):
-        _client(recon_t, store=store).orders.reconcile(cid)
+        _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
     assert store.fingerprint_for(cid) is not None
 
 
@@ -401,19 +407,18 @@ def test_overseas_reserve_reconcile_scans_all_pages_before_confirming(monkeypatc
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore(now=_frozen_now)
     cid = "20240101-ovsresv-pg01"
-    place_t = FakeTransport(raises=TransportTimeoutError("t"))
-    with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
-            quantity=1, limit_price="150", client_order_id=cid)
+    place_t = FakeTransport(response=_ACCEPTED)
+    _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
+        quantity=1, limit_price="150", client_order_id=cid)
     page1 = RawResponse(rt_cd="0", msg_cd="M", msg1="", tr_cont="D",
                         body={"output": [_list_row(odno="0031111234", qty="1", unpr="150")],
                               "ctx_area_nk200": "NEXT", "ctx_area_fk200": "FK"})
     page2 = RawResponse(rt_cd="0", msg_cd="M", msg1="", tr_cont="",
-                        body={"output": [_list_row(odno="0031111299", qty="1", unpr="150")],
+                        body={"output": [_list_row(odno="0031111234", qty="1", unpr="150")],
                               "ctx_area_nk200": "", "ctx_area_fk200": ""})
     recon_t = FakeTransport(by_path={_LIST: [page1, page2]})
     with pytest.raises(KISError):                      # 두 페이지 모두 스캔 -> 2건 -> 모호로 거부
-        _client(recon_t, store=store).orders.reconcile(cid)
+        _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
     assert len(recon_t.calls) == 2                     # 커서가 남아 둘째 페이지도 조회했다
 
 
@@ -421,3 +426,130 @@ def test_overseas_reserve_requires_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_ACCEPTED), account=None).overseas.stock(
             "AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="1")
+
+
+@pytest.mark.parametrize("exchange", ["NAS", "NYS", "AMS"])
+@pytest.mark.parametrize("side", ["buy", "sell"])
+@pytest.mark.parametrize("risk", [
+    RiskLimits(max_order_quantity=1, max_order_notional_by_currency={"USD": 100}),
+    RiskLimits(max_order_notional_by_currency={"USD": 19}),
+])
+def test_us_reserved_quantity_or_usd_notional_risk_rejects_without_claim(exchange, side, risk):
+    fake = FakeTransport(response=_ACCEPTED)
+    store = OrderStore()
+    with pytest.raises(PreTradeRiskError):
+        getattr(_client(fake, store=store, risk=risk).overseas.stock("AAPL", exchange=exchange),
+                "reserve_" + side)(quantity=2, limit_price=10, client_order_id="us-risk-reject")
+    assert fake.calls == []
+    assert store.snapshot_for("us-risk-reject") == (None, None)
+    assert not store.is_in_flight("us-risk-reject")
+
+
+@pytest.mark.parametrize("risk", [
+    RiskLimits(max_order_notional=1000000),
+    RiskLimits(max_order_notional_by_currency={"EUR": 1000000}),
+    RiskLimits(max_order_notional_by_currency={"USD": 100}, price_collar_percent=10),
+])
+def test_us_reserved_missing_currency_or_reference_rejects_without_quote(risk):
+    fake = FakeTransport(response=_ACCEPTED)
+    with pytest.raises(PreTradeRiskError):
+        _client(fake, risk=risk).overseas.stock("AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price=10)
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("exchange", ["NAS", "NYS", "AMS"])
+def test_us_reserved_risk_equality_uses_usd_not_krw_and_preserves_wire(exchange):
+    fake = FakeTransport(response=_ACCEPTED)
+    risk = RiskLimits(max_order_quantity=2, max_order_notional=1, max_order_notional_by_currency={"USD": 20})
+    report = _client(fake, risk=risk).overseas.stock("AAPL", exchange=exchange).reserve_buy(
+        quantity="2", limit_price="10",
+    )
+    assert report.status is OrderStatus.PENDING_NEW
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["tr_id"] == "TTTT3014U"
+    assert fake.calls[0]["body"]["FT_ORD_QTY"] == "2"
+    assert fake.calls[0]["body"]["FT_ORD_UNPR3"] == "10"
+
+
+def test_us_reserved_replay_precedes_new_risk_and_rejected_id_is_reusable(monkeypatch):
+    store = OrderStore()
+    fake = FakeTransport(response=_ACCEPTED)
+    original = _client(fake, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
+        quantity=2, limit_price=10, client_order_id="us-completed",
+    )
+    stock = _client(fake, store=store, risk=RiskLimits(max_order_quantity=1)).overseas.stock("AAPL", exchange="NAS")
+    assert stock.reserve_buy(quantity=2, limit_price=10, client_order_id="us-completed") is original
+    claims = []
+    original_claim = store.try_claim
+
+    def claim(*args, **kwargs):
+        claims.append(args)
+        return original_claim(*args, **kwargs)
+
+    monkeypatch.setattr(store, "try_claim", claim)
+    with pytest.raises(PreTradeRiskError):
+        stock.reserve_buy(quantity=2, limit_price=10, client_order_id="us-reusable")
+    assert claims == []
+    assert store.snapshot_for("us-reusable") == (None, None)
+    compliant = _client(fake, store=store, risk=RiskLimits(max_order_notional_by_currency={"USD": 20}))
+    compliant.overseas.stock("AAPL", exchange="NAS").reserve_buy(
+        quantity=2, limit_price=10, client_order_id="us-reusable",
+    )
+    assert len(claims) == 1
+    assert len(fake.calls) == 2
+
+
+@pytest.mark.parametrize("quantity, message", [(2, "결과가 확인"), (3, "다른 주문")])
+def test_us_reserved_pending_and_conflict_precede_risk(quantity, message):
+    store = OrderStore()
+    fake = FakeTransport(raises=TransportTimeoutError("unknown"))
+    with pytest.raises(OrderTimeoutError):
+        _client(fake, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
+            quantity=2, limit_price=10, client_order_id="us-pending-risk",
+        )
+    before = store.snapshot_for("us-pending-risk")
+    with pytest.raises(KISUsageError, match=message):
+        _client(fake, store=store, risk=RiskLimits(max_order_quantity=1)).overseas.stock("AAPL", exchange="NAS").reserve_buy(
+            quantity=quantity, limit_price=10, client_order_id="us-pending-risk",
+        )
+    assert store.snapshot_for("us-pending-risk") == before
+    assert store.is_in_flight("us-pending-risk")
+    assert len(fake.calls) == 1
+
+
+@pytest.mark.parametrize("exchange,wire", [("NAS", "NASD"), ("NYS", "NYSE"), ("AMS", "AMEX")])
+def test_us_reserved_identity_persists_actual_wire_venue(tmp_path, exchange, wire):
+    path = tmp_path / "venue.json"
+    transport = FakeTransport(response=_ACCEPTED)
+    with OrderStore(path=path) as store:
+        kis = KISClient(app_key="k", app_secret="s", account="12345678-01", environment="real",
+                        transport=transport, store=store)
+        stock = kis.overseas.stock("AAPL", exchange=exchange)
+        first = stock.reserve_buy(quantity=1, limit_price=150, client_order_id="venue")
+        assert stock.reserve_buy(quantity=1, limit_price=150, client_order_id="venue") == first
+        assert transport.calls[0]["body"]["OVRS_EXCG_CD"] == wire
+        for other in ("NAS", "NYS", "AMS"):
+            if other != exchange:
+                with pytest.raises(KISUsageError):
+                    kis.overseas.stock("AAPL", exchange=other).reserve_buy(
+                        quantity=1, limit_price=150, client_order_id="venue")
+        assert len(transport.calls) == 1
+        assert store.snapshot_for("venue")[1].overseas_exchange == wire
+    with OrderStore(path=path) as reopened:
+        assert reopened.snapshot_for("venue")[1].overseas_exchange == wire
+
+
+def test_us_reserved_legacy_blank_venue_replay_conflicts():
+    transport = FakeTransport(response=_ACCEPTED)
+    store = OrderStore()
+    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", environment="real",
+                    transport=transport, store=store)
+    stock = kis.overseas.stock("AAPL", exchange="NAS")
+    first = stock.reserve_buy(quantity=1, limit_price=150, client_order_id="legacy-venue")
+    _, fingerprint = store.snapshot_for("legacy-venue")
+    legacy = replace(fingerprint, overseas_exchange="")
+    store.record(first, legacy)
+    with pytest.raises(KISUsageError):
+        stock.reserve_buy(quantity=1, limit_price=150, client_order_id="legacy-venue")
+    assert store.snapshot_for("legacy-venue")[0] == first
+    assert len(transport.calls) == 1

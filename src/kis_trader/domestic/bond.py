@@ -119,7 +119,19 @@ class Bond:
         ``buy_date``(매수일자 YYYYMMDD)·``buy_sequence``(매수순번)로 지목해야 한다. 이 값은
         ``kis.account.domestic.bonds.balance()`` 가 돌려주는
         :class:`~kis_trader.domestic.entities.bond_account.BondPosition` 의 ``buy_date``/``buy_sequence``
-        에서 얻는다. ``quantity`` 는 액면(face) 단위, ``limit_price`` 는 채권단가, ``client_order_id`` 는
+        에서 얻는다. 잔고의 ``buy_date`` 는 ``date | None`` 이므로 누락을 확인한 뒤
+        ``position.buy_date.strftime("%Y%m%d")`` 로 문자열로 바꿔 전달한다. 아래 ``position`` 은
+        사용자가 직접 선택한 보유 lot 이며, 매도 수량·단가도 호출 전에 확인해야 한다.
+
+        .. code-block:: python
+
+            if position.buy_date is None:
+                raise ValueError("매수일자가 없는 보유 lot 은 자동 매도할 수 없습니다")
+            bond.sell(quantity=1000, limit_price=10000,
+                      buy_date=position.buy_date.strftime("%Y%m%d"),
+                      buy_sequence=position.buy_sequence)
+
+        ``quantity`` 는 액면(face) 단위, ``limit_price`` 는 채권단가, ``client_order_id`` 는
         멱등키(생략 시 자동 발행)다. 채권 주문은 당일(day) 전용이라 ``time_in_force`` 는 받지 않는다.
 
         같은 종목·수량·가격이라도 서로 다른 lot 의 매도는 서로 다른 주문이므로, lot(buy_date/buy_sequence)이

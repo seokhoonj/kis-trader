@@ -27,11 +27,13 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import InvalidOperation
 from pathlib import Path
-from typing import NamedTuple, Self, cast
+from types import ModuleType
+from typing import Literal, NamedTuple, Self, cast
 
-from .errors import KISError, UnsupportedSchemaVersionError
+from ._internal._wire import required_decimal
+from .errors import KISError, KISUsageError, UnsupportedSchemaVersionError
 from .order import (
     ChangeActionFingerprint,
     Fingerprint,
@@ -40,11 +42,21 @@ from .order import (
     encode_fingerprint,
 )
 from .report import ExecutionReport, OrderStatus
+from .transport import Environment
 
 try:
     import fcntl  # Unix 전용 -- 프로세스 간 단일라이터 락(advisory)
 except ImportError:  # pragma: no cover -- 비-Unix
     fcntl = None  # type: ignore[assignment]
+
+try:
+    import msvcrt
+except ImportError:  # Windows 전용 표준 라이브러리
+    msvcrt = None  # type: ignore[assignment]
+
+# Windows CRT 의 같은 프로세스 내 중복 핸들은 별도 배제한다. POSIX flock/fork 에는 적용하지 않는다.
+_locked_paths: set[str] = set()
+_locked_paths_lock = threading.Lock()
 
 _KST = timezone(timedelta(hours=9))
 
@@ -68,9 +80,11 @@ _KST = timezone(timedelta(hours=9))
 #: v10: 지문 위치 형식이 19-슬롯(미국주식 algo 전략·시작·종료)으로 늘었으나 구 16-슬롯 이하 레코드는
 #: decode 가 뒤쪽 기본값("")으로 채워 그대로 읽는다(비-algo 주문은 dedup 정체성 불변). 리포트 형상은
 #: v9 과 동일하다.
-_SCHEMA_VERSION = 10
+#: v11: 저장소 전체의 불변 계좌·상품·환경 귀속(scope). null 은 귀속 미확인이다.
+#: v12: 최초 claim 시각과 출처가 구분된 레거시 조회 기준 시각을 항목별로 보존한다.
+_SCHEMA_VERSION = 12
 #: 읽을 수 있는 스키마 버전 집합(이 밖은 UnsupportedSchemaVersionError 로 거부).
-_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12})
 #: 완료(비-in-flight) 리포트 보존 기본 일수 -- 이 이후엔 정리(무한 성장 방지). client_order_id
 #: 가 날짜를 포함하므로 같은 id 재전송 위험 창은 당일이라, 넉넉한 기본값이 dedup 을 약화하지 않는다.
 _DEFAULT_RETENTION_DAYS = 7
@@ -134,14 +148,17 @@ class OrderStore:
     """``client_order_id`` -> (상태, 지문) 의 스레드 안전 로컬 저장소.
 
     **리소스 수명**: ``path`` 를 주면 프로세스 간 이중전송을 막기 위해 OS 단일라이터 락
-    (``fcntl.flock``)을 이 인스턴스 수명 동안 **보유**한다. 다 쓰면 :meth:`close` 를
+    (POSIX ``fcntl.flock`` / Windows ``msvcrt.locking``)을 이 인스턴스 수명 동안 **보유**한다. 다 쓰면 :meth:`close` 를
     부르거나 ``with OrderStore(path=...) as store:`` 로 써서 락을 놓아야 한다(안 놓으면
-    같은 프로세스의 다른 인스턴스가 열리지 않는다). 락은 Unix 에서만 강제되므로 비-Unix
-    에서 path-backed 스토어는 생성 시 거부된다.
+    같은 프로세스의 다른 인스턴스가 열리지 않는다). 지원 파일 잠금 백엔드가 없으면
+    경로 기반 저장소는 생성 시 거부된다.
 
     ``retention_days`` 는 완료(비-in-flight) 리포트를 저장에 유지할 일수다. 이보다 오래된
     완료 리포트만 정리되고 **in-flight 는 나이와 무관하게 절대 정리하지 않는다**(멱등 장벽
     유지). ``<= 0`` 이면 정리 자체를 끈다(무한 보존).
+
+    :meth:`bind_scope` 는 전체 기록을 한 계좌·상품·환경에 불변 귀속한다. 미귀속 상태에서도
+    독립 claim 연산은 가능하지만, 기존 기록의 귀속 선언은 명시적 인수 확인을 요구한다.
 
     이 인스턴스는 ``KISClient(store=...)`` 로 세션에 넘겨 영속 dedup 을 켜는 용도다(권장).
     claim 결과 타입(:class:`Claimed`/:class:`Completed`/:class:`InFlight`/:class:`Conflict`/
@@ -160,9 +177,14 @@ class OrderStore:
         self._fingerprints: dict[str, Fingerprint] = {}
         # client_order_id -> claim 시각(ISO8601). 구 저장소에서 로드된 항목은 시각 미상("")일 수 있다.
         self._in_flight: dict[str, str] = {}
+        self._submission_anchors: dict[str, tuple[str | None, str | None, str | None]] = {}
+        self._recovery_generations: dict[str, object] = {}
         self._lock = threading.Lock()
         self._process_lock_fd: int | None = None
+        self._process_lock_backend: ModuleType | None = None
+        self._process_lock_key: str | None = None
         self._closed = False
+        self._scope: tuple[str, str, Environment] | None = None
         if self._path is not None:
             self._acquire_single_writer_lock()  # 프로세스 간 이중전송 방지
             try:
@@ -171,6 +193,47 @@ class OrderStore:
             except BaseException:
                 self.close()  # 로드 실패 시 락 fd 를 누수하지 않는다(회복 차단 방지)
                 raise
+
+    def bind_scope(
+        self, *, cano: str, product_code: str, environment: Environment,
+        adopt_legacy: bool = False,
+    ) -> None:
+        """저장소 전체를 한 계좌·상품·환경에 불변 귀속한다. 같은 귀속은 아무것도 쓰지 않는다.
+
+        기록이 있는 미귀속 저장소는 기본 거부한다. ``adopt_legacy=True`` 는 호출자가 전체 기록의
+        소유 계좌를 별도 확인했다는 선언이며 자동 검증이 아니다. 귀속 저장 중에는 보존기간 정리를
+        하지 않는다. 영속화 실패 시 실제 디스크 상태를 확인하도록 닫고 재개방을 요구한다.
+        """
+        persistence_failed = False
+        try:
+            with self._lock:
+                self._require_open()
+                if not isinstance(adopt_legacy, bool):
+                    raise KISUsageError("adopt_legacy 는 명시적 불리언(True/False)이어야 한다.")
+                if not isinstance(cano, str) or not cano or not isinstance(product_code, str) or not product_code:
+                    raise KISUsageError("저장소 귀속에는 비어 있지 않은 계좌·상품 문자열이 필요하다.")
+                if environment not in ("real", "paper"):
+                    raise KISUsageError("저장소 귀속 환경은 real/paper 여야 한다.")
+                scope = (cano, product_code, environment)
+                if self._scope is not None:
+                    if self._scope != scope:
+                        raise KISUsageError("다른 계좌·상품·환경에 귀속된 OrderStore 다. 별도 저장소를 사용하라.")
+                    return
+                if (self._reports or self._fingerprints or self._in_flight) and not adopt_legacy:
+                    raise KISUsageError(
+                        "기존 기록의 계좌 귀속을 확인할 수 없다. 전체 기록의 소유를 확인한 뒤 "
+                        "bind_scope(..., adopt_legacy=True) 로 명시적으로 인수하라.")
+                self._scope = scope
+                try:
+                    self._save_locked(prune=False)
+                except BaseException:
+                    self._closed = True              # 잠금을 놓기 전 다른 사용을 차단한다
+                    persistence_failed = True
+                    raise
+        except BaseException:
+            if persistence_failed:
+                self.close()                         # 비재진입 mutex 밖에서 파일 잠금을 해제한다
+            raise
 
     # --- 원자적 check-and-claim(핵심 안전 연산) ----------------------
     def try_claim(self, client_order_id: str, fingerprint: Fingerprint) -> ClaimResult:
@@ -185,7 +248,10 @@ class OrderStore:
             prior = self._classify_locked(client_order_id, fingerprint)
             if prior is not None:
                 return prior
-            self._in_flight[client_order_id] = self._now().isoformat()
+            claimed_at = _aware_anchor_timestamp(self._now().isoformat())
+            self._in_flight[client_order_id] = claimed_at
+            self._submission_anchors[client_order_id] = (claimed_at, None, claimed_at)
+            self._recovery_generations[client_order_id] = object()
             self._fingerprints[client_order_id] = fingerprint
             self._save_locked()
             return Claimed()
@@ -223,7 +289,10 @@ class OrderStore:
                     or current_report.order_id != expected_original.report.order_id
                     or current_report.filled_quantity != expected_original.report.filled_quantity):
                 return StaleOriginal(current_fingerprint)
-            self._in_flight[request_id] = self._now().isoformat()
+            claimed_at = _aware_anchor_timestamp(self._now().isoformat())
+            self._in_flight[request_id] = claimed_at
+            self._submission_anchors[request_id] = (claimed_at, None, claimed_at)
+            self._recovery_generations[request_id] = object()
             self._fingerprints[request_id] = fingerprint
             self._save_locked()
             return Claimed()
@@ -295,6 +364,53 @@ class OrderStore:
         with self._lock:
             return self._reports.get(client_order_id), self._fingerprints.get(client_order_id)
 
+    def _query_anchor_locked(
+        self, client_order_id: str,
+    ) -> tuple[str | None, Literal["first_claim", "legacy_recorded", "unknown"]]:
+        _, legacy, current = self._submission_anchors.get(client_order_id, (None, None, None))
+        if current is not None:
+            return current, "first_claim"
+        if legacy is not None:
+            return legacy, "legacy_recorded"
+        return None, "unknown"
+
+    def query_anchor_for(
+        self, client_order_id: str,
+    ) -> tuple[str | None, Literal["first_claim", "legacy_recorded", "unknown"]]:
+        """조회 기준 시각과 출처. first_claim 은 현재 주문번호 세대의 기원 claim 이며 접수 증거가 아니다.
+
+        최초 항목 claim 은 별도로 보존한다. 레거시 관측 시각은 현재 세대의 약한 조회용 폴백이다."""
+        with self._lock:
+            self._require_open()
+            return self._query_anchor_locked(client_order_id)
+
+    def _recovery_snapshot_for(
+        self, client_order_id: str,
+    ) -> tuple[ExecutionReport | None, Fingerprint | None,
+               tuple[str | None, Literal["first_claim", "legacy_recorded", "unknown"]], object | None]:
+        """기록·지문·기준 시각·인스턴스 내 세대 토큰을 한 락으로 읽는다. 시각은 세대 식별자가 아니다."""
+        with self._lock:
+            self._require_open()
+            return (self._reports.get(client_order_id), self._fingerprints.get(client_order_id),
+                    self._query_anchor_locked(client_order_id), self._recovery_generations.get(client_order_id))
+
+    def _record_recovery_if_unchanged(
+        self, report: ExecutionReport, fingerprint: Fingerprint, *,
+        expected: tuple[ExecutionReport | None, Fingerprint | None,
+                        tuple[str | None, Literal["first_claim", "legacy_recorded", "unknown"]], object | None],
+    ) -> bool:
+        """기록·지문·기준 시각과 불투명 세대 토큰이 그대로일 때만 재조회 결과를 반영한다."""
+        cid = report.client_order_id
+        with self._lock:
+            self._require_open()
+            current = (self._reports.get(cid), self._fingerprints.get(cid), self._query_anchor_locked(cid),
+                       self._recovery_generations.get(cid))
+            if current != expected:
+                return False
+            self._bind_locked(report, fingerprint)
+            self._save_locked()
+            return True
+
     def record_if_unchanged(
         self, report: ExecutionReport, fingerprint: Fingerprint, *,
         expected: tuple[ExecutionReport | None, Fingerprint | None],
@@ -332,6 +448,8 @@ class OrderStore:
     def _bind_locked(self, report: ExecutionReport, fingerprint: Fingerprint) -> None:
         """락을 쥔 상태에서 한 주문의 (리포트, 지문)을 심고 in-flight 를 해제한다 -- 저장(persist)은
         호출자가 한다. 여러 바인딩을 한 번의 ``_save_locked`` 로 원자적으로 묶으려는 헬퍼."""
+        self._submission_anchors.setdefault(report.client_order_id, (None, None, None))
+        self._recovery_generations.setdefault(report.client_order_id, object())
         self._reports[report.client_order_id] = report
         self._fingerprints[report.client_order_id] = fingerprint
         self._in_flight.pop(report.client_order_id, None)
@@ -356,12 +474,19 @@ class OrderStore:
         replay 로 조기반환) 복구 불가해지므로, 단일 ``_save_locked`` 로 묶는다.
 
         :meth:`record` 와 마찬가지로 각 id 의 in-flight 표시를 해제한다 -- request_id 와
-        (있으면) 재바인딩 원 id 둘 다. 원 id 는 이미 완료 상태라 해제는 보통 no-op 이다."""
+        (있으면) 재바인딩 원 id 둘 다. 원 id 는 이미 완료 상태라 해제는 보통 no-op 이다.
+        명시적 rebind 는 원 항목의 최초 claim 을 보존하되 현재 주문번호 세대의 조회 기준과 세대
+        토큰을 변경 요청에서 교체한다. 변경 시각이 미상이면 이전 주문번호의 기준을 재사용하지 않는다."""
         with self._lock:
             self._require_open()
             self._bind_locked(report, fingerprint)
             if rebind is not None:
                 self._bind_locked(rebind.report, rebind.fingerprint)
+                original_id = rebind.report.client_order_id
+                first, _, _ = self._submission_anchors[original_id]
+                _, legacy, current = self._submission_anchors[report.client_order_id]
+                self._submission_anchors[original_id] = (first, legacy, current)
+                self._recovery_generations[original_id] = object()
             self._save_locked()
 
     def clear_in_flight(self, client_order_id: str) -> None:
@@ -373,6 +498,8 @@ class OrderStore:
             if client_order_id in self._in_flight:
                 self._in_flight.pop(client_order_id)
                 self._fingerprints.pop(client_order_id, None)
+                self._submission_anchors.pop(client_order_id, None)
+                self._recovery_generations.pop(client_order_id, None)
                 self._save_locked()
 
     def _require_open(self) -> None:
@@ -389,10 +516,26 @@ class OrderStore:
         """
         with self._lock:
             self._closed = True
-            if self._process_lock_fd is not None:
-                with contextlib.suppress(OSError):
-                    os.close(self._process_lock_fd)
-                self._process_lock_fd = None
+            descriptor = self._process_lock_fd
+            backend = self._process_lock_backend
+            key = self._process_lock_key
+            if descriptor is not None:
+                try:
+                    if backend is not None:
+                        with contextlib.suppress(OSError):
+                            os.lseek(descriptor, 0, os.SEEK_SET)
+                            backend.locking(descriptor, backend.LK_UNLCK, 1)
+                finally:
+                    try:
+                        with contextlib.suppress(OSError):
+                            os.close(descriptor)
+                    finally:
+                        self._process_lock_fd = None
+                        self._process_lock_backend = None
+                        self._process_lock_key = None
+                        if key is not None:
+                            with _locked_paths_lock:
+                                _locked_paths.discard(key)
 
     def __enter__(self) -> Self:
         return self
@@ -404,16 +547,17 @@ class OrderStore:
     def _acquire_single_writer_lock(self) -> None:
         """이 프로세스만 저장소를 쓰도록 advisory 락을 잡는다(프로세스 간 이중전송 방지).
 
-        Unix 에서만 강제된다(``fcntl.flock``). 비-Unix 에선 보장 불가 -- 이 경우 단일
-        프로세스로 운용해야 한다. 락은 이 인스턴스 수명 동안 유지된다.
+        POSIX 는 flock, Windows 는 오프셋 0 의 1바이트 비차단 잠금으로 인스턴스 수명 동안 배제한다.
+        지원 백엔드가 없으면 메모리 저장소로 우회하지 않고 거부한다.
         """
         assert self._path is not None
-        if fcntl is None:  # pragma: no cover -- 비-Unix
-            # fail-closed: 락을 강제할 수 없는 플랫폼에선 보장이 없다고 조용히 넘기지 않는다.
-            raise KISError(
-                "이 플랫폼(비-Unix)은 파일 락(fcntl)을 지원하지 않아 프로세스 간 단일라이터 "
-                "보장을 강제할 수 없다. path-backed OrderStore 는 Unix 에서만 안전하다."
-            )
+        if _WINDOWS:
+            if msvcrt is None:
+                raise KISError("이 플랫폼은 안전한 파일 잠금 백엔드를 지원하지 않는다.")
+            self._acquire_windows_lock(msvcrt)
+            return
+        if fcntl is None:
+            raise KISError("이 플랫폼은 안전한 파일 잠금 백엔드를 지원하지 않는다.")
         self._path.parent.mkdir(parents=True, exist_ok=True)
         lock_path = self._path.with_suffix(self._path.suffix + ".lock")
         fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
@@ -427,9 +571,47 @@ class OrderStore:
             ) from err
         self._process_lock_fd = fd
 
+    def _acquire_windows_lock(self, backend: ModuleType) -> None:
+        """정규 경로 예약 후 CRT 바이트 잠금을 확보한다. 실패한 시도의 자원만 해제한다."""
+        assert self._path is not None
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self._path.with_suffix(self._path.suffix + ".lock")
+        key = os.path.normcase(str(lock_path.resolve()))
+        with _locked_paths_lock:
+            if key in _locked_paths:
+                raise KISError("주문 dedup 저장소가 이미 열려 있다. 별도 인스턴스를 중복 생성하지 마라.")
+            _locked_paths.add(key)
+        descriptor: int | None = None
+        acquired = False
+        try:
+            try:
+                descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR | getattr(os, "O_BINARY", 0), 0o644)
+                os.lseek(descriptor, 0, os.SEEK_SET)
+            except OSError as error:
+                raise KISError("주문 dedup 저장소 파일 잠금을 확보할 수 없다.") from error
+            try:
+                backend.locking(descriptor, backend.LK_NBLCK, 1)
+            except OSError as error:
+                if error.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    raise KISError("주문 dedup 저장소가 다른 프로세스에 의해 이미 열려 있다.") from error
+                raise KISError("주문 dedup 저장소 파일 잠금을 확보할 수 없다.") from error
+            self._process_lock_fd = descriptor
+            self._process_lock_backend = backend
+            self._process_lock_key = key
+            acquired = True
+        finally:
+            if not acquired:
+                try:
+                    if descriptor is not None:
+                        with contextlib.suppress(OSError):
+                            os.close(descriptor)
+                finally:
+                    with _locked_paths_lock:
+                        _locked_paths.discard(key)
+
     def _prune_locked(self) -> None:
-        """보존 창을 넘긴 **완료(비-in-flight)** 리포트를 정리해 무한 성장을 막는다.
-        in-flight 는 절대 정리하지 않는다(반드시 재조회로 확정돼야 하므로)."""
+        """보존 창을 넘긴 **비-in-flight** 리포트를 정리해 무한 성장을 막는다.
+        in-flight 는 절대 정리하지 않는다(접수 여부가 불명인 주문의 중복 전송 차단을 유지한다)."""
         if self._retention is None:
             return
         cutoff = self._now() - self._retention
@@ -440,9 +622,11 @@ class OrderStore:
         for cid in stale:
             del self._reports[cid]
             self._fingerprints.pop(cid, None)
+            self._submission_anchors.pop(cid, None)
+            self._recovery_generations.pop(cid, None)
 
     # --- 영속화(원자적 + 내구성 JSON) --------------------------------
-    def _save_locked(self) -> None:
+    def _save_locked(self, *, prune: bool = True) -> None:
         """호출자가 ``self._lock`` 을 쥔 상태에서만 부른다.
 
         임시파일에 쓰고 ``fsync`` 후 원자적 ``os.replace``, 디렉터리도 ``fsync`` 한다 --
@@ -450,9 +634,15 @@ class OrderStore:
         """
         if self._path is None:
             return
-        self._prune_locked()
+        if prune:
+            self._prune_locked()
         data = {
             "schema_version": _SCHEMA_VERSION,
+            "scope": (dict(zip(("cano", "product_code", "environment"), self._scope, strict=True))
+                      if self._scope is not None else None),
+            "submission_anchors": {cid: {"first_claimed_at": first, "legacy_recorded_at": legacy,
+                                         "current_claimed_at": current}
+                                   for cid, (first, legacy, current) in self._submission_anchors.items()},
             "in_flight": dict(self._in_flight),
             "fingerprints": {cid: encode_fingerprint(fp) for cid, fp in self._fingerprints.items()},
             "reports": {cid: _report_to_dict(r) for cid, r in self._reports.items()},
@@ -502,17 +692,31 @@ class OrderStore:
                 f"주문 dedup 저장소 스키마 버전 미지원: {version!r} "
                 f"(읽을 수 있는 버전 {sorted(_READABLE_SCHEMA_VERSIONS)}). {self._path}"
             )
-        # 현재 스키마(쓰기 버전)의 파일은 _save_locked 가 in_flight/fingerprints/reports 세 맵을
+        # v10 이후 파일은 _save_locked 가 in_flight/fingerprints/reports 세 맵을
         # **항상** 기록한다(비어도 {}). 그 버전인데 맵이 빠졌으면 이 라이브러리가 쓴 파일이 아니라
         # 손상/수기편집이다 -- .get(key, {}) 로 조용히 빈 dedup 로 시작하면 중복 체결 장벽이 사라지므로
         # (비-dict 루트·버전 미지원과 동일하게) fail-closed 한다. 레거시 버전은 맵 구성이 달라 관대하게 둔다.
-        if version == _SCHEMA_VERSION:
+        if version >= 10:
             missing = [key for key in ("in_flight", "fingerprints", "reports") if key not in data]
             if missing:
                 raise KISError(
                     f"주문 dedup 저장소(v{version})에 필수 맵이 없다: {missing}. {self._path}. "
                     f"자동 복구하지 않는다(빈 상태 시작은 중복 체결 위험). 파일을 점검한 뒤 재시작하라."
                 )
+        if version >= 11:
+            if "scope" not in data:
+                raise KISError("주문 dedup 저장소에 필수 scope 가 없다. 자동 귀속하지 않는다.")
+            scope = data["scope"]
+            if scope is not None:
+                if (
+                    not isinstance(scope, dict)
+                    or set(scope) != {"cano", "product_code", "environment"}
+                    or not isinstance(scope["cano"], str) or not scope["cano"]
+                    or not isinstance(scope["product_code"], str) or not scope["product_code"]
+                    or scope["environment"] not in ("real", "paper")
+                ):
+                    raise KISError("주문 dedup 저장소의 scope 가 손상됐다. 자동 귀속하지 않는다.")
+                self._scope = (scope["cano"], scope["product_code"], cast(Environment, scope["environment"]))
         try:
             raw_in_flight = data.get("in_flight", {})
             if isinstance(raw_in_flight, list):        # v1..v7: id 리스트 -> 시각 미상("")
@@ -548,9 +752,52 @@ class OrderStore:
                 f"주문 dedup 저장소의 맵 불변식이 깨졌다: {self._path}. 자동 복구하지 않는다"
                 f"(빈 상태 시작은 중복 체결 위험). 파일을 점검한 뒤 재시작하라."
             )
+        entries = reports.keys() | in_flight.keys()
+        if version >= 12:
+            raw_anchors = data.get("submission_anchors")
+            if not isinstance(raw_anchors, dict) or raw_anchors.keys() != entries:
+                raise KISError("주문 dedup 저장소의 submission_anchors 맵이 없거나 항목 집합이 다르다.")
+            anchors = {cid: _submission_anchor_from_dict(value) for cid, value in raw_anchors.items()}
+        else:
+            anchors = {}
+            for cid in entries:
+                if cid in in_flight:
+                    timestamp = in_flight[cid]
+                    first = _aware_anchor_timestamp(timestamp) if version >= 8 and timestamp else None
+                    anchors[cid] = (first, None, first)
+                else:
+                    anchors[cid] = (None, reports[cid].recorded_at.isoformat(), None)
+        self._submission_anchors = anchors
+        self._recovery_generations = {cid: object() for cid in entries}
         self._in_flight = in_flight
         self._fingerprints = fingerprints
         self._reports = reports
+
+
+def _aware_anchor_timestamp(value: object) -> str:
+    """시각 출처에 쓸 수 있는 실제 aware ISO 문자열만 허용한다. 로컬 시간대를 추정하지 않는다."""
+    if not isinstance(value, str) or not value:
+        raise KISError("주문 dedup 기준 시각이 유효한 aware ISO 문자열이 아니다.")
+    try:
+        parsed = datetime.fromisoformat(value)
+        if parsed.utcoffset() is None:
+            raise ValueError("timezone missing")
+    except ValueError as error:
+        raise KISError("주문 dedup 기준 시각이 유효한 aware ISO 문자열이 아니다.") from error
+    return value
+
+
+def _submission_anchor_from_dict(value: object) -> tuple[str | None, str | None, str | None]:
+    if not isinstance(value, dict) or set(value) != {"first_claimed_at", "legacy_recorded_at", "current_claimed_at"}:
+        raise KISError("주문 dedup submission_anchors 항목 형상이 손상됐다.")
+    first = value["first_claimed_at"]
+    legacy = value["legacy_recorded_at"]
+    current = value["current_claimed_at"]
+    if current is not None and legacy is not None:
+        raise KISError("주문 dedup 현재 세대 기준 시각 출처가 중복됐다.")
+    return (_aware_anchor_timestamp(first) if first is not None else None,
+            _aware_anchor_timestamp(legacy) if legacy is not None else None,
+            _aware_anchor_timestamp(current) if current is not None else None)
 
 
 #: 디렉터리 fsync 를 지원하지 않는 플랫폼/파일시스템이 내는 errno -- 이때만 무시한다. EIO/ENOSPC
@@ -622,15 +869,25 @@ def _report_from_dict(report_data: dict[str, object]) -> ExecutionReport:
     # v7 은 "recorded_at" 키, v6 이하는 "submitted_at" 키를 쓴다 -- 구 저장소를 재작성 없이 열도록
     # 옛 키를 recorded_at 으로 매핑한다(온-디스크 스키마가 바뀌면 하위호환 로드 경로를 함께 둔다).
     recorded_raw = report_data.get("recorded_at", report_data.get("submitted_at"))
+    filled_quantity = required_decimal(report_data["filled_quantity"], "filled_quantity")
+    if filled_quantity < 0:
+        raise ValueError("리포트 filled_quantity 는 0 이상이어야 한다")
+    parsed_average_price = None if average_price is None else required_decimal(average_price, "average_price")
+    try:
+        recorded_at = datetime.fromisoformat(str(recorded_raw))
+    except ValueError as err:
+        raise ValueError("리포트 recorded_at 은 ISO 날짜·시각이어야 한다") from err
+    if recorded_at.utcoffset() is None:
+        raise ValueError("리포트 recorded_at 에 시간대 오프셋이 없다")
     return ExecutionReport(
         client_order_id=_required_report_str(report_data, "client_order_id", allow_empty=False),
         order_id=None if report_data["order_id"] is None else str(report_data["order_id"]),
         symbol=_required_report_str(report_data, "symbol", allow_empty=True),
         side=cast(Side, str(report_data["side"])),
         status=OrderStatus(str(report_data["status"])),
-        filled_quantity=Decimal(str(report_data["filled_quantity"])),
-        average_price=None if average_price is None else Decimal(str(average_price)),
-        recorded_at=datetime.fromisoformat(str(recorded_raw)),
+        filled_quantity=filled_quantity,
+        average_price=parsed_average_price,
+        recorded_at=recorded_at,
         # 구버전(v5 이하) 레코드엔 없으니 누락 시 None (해당 주문은 재기동 후 취소 불가 -- 종전과 동일).
         organization_number=(
             None if report_data.get("organization_number") is None

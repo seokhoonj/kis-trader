@@ -98,3 +98,21 @@ class StockOrderHistory:
     def __post_init__(self) -> None:
         object.__setattr__(self, "orders", tuple(self.orders))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class StockOrderHistoryCollection:
+    """국내주식 최근·과거 조회를 함께 담은 주문 내역(불변).
+
+    ``orders`` 는 최근 조회 다음 과거 조회 순서의 통합 행이다. 완전한 주문 식별정보와
+    모든 필드·원본이 같은 두 조회의 관측만 중복을 합친다. 같은 행의 반복 횟수는 두 조회 중
+    큰 횟수를 보존한다. ``recent`` / ``historical`` 은 각 조회의 행과 합계 요약 원본이다.
+    통합 평균가격·제비용·공급자 합계는 계산하지 않는다.
+    """
+
+    orders: tuple[StockOrder, ...]
+    recent: StockOrderHistory
+    historical: StockOrderHistory
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "orders", tuple(self.orders))

@@ -10,8 +10,11 @@
 
 from __future__ import annotations
 
-import hashlib
+import os
+import subprocess
+import sys
 import threading
+import types
 from argparse import Namespace
 
 import pytest
@@ -188,15 +191,719 @@ def test_order_store_path_default_is_in_state_dir(monkeypatch, tmp_path):
     assert p.parent.name == "orders"
 
 
-def test_order_store_path_migrates_from_old_cache_location(monkeypatch, tmp_path):
-    # 이전 버전이 캐시 위치에 남긴 저장소는 새 state 위치로 옮겨(복제 아님) dedup 연속성을 지킨다.
+@pytest.mark.parametrize("legacy_kind", ["empty", "journal", "lock"])
+def test_order_store_path_refuses_actual_legacy_directory(monkeypatch, tmp_path, legacy_kind):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
-    digest = hashlib.sha256(b"12345678-01").hexdigest()[:16]
-    old_file = tmp_path / "cache" / "kis-trader" / "orders" / f"real-{digest}.json"
-    old_file.parent.mkdir(parents=True)
-    old_file.write_text('{"orders": {}}', encoding="utf-8")
-    new_path = order_store_path(account="12345678-01", environment="real")
-    assert new_path.exists()
-    assert new_path.read_text(encoding="utf-8") == '{"orders": {}}'
-    assert not old_file.exists()   # 이동(복제 아님) -- 두 곳에 갈라진 dedup 이 남지 않는다
+    old = tmp_path / "cache" / "kis-trader" / "orders"
+    old.mkdir(parents=True)
+    if legacy_kind != "empty":
+        (old / ("other.json" if legacy_kind == "journal" else "other.json.lock")).write_bytes(b"synthetic")
+    before = {entry.name: entry.read_bytes() for entry in old.iterdir()}
+    with pytest.raises(KISUsageError, match="migrate-orders.*--offline"):
+        order_store_path(account="synthetic-01", environment="paper")
+    assert old.is_dir() and not old.is_symlink()
+    assert {entry.name: entry.read_bytes() for entry in old.iterdir()} == before
+    assert not (tmp_path / "state" / "kis-trader" / "orders").exists()
+
+
+def test_order_store_fresh_setup_uses_shared_directory_alias(monkeypatch, tmp_path):
+    from kis_trader.store import OrderStore
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    path = order_store_path(account="synthetic-01", environment="paper")
+    alias = tmp_path / "cache" / "kis-trader" / "orders"
+    assert alias.is_symlink() and alias.samefile(path.parent)
+    with OrderStore(path=path):
+        assert path.with_suffix(".json.lock").samefile(alias / path.with_suffix(".json.lock").name)
+    assert order_store_path(account="other-01", environment="real").parent == path.parent
+
+
+@pytest.mark.parametrize("layout", ["state-only", "both-empty", "both-data", "broken", "wrong", "state-link", "cache-file"])
+def test_order_store_unknown_layout_refuses_without_changing_bytes(monkeypatch, tmp_path, layout):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    state = tmp_path / "state" / "kis-trader" / "orders"
+    cache = tmp_path / "cache" / "kis-trader" / "orders"
+    cache.parent.mkdir(parents=True)
+    state.parent.mkdir(parents=True)
+    if layout == "state-link":
+        state.symlink_to(tmp_path / "unknown", target_is_directory=True)
+    elif layout in {"state-only", "both-empty", "both-data"}:
+        state.mkdir()
+        if layout != "both-empty":
+            (state / "synthetic.json").write_bytes(b"state-bytes")
+    if layout.startswith("both"):
+        cache.mkdir()
+        if layout == "both-data":
+            (cache / "synthetic.json").write_bytes(b"cache-bytes")
+    elif layout in {"broken", "wrong"}:
+        target = tmp_path / "unknown"
+        if layout == "wrong":
+            target.mkdir()
+        cache.symlink_to(target, target_is_directory=True)
+    elif layout == "cache-file":
+        cache.write_bytes(b"cache-file")
+    before = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    with pytest.raises(KISUsageError):
+        order_store_path(account="synthetic-01", environment="paper")
+    after = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    assert all(after[k] == value for k, value in before.items())
+    assert not any(p.suffix == ".json" and str(p.relative_to(tmp_path)) not in before for p in tmp_path.rglob("*"))
+
+
+def _historical_store_module():
+    """고정된 과거 버전의 실제 락·교체 코드를 현재 타입과 함께 실행한다."""
+    from pathlib import Path
+
+    if not (Path(__file__).resolve().parent.parent / ".git").exists():
+        pytest.skip("historical-source proof requires checkout git history; sdist omits it")
+    source = subprocess.check_output(
+        ["git", "show", "3becf7a^:src/kis_trader/store.py"], text=True,
+    )
+    module = types.ModuleType("kis_trader._historical_layout_test")
+    module.__package__ = "kis_trader"
+    sys.modules[module.__name__] = module
+    exec(compile(source, "historical-store.py", "exec"), module.__dict__)  # noqa: S102 -- fixed repository history
+    return module
+
+
+def test_actual_historical_writer_paused_before_replace_is_not_moved(monkeypatch, tmp_path):
+    from kis_trader import Order, store
+    if store.fcntl is None:
+        pytest.skip("historical POSIX writer requires fcntl")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    old = tmp_path / "cache" / "kis-trader" / "orders" / "other.json"
+    historical = _historical_store_module()
+    paused, release = threading.Event(), threading.Event()
+    failures = []
+    original_replace = os.replace
+
+    def replace(source, destination):
+        if destination == old:
+            paused.set()
+            assert release.wait(5)
+        return original_replace(source, destination)
+
+    monkeypatch.setattr(os, "replace", replace)
+
+    def writer():
+        try:
+            with historical.OrderStore(path=old) as journal:
+                journal.try_claim("synthetic", Order.market("005930", side="buy", quantity=1).fingerprint)
+        except BaseException as error:  # noqa: BLE001 -- publish worker failures to joining test
+            failures.append(error)
+
+    thread = threading.Thread(target=writer)
+    thread.start()
+    try:
+        assert paused.wait(5)
+        lock = old.with_suffix(".json.lock")
+        identity = lock.stat().st_ino
+        with pytest.raises(KISUsageError, match="migrate-orders"):
+            order_store_path(account="synthetic-01", environment="paper")
+        assert lock.stat().st_ino == identity
+        assert not (tmp_path / "state" / "kis-trader" / "orders").exists()
+    finally:
+        release.set()
+        thread.join(5)
+    assert not thread.is_alive() and not failures
+    assert old.is_file()
+    with historical.OrderStore(path=old) as journal:
+        assert isinstance(journal.try_claim("synthetic", Order.market("005930", side="buy", quantity=1).fingerprint), historical.InFlight)
+
+
+def test_old_start_wins_fresh_alias_race_preserves_old_authority(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from kis_trader import Order, store
+    if store.fcntl is None:
+        pytest.skip("historical POSIX writer requires fcntl")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    cache = tmp_path / "cache" / "kis-trader" / "orders"
+    original = Path.symlink_to
+    historical = _historical_store_module()
+
+    def race(path, target, target_is_directory=False):
+        if path == cache:
+            with historical.OrderStore(path=cache / "old.json") as journal:
+                journal.try_claim("synthetic", Order.market("005930", side="buy", quantity=1).fingerprint)
+        return original(path, target, target_is_directory=target_is_directory)
+
+    monkeypatch.setattr(Path, "symlink_to", race)
+    with pytest.raises(KISUsageError, match="migrate-orders"):
+        order_store_path(account="synthetic-01", environment="paper")
+    assert (cache / "old.json").is_file() and not cache.is_symlink()
+    assert list((tmp_path / "state" / "kis-trader" / "orders").iterdir()) == []
+
+
+def test_alias_shares_actual_historical_lock_and_replace(monkeypatch, tmp_path):
+    from kis_trader import Order, store
+    from kis_trader.errors import KISError, UnsupportedSchemaVersionError
+    if store.fcntl is None:
+        pytest.skip("historical POSIX writer requires fcntl")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    path = order_store_path(account="synthetic-01", environment="paper")
+    cache = tmp_path / "cache" / "kis-trader" / "orders"
+    old = cache / path.name
+    historical = _historical_store_module()
+    fingerprint = Order.market("005930", side="buy", quantity=1).fingerprint
+    with historical.OrderStore(path=old) as journal:
+        journal.try_claim("synthetic", fingerprint)
+        before = old.read_bytes()
+        with pytest.raises(KISError):
+            store.OrderStore(path=path)
+        journal.try_claim("second", fingerprint)
+        assert cache.is_symlink() and old.samefile(path)
+    current_bytes = path.read_bytes()
+    assert before != current_bytes
+    with store.OrderStore(path=path), pytest.raises(KISError):
+        historical.OrderStore(path=old)
+    assert path.read_bytes() == current_bytes
+    with historical.OrderStore(path=old) as journal:
+        assert isinstance(journal.try_claim("synthetic", fingerprint), historical.InFlight)
+    with store.OrderStore(path=path) as journal:
+        journal.try_claim("new", fingerprint)
+    with pytest.raises(UnsupportedSchemaVersionError):
+        historical.OrderStore(path=old)
+    assert old.samefile(path)
+
+
+def test_order_store_rejects_state_inside_cache_cleanup_tree(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "cache" / "state"))
+    with pytest.raises(KISUsageError, match="캐시 정리 트리"):
+        order_store_path(account="synthetic-01", environment="paper")
+    assert not (tmp_path / "cache").exists()
+
+
+def test_order_store_cache_cleanup_preserves_state_but_requires_offline_repair(monkeypatch, tmp_path):
+    from kis_trader import Order, store
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    path = order_store_path(account="synthetic-01", environment="paper")
+    with store.OrderStore(path=path) as journal:
+        journal.try_claim("synthetic", Order.market("005930", side="buy", quantity=1).fingerprint)
+    before = path.read_bytes()
+    (tmp_path / "cache" / "kis-trader" / "orders").unlink()
+    assert path.read_bytes() == before
+    with pytest.raises(KISUsageError, match="migrate-orders"):
+        order_store_path(account="synthetic-01", environment="paper")
+    assert path.read_bytes() == before
+
+
+def test_native_no_fcntl_fresh_layout_does_not_require_symlink(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from kis_trader import _order_store_layout as layout
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    # Platform-selection unit check only: the actual process lock is still POSIX here.
+    monkeypatch.setattr(layout, "_requires_legacy_alias", lambda: False)
+    monkeypatch.setattr(Path, "symlink_to", lambda *args, **kwargs: pytest.fail("native branch must not need directory links"))
+    path = order_store_path(account="synthetic-01", environment="paper")
+    assert path.parent.is_dir()
+    assert order_store_path(account="synthetic-01", environment="paper") == path
+    assert not (tmp_path / "cache").exists()
+
+
+def test_fresh_alias_race_refuses_competing_writer_without_git(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from kis_trader import Order, store
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    cache = tmp_path / "cache" / "kis-trader" / "orders"
+    original = Path.symlink_to
+
+    def race(path, target, target_is_directory=False):
+        if path == cache:
+            with store.OrderStore(path=cache / "competing.json") as journal:
+                journal.try_claim("synthetic", Order.market("005930", side="buy", quantity=1).fingerprint)
+        return original(path, target, target_is_directory=target_is_directory)
+
+    monkeypatch.setattr(Path, "symlink_to", race)
+    with pytest.raises(KISUsageError, match="migrate-orders"):
+        order_store_path(account="synthetic-01", environment="paper")
+    assert (cache / "competing.json").is_file() and not cache.is_symlink()
+    assert list((tmp_path / "state" / "kis-trader" / "orders").iterdir()) == []
+
+
+def _offline_layout(tmp_path):
+    from kis_trader import Order
+    from kis_trader.store import OrderStore
+    state = tmp_path / "state" / "kis-trader" / "orders"
+    cache = tmp_path / "cache" / "kis-trader" / "orders"
+    for name in ("paper-synthetic.json", "real-other.json"):
+        with OrderStore(path=cache / name, retention_days=0) as journal:
+            journal.try_claim("synthetic", Order.market("005930", side="buy", quantity=1).fingerprint)
+    return state, cache, {p.name: p.read_bytes() for p in cache.iterdir()}
+
+
+@pytest.mark.parametrize("failure_stage", ["prepared", "copied", "installed", "backed_up", "linked", "committed"])
+def test_offline_migration_resumes_each_durable_stage_without_rewriting_journals(tmp_path, monkeypatch, failure_stage):
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    identities = {p.name: p.stat().st_ino for p in cache.iterdir()}
+    original = layout._write_transaction
+
+    def interrupt(marker, transaction):
+        original(marker, transaction)
+        if transaction["stage"] == failure_stage:
+            raise OSError("synthetic interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(layout, "_write_transaction", interrupt)
+        with pytest.raises(OSError, match="synthetic"):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+    marker = state.parent / ".orders-migration.json"
+    assert marker.is_file()
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    with pytest.raises(KISUsageError, match="완료되지 않은"):
+        order_store_path(account="synthetic-01", environment="paper")
+    layout.migrate_order_store_directory(state, cache, offline=True)
+    assert not marker.exists() and cache.is_symlink() and cache.samefile(state)
+    assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+    backups = list(cache.parent.glob(".orders-backup-*"))
+    assert len(backups) == 1
+    assert {p.name: p.read_bytes() for p in backups[0].iterdir()} == before
+    assert {p.name: p.stat().st_ino for p in backups[0].iterdir()} == identities
+
+
+@pytest.mark.parametrize("operation", ["install", "backup"])
+def test_offline_migration_recovers_operation_before_stage_record(tmp_path, monkeypatch, operation):
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    original = layout._rename_no_replace
+
+    def interrupt(source, destination):
+        original(source, destination)
+        if (operation == "install" and destination == state) or (operation == "backup" and source == cache):
+            raise OSError("synthetic rename interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(layout, "_rename_no_replace", interrupt)
+        with pytest.raises(OSError, match="synthetic"):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+    layout.migrate_order_store_directory(state, cache, offline=True)
+    assert cache.samefile(state)
+    assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+
+
+@pytest.mark.parametrize("held", ["source", "state-only", "stage"])
+def test_offline_migration_refuses_any_held_journal_lock_and_releases_own_locks(tmp_path, monkeypatch, held):
+    from kis_trader import _order_store_layout as layout
+    from kis_trader.errors import KISError
+    from kis_trader.store import OrderStore
+    state, cache, before = _offline_layout(tmp_path)
+    target = cache
+    if held == "state-only":
+        state.parent.mkdir(parents=True)
+        cache.rename(state)
+        target = state
+    elif held == "stage":
+        original = layout._write_transaction
+
+        def interrupt(marker, transaction):
+            original(marker, transaction)
+            if transaction["stage"] == "copied":
+                raise OSError("synthetic interruption")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(layout, "_write_transaction", interrupt)
+            with pytest.raises(OSError):
+                layout.migrate_order_store_directory(state, cache, offline=True)
+        target = next(state.parent.glob(".orders-stage-*"))
+    with OrderStore(path=target / "real-other.json", retention_days=0), pytest.raises(KISError):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert {p.name: p.read_bytes() for p in target.iterdir()} == before
+    layout.migrate_order_store_directory(state, cache, offline=True)
+    assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+
+
+@pytest.mark.parametrize("equal", [True, False])
+def test_offline_migration_never_merges_independent_journals(tmp_path, equal):
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    state.mkdir(parents=True)
+    (state / "paper-synthetic.json").write_bytes(before["paper-synthetic.json"] if equal else b"different")
+    destination = (state / "paper-synthetic.json").read_bytes()
+    with pytest.raises(KISUsageError, match="자동 병합"):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert {p.name: p.read_bytes() for p in cache.iterdir()} == before
+    assert (state / "paper-synthetic.json").read_bytes() == destination
+
+
+def test_offline_migration_partial_copy_refuses_resume_and_preserves_all_copies(tmp_path, monkeypatch):
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+
+    def interrupt(original, output):
+        output.write(original.read(10))
+        raise OSError("synthetic copy failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(layout.shutil, "copyfileobj", interrupt)
+        with pytest.raises(OSError):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+    stage = next(state.parent.glob(".orders-stage-*"))
+    partial = {p.name: p.read_bytes() for p in stage.iterdir()}
+    with pytest.raises(KISUsageError, match="수동 점검"):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert {p.name: p.read_bytes() for p in cache.iterdir()} == before
+    assert {p.name: p.read_bytes() for p in stage.iterdir()} == partial
+
+
+def test_offline_migration_raced_cache_directory_is_not_overwritten(tmp_path, monkeypatch):
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    original = layout._advance
+
+    def race(marker, transaction, stage):
+        original(marker, transaction, stage)
+        if stage == "backed_up":
+            cache.mkdir()
+            (cache / "raced.json.lock").write_bytes(b"raced")
+
+    monkeypatch.setattr(layout, "_advance", race)
+    with pytest.raises(KISUsageError, match="독립"):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert (cache / "raced.json.lock").read_bytes() == b"raced"
+    assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+
+
+def test_offline_migration_copies_across_real_distinct_filesystems(tmp_path):
+    import tempfile
+    from pathlib import Path
+
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    other_root = Path("/dev/shm")
+    if not other_root.is_dir() or other_root.stat().st_dev == tmp_path.stat().st_dev:
+        pytest.skip("a second writable filesystem is unavailable")
+    with tempfile.TemporaryDirectory(prefix="kis-orders-synthetic-", dir=other_root) as scratch:
+        state = Path(scratch) / "state" / "kis-trader" / "orders"
+        layout.migrate_order_store_directory(state, cache, offline=True)
+        assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+        assert cache.samefile(state)
+
+
+@pytest.mark.parametrize("mutation", ["stage-list", "marker-symlink", "source-replaced", "new-source-entry"])
+def test_offline_recovery_rejects_unknown_transaction_topology(tmp_path, monkeypatch, mutation):
+    import json
+    import shutil
+
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    original = layout._write_transaction
+
+    def interrupt(marker, transaction):
+        original(marker, transaction)
+        if transaction["stage"] == "prepared":
+            raise OSError("synthetic interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(layout, "_write_transaction", interrupt)
+        with pytest.raises(OSError):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+    marker = state.parent / ".orders-migration.json"
+    if mutation == "stage-list":
+        raw = json.loads(marker.read_text())
+        raw["stage"] = []
+        marker.write_text(json.dumps(raw))
+    elif mutation == "marker-symlink":
+        marker.rename(marker.with_suffix(".saved"))
+        marker.symlink_to(marker.with_suffix(".saved"))
+    elif mutation == "source-replaced":
+        target = cache / "paper-synthetic.json"
+        replacement = cache / "replacement"
+        replacement.write_bytes(target.read_bytes())
+        shutil.copymode(target, replacement)
+        replacement.replace(target)
+    else:
+        (cache / "new.json.lock").write_bytes(b"new")
+    with pytest.raises(KISUsageError):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert all((cache / name).read_bytes() == contents for name, contents in before.items())
+    assert not state.exists()
+
+
+def test_offline_stage_and_files_are_durable_before_source_rename(tmp_path, monkeypatch):
+    from kis_trader import _order_store_layout as layout
+    from kis_trader.errors import KISError
+    from kis_trader.store import OrderStore
+    state, cache, before = _offline_layout(tmp_path)
+    synced_files = set()
+    synced_dirs = set()
+    original_fsync = os.fsync
+    original_dir = layout.store._fsync_dir
+    original_rename = layout._rename_no_replace
+    original_advance = layout._advance
+
+    def fsync(descriptor):
+        details = os.fstat(descriptor)
+        synced_files.add((details.st_dev, details.st_ino))
+        return original_fsync(descriptor)
+
+    def directory(path):
+        original_dir(path)
+        synced_dirs.add(path)
+
+    def rename(source, destination):
+        if source == cache:
+            assert state.parent in synced_dirs
+            assert any(p.name.startswith(".orders-stage-") for p in synced_dirs)
+            assert all((p.stat().st_dev, p.stat().st_ino) in synced_files for p in state.iterdir())
+            assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+        return original_rename(source, destination)
+
+    def advance(marker, transaction, stage):
+        original_advance(marker, transaction, stage)
+        if stage == "linked":
+            with pytest.raises(KISError):
+                OrderStore(path=cache / "paper-synthetic.json")
+
+    monkeypatch.setattr(os, "fsync", fsync)
+    monkeypatch.setattr(layout.store, "_fsync_dir", directory)
+    monkeypatch.setattr(layout, "_rename_no_replace", rename)
+    monkeypatch.setattr(layout, "_advance", advance)
+    layout.migrate_order_store_directory(state, cache, offline=True)
+
+
+def test_offline_constructor_failure_leaves_bytes_and_releases_all_previous_locks(tmp_path):
+    from kis_trader import _order_store_layout as layout
+    from kis_trader.errors import KISError
+    from kis_trader.store import OrderStore
+    state, cache, before = _offline_layout(tmp_path)
+    bad = cache / "zz-corrupt.json"
+    bad.write_bytes(b"not valid JSON")
+    with pytest.raises(KISError):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert bad.read_bytes() == b"not valid JSON"
+    assert all((cache / name).read_bytes() == contents for name, contents in before.items())
+    with OrderStore(path=cache / "paper-synthetic.json"), OrderStore(path=state.parent / ".orders-layout"):
+        pass
+    assert not state.exists() and not (state.parent / ".orders-migration.json").exists()
+
+
+def test_offline_no_replace_preserves_raced_canonical_directory(tmp_path, monkeypatch):
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    original = layout._rename_no_replace
+
+    def race(source, destination):
+        if destination == state:
+            state.mkdir()
+            (state / "raced.json.lock").write_bytes(b"independent")
+        return original(source, destination)
+
+    monkeypatch.setattr(layout, "_rename_no_replace", race)
+    with pytest.raises(OSError):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert (state / "raced.json.lock").read_bytes() == b"independent"
+    assert {p.name: p.read_bytes() for p in cache.iterdir()} == before
+
+
+def test_offline_migration_preserves_actual_historical_schema_and_pending_claim(tmp_path):
+    from kis_trader import Order
+    from kis_trader import _order_store_layout as layout
+    from kis_trader.store import OrderStore
+    historical = _historical_store_module()
+    cache = tmp_path / "cache" / "kis-trader" / "orders"
+    state = tmp_path / "state" / "kis-trader" / "orders"
+    fingerprint = Order.market("005930", side="buy", quantity=1).fingerprint
+    with historical.OrderStore(path=cache / "synthetic.json") as journal:
+        journal.try_claim("synthetic", fingerprint)
+    before = {p.name: p.read_bytes() for p in cache.iterdir()}
+    layout.migrate_order_store_directory(state, cache, offline=True)
+    assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+    with historical.OrderStore(path=cache / "synthetic.json") as journal:
+        assert isinstance(journal.try_claim("synthetic", fingerprint), historical.InFlight)
+    with OrderStore(path=state / "synthetic.json"):
+        pass
+    assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+
+
+def test_offline_probe_failure_does_not_remove_an_existing_symlink(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    original = Path.symlink_to
+    raced = []
+
+    def collision(path, target, target_is_directory=False):
+        if path.name.startswith(".orders-link-probe-"):
+            original(path, tmp_path / "unrelated", target_is_directory=True)
+            raced.append(path)
+        return original(path, target, target_is_directory=target_is_directory)
+
+    monkeypatch.setattr(Path, "symlink_to", collision)
+    with pytest.raises(KISUsageError):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert raced and raced[0].is_symlink()
+    assert {p.name: p.read_bytes() for p in cache.iterdir()} == before
+    assert not (state.parent / ".orders-migration.json").exists()
+
+
+def test_offline_does_not_remove_an_unrecorded_empty_state_directory(tmp_path, monkeypatch):
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    original = layout._advance
+    identity = []
+
+    def race(marker, transaction, stage):
+        original(marker, transaction, stage)
+        if stage == "copied":
+            state.mkdir()
+            identity.append(state.stat().st_ino)
+
+    monkeypatch.setattr(layout, "_advance", race)
+    with pytest.raises(KISUsageError):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert state.stat().st_ino == identity[0] and list(state.iterdir()) == []
+    assert {p.name: p.read_bytes() for p in cache.iterdir()} == before
+
+
+def test_offline_accepts_recorded_empty_state_placeholder_and_lock_only_source(tmp_path):
+    from kis_trader import _order_store_layout as layout
+    state = tmp_path / "state" / "kis-trader" / "orders"
+    cache = tmp_path / "cache" / "kis-trader" / "orders"
+    state.mkdir(parents=True)
+    cache.mkdir(parents=True)
+    lock = cache / "synthetic.json.lock"
+    lock.write_bytes(b"")
+    identity = lock.stat().st_ino
+    layout.migrate_order_store_directory(state, cache, offline=True)
+    assert [p.name for p in state.iterdir()] == ["synthetic.json.lock"]
+    backup = next(cache.parent.glob(".orders-backup-*"))
+    assert (backup / lock.name).stat().st_ino == identity
+    assert cache.samefile(state)
+
+
+@pytest.mark.parametrize("failure", ["unsupported", "EXDEV"])
+def test_offline_no_replace_failure_preserves_source_and_stage(tmp_path, monkeypatch, failure):
+    import errno
+
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+
+    def reject(source, destination):
+        if failure == "unsupported":
+            raise KISUsageError("synthetic unsupported no-replace primitive")
+        raise OSError(errno.EXDEV, "synthetic cross-device failure")
+
+    monkeypatch.setattr(layout, "_rename_no_replace", reject)
+    with pytest.raises((KISUsageError, OSError)):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert not state.exists()
+    assert {p.name: p.read_bytes() for p in cache.iterdir()} == before
+    stage = next(state.parent.glob(".orders-stage-*"))
+    assert {p.name: p.read_bytes() for p in stage.iterdir()} == before
+
+
+def test_offline_actual_historical_writer_lock_blocks_move(tmp_path):
+    from kis_trader import Order
+    from kis_trader import _order_store_layout as layout
+    from kis_trader.errors import KISError
+    historical = _historical_store_module()
+    cache = tmp_path / "cache" / "kis-trader" / "orders"
+    state = tmp_path / "state" / "kis-trader" / "orders"
+    with historical.OrderStore(path=cache / "synthetic.json") as journal:
+        journal.try_claim("synthetic", Order.market("005930", side="buy", quantity=1).fingerprint)
+        before = {p.name: p.read_bytes() for p in cache.iterdir()}
+        lock_inode = (cache / "synthetic.json.lock").stat().st_ino
+        with pytest.raises(KISError):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+        assert (cache / "synthetic.json.lock").stat().st_ino == lock_inode
+        assert {p.name: p.read_bytes() for p in cache.iterdir()} == before
+        assert not state.exists()
+    layout.migrate_order_store_directory(state, cache, offline=True)
+    assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+
+
+@pytest.mark.parametrize("failure_at", ["stage", "installed", "alias"])
+def test_offline_directory_fsync_failure_retains_recoverable_copies(tmp_path, monkeypatch, failure_at):
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    original = layout.store._fsync_dir
+    failed = []
+
+    def fsync(directory):
+        should_fail = (
+            failure_at == "stage" and directory.name.startswith(".orders-stage-")
+            or failure_at == "installed" and directory == state.parent and state.exists()
+            or failure_at == "alias" and directory == cache.parent and cache.is_symlink()
+        )
+        if should_fail and not failed:
+            failed.append(True)
+            raise OSError("synthetic durability failure")
+        original(directory)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(layout.store, "_fsync_dir", fsync)
+        with pytest.raises(OSError, match="synthetic"):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+    assert failed
+    layout.migrate_order_store_directory(state, cache, offline=True)
+    assert {p.name: p.read_bytes() for p in state.iterdir()} == before
+    backup = next(cache.parent.glob(".orders-backup-*"))
+    assert {p.name: p.read_bytes() for p in backup.iterdir()} == before
+
+
+def test_offline_recovery_does_not_adopt_an_unrecorded_staging_directory(tmp_path, monkeypatch):
+    import json
+    import shutil
+
+    from kis_trader import _order_store_layout as layout
+    state, cache, before = _offline_layout(tmp_path)
+    original = layout._write_transaction
+
+    def interrupt(marker, transaction):
+        original(marker, transaction)
+        if transaction["stage"] == "prepared":
+            raise OSError("synthetic interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(layout, "_write_transaction", interrupt)
+        with pytest.raises(OSError):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+    marker = state.parent / ".orders-migration.json"
+    transaction = json.loads(marker.read_text())
+    stage = state.parent / (".orders-stage-" + transaction["operation"])
+    stage.mkdir()
+    for entry in cache.iterdir():
+        shutil.copy2(entry, stage / entry.name)
+    with pytest.raises(KISUsageError):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert {p.name: p.read_bytes() for p in cache.iterdir()} == before
+    assert {p.name: p.read_bytes() for p in stage.iterdir()} == before
+
+
+@pytest.mark.parametrize("operation", ["lookup", "offline"])
+@pytest.mark.parametrize("populated", [False, True])
+def test_order_layout_rejects_cache_nested_inside_state_without_mutation(tmp_path, monkeypatch, operation, populated):
+    from kis_trader import _order_store_layout as layout
+    state_home = tmp_path / "state"
+    state = state_home / "kis-trader" / "orders"
+    cache_home = state / "cache"
+    cache = cache_home / "kis-trader" / "orders"
+    if populated:
+        state.mkdir(parents=True)
+        (state / "synthetic.json").write_bytes(b"preserve synthetic bytes")
+    before = {str(p.relative_to(tmp_path)): p.read_bytes() if p.is_file() else None
+              for p in tmp_path.rglob("*")}
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(cache_home))
+    with pytest.raises(KISUsageError):
+        if operation == "lookup":
+            order_store_path(account="synthetic-01", environment="paper")
+        else:
+            layout.migrate_order_store_directory(state, cache, offline=True)
+    after = {str(p.relative_to(tmp_path)): p.read_bytes() if p.is_file() else None
+             for p in tmp_path.rglob("*")}
+    assert after == before

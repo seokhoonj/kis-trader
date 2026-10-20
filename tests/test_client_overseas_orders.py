@@ -245,18 +245,17 @@ def test_overseas_order_dedup_replays_report():
     assert len(fake.calls) == 1                         # 두 번째는 와이어 미접촉
 
 
-def test_overseas_order_timeout_then_reconcile_confirms():
-    # 주문 POST 는 timeout, 재조회 GET 은 지문과 맞는 체결 1건 -> 확정.
+def test_overseas_order_timeout_then_reconcile_remains_unknown():
     fake = FakeTransport(on_post=TransportTimeoutError("timeout"), on_get=_ccnl([_ccnl_row()]))
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
         client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="to")
     report = client.orders.reconcile("to")                    # 해외 체결내역으로 확정
-    assert report is not None
-    assert report.order_id == "0000123456"
-    assert report.filled_quantity == Decimal(1)
-    assert fake.calls[-1]["path"] == "/uapi/overseas-stock/v1/trading/inquire-ccnl"
-    assert fake.calls[-1]["tr_id"] == "TTTS3035R"
+    assert report is None
+    store = client._store
+    cid = "to"
+    assert store.report_for(cid) is None and store.is_in_flight(cid)
+    assert not any(call["method"] == "GET" for call in fake.calls)
 
 
 def test_overseas_reconcile_zero_matches_stays_none():
@@ -316,9 +315,7 @@ def test_overseas_timeout_recovery_blank_odno_nonterminal_not_recorded():
     assert store.is_in_flight("to-blank")
 
 
-def test_overseas_timeout_recovery_blank_odno_terminal_is_confirmed():
-    # odno 가 빈 **종료**(전량체결) 행은 ODNO 없어도 확정·기록한다(교착 없음; 체결 버리면 이중체결 위험).
-    from kis_trader import OrderStatus
+def test_overseas_timeout_recovery_blank_odno_terminal_remains_unknown():
     from kis_trader.store import OrderStore
     store = OrderStore()
     fake = FakeTransport(on_post=TransportTimeoutError("t"),
@@ -328,8 +325,11 @@ def test_overseas_timeout_recovery_blank_odno_terminal_is_confirmed():
         client.overseas.stock("AAPL", exchange="NAS").buy(
             quantity=1, limit_price="150.00", client_order_id="to-term")
     report = client.orders.reconcile("to-term")
-    assert report is not None and report.status is OrderStatus.FILLED and report.order_id is None
-    assert store.report_for("to-term") is report and not store.is_in_flight("to-term")
+    assert report is None
+    store = client._store
+    cid = "to-term"
+    assert store.report_for(cid) is None and store.is_in_flight(cid)
+    assert not any(call["method"] == "GET" for call in fake.calls)
 
 
 def test_overseas_refresh_excludes_cancel_row_with_same_odno():
@@ -389,14 +389,13 @@ def test_overseas_stock_refresh_returns_concurrent_rebind_generation():
 
 
 def test_overseas_reconcile_two_matches_raises():
-    # 지문과 맞는 체결이 2건이면 자동 확정하지 않고 에러(보수적 -- 오확정 방지).
-    fake = FakeTransport(on_post=TransportTimeoutError("timeout"),
-                         on_get=_ccnl([_ccnl_row(odno="1"), _ccnl_row(odno="2")]))
+    # 저장 주문번호와 맞는 체결이 2건이면 자동 확정하지 않고 에러(보수적 -- 오확정 방지).
+    fake = FakeTransport(on_post=_ack(),
+                         on_get=_ccnl([_ccnl_row(odno="0000123456"), _ccnl_row(odno="0000123456")]))
     client = _client(fake)
-    with pytest.raises(OrderTimeoutError):
-        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="m2")
+    client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="m2")
     with pytest.raises(KISError, match="2건"):
-        client.orders.reconcile("m2")
+        client.orders.reconcile("m2", refresh=True)
 
 
 @pytest.mark.parametrize(("ccld_qty", "rjct", "expected_status", "expected_filled"), [
@@ -408,13 +407,12 @@ def test_overseas_reconcile_classifies_ccnl_status(ccld_qty, rjct, expected_stat
     # 재조회가 체결내역 행을 REJECTED/PARTIALLY_FILLED/NEW 로 정확히 분류하는지(FILLED 외 분기).
     from kis_trader import OrderStatus
     row = _ccnl_row(qty="10", ord_unpr="150.00", ccld_qty=ccld_qty, rjct=rjct)
-    fake = FakeTransport(on_post=TransportTimeoutError("timeout"), on_get=_ccnl([row]))
+    fake = FakeTransport(on_post=_ack(), on_get=_ccnl([row]))
     client = _client(fake)
-    with pytest.raises(OrderTimeoutError):
-        client.overseas.stock("AAPL", exchange="NAS").buy(
-            quantity=10, limit_price="150.00", client_order_id="cls",
-        )
-    report = client.orders.reconcile("cls")
+    client.overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=10, limit_price="150.00", client_order_id="cls",
+    )
+    report = client.orders.reconcile("cls", refresh=True)
     assert report is not None
     assert report.status is getattr(OrderStatus, expected_status)
     assert report.filled_quantity == Decimal(expected_filled)
@@ -443,9 +441,14 @@ def test_overseas_reconcile_date_window_is_deterministic():
         "AAPL", exchange="NAS")._make_order(
             "buy", quantity=1, limit_price="150.00", time_in_force="day", client_order_id="d1")
     store.try_claim("d1", order.fingerprint)            # in-flight 로 만든다
+    from kis_trader import OrderStatus
+    store.record(ExecutionReport(
+        client_order_id="d1", order_id="0000123456", symbol="AAPL", side="buy",
+        status=OrderStatus.NEW, filled_quantity=Decimal(0), average_price=None,
+        recorded_at=datetime(2024, 3, 15, 10, 0, tzinfo=kst)), order.fingerprint)
     fake = FakeTransport(on_get=_ccnl([]))
     engine.reconcile(fake, store, "d1", cano="1", product_code="01", environment="real",
-                     now=datetime(2024, 3, 15, 10, 0, tzinfo=kst))
+                     now=datetime(2024, 3, 15, 10, 0, tzinfo=kst), force_refresh=True)
     params = fake.calls[0]["params"]
     assert params["ORD_END_DT"] == "20240315"
     assert params["ORD_STRT_DT"] == "20240314"          # today-1 (해외 현지일 ±1 여유)
@@ -454,13 +457,12 @@ def test_overseas_reconcile_date_window_is_deterministic():
 def test_overseas_reconcile_paginates_ccnl():
     # 재조회가 연속조회(ctx_area_nk200)를 소진하며 모든 페이지를 스캔한다.
     page1 = RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
-                        body={"output": [_ccnl_row(pdno="MSFT")], "ctx_area_nk200": "NEXT"})
+                        body={"output": [_ccnl_row(pdno="MSFT", odno="sibling")], "ctx_area_nk200": "NEXT"})
     page2 = _ccnl([_ccnl_row()])                        # 원하는 체결은 2페이지에
-    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=[page1, page2])
+    fake = FakeTransport(on_post=_ack(), on_get=[page1, page2])
     client = _client(fake)
-    with pytest.raises(OrderTimeoutError):
-        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="pg")
-    report = client.orders.reconcile("pg")
+    client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="pg")
+    report = client.orders.reconcile("pg", refresh=True)
     assert report is not None and report.order_id == "0000123456"
     gets = [c for c in fake.calls if c["method"] == "GET"]
     assert len(gets) == 2
@@ -471,15 +473,14 @@ def test_overseas_reconcile_keeps_scanning_when_cursor_advances():
     # 안전: tr_cont 가 연속(F/M)이고 커서가 진전하면(비어 있지도 반복되지도 않음) 계속 스캔한다 --
     # 조기 종료로 체결을 놓쳐 '미접수'로 오판하면 이중체결 위험. 원하는 체결은 2페이지에 있다.
     page1 = RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
-                        body={"output": [_ccnl_row(pdno="MSFT")],
+                        body={"output": [_ccnl_row(pdno="MSFT", odno="sibling")],
                               "ctx_area_nk200": "NEXT1", "ctx_area_fk200": "FK1"},
                         tr_cont="M")                    # 진전하는 커서 + 더 있음
     page2 = _ccnl([_ccnl_row()])                        # 원하는 체결은 2페이지에(tr_cont 기본 "", 커서 없음)
-    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=[page1, page2])
+    fake = FakeTransport(on_post=_ack(), on_get=[page1, page2])
     client = _client(fake)
-    with pytest.raises(OrderTimeoutError):
-        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="tc")
-    report = client.orders.reconcile("tc")
+    client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="tc")
+    report = client.orders.reconcile("tc", refresh=True)
     assert report is not None and report.order_id == "0000123456"
     assert len([c for c in fake.calls if c["method"] == "GET"]) == 2
 
@@ -499,12 +500,11 @@ def test_overseas_reconcile_raises_when_cursor_cannot_advance_but_tr_cont_says_m
                              body={"output": [row], "ctx_area_nk200": "SAME"}, tr_cont=tr_cont),
                  RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
                              body={"output": [row], "ctx_area_nk200": "SAME"}, tr_cont=tr_cont)]
-    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=pages)
+    fake = FakeTransport(on_post=_ack(), on_get=pages)
     client = _client(fake)
-    with pytest.raises(OrderTimeoutError):
-        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="tc")
+    client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="tc")
     with pytest.raises(KISError, match="진전하지 않는"):
-        client.orders.reconcile("tc")
+        client.orders.reconcile("tc", refresh=True)
 
 
 def test_overseas_non_day_tif_rejected_before_wire():

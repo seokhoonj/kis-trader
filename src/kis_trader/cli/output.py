@@ -217,12 +217,12 @@ def _render_fields(items: list[tuple[Any, Any]], *, no_header: bool) -> str:
 
 def render(
     value: Any, *, fmt: OutputFormat = "table", include_raw: bool = False,
-    no_header: bool = False, meta: dict[str, Any] | None = None,
+    no_header: bool = False, meta: dict[str, Any] | None = None, ok: bool = True,
 ) -> str:
     """결과 객체를 최종 문자열로. ``fmt`` = ``table``/``json``/``jsonl``."""
     if fmt == "json":
         return json.dumps(
-            {"ok": True, "data": to_jsonable(value, include_raw=include_raw), "meta": meta or {}},
+            {"ok": ok, "data": to_jsonable(value, include_raw=include_raw), "meta": meta or {}},
             ensure_ascii=False, indent=2,
         )
     if fmt == "jsonl":

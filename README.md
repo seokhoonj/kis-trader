@@ -11,7 +11,7 @@
 
 - **넓은 범위** — 국내·해외 주식·지수·ETF·ETN·ELW·선물옵션·채권의 시세·재무·수급, 계좌 잔고·손익, 순위·조건검색, 시장·일정, 퇴직연금.
 - **주문** — 매수·매도·정정·취소, 신용·예약·TWAP/VWAP 분할.
-- **안전 코어** — 같은 주문의 중복 전송은 기본 차단되고, 타임아웃 시 재전송하지 않고 `reconcile()` 로 접수 여부를 직접 확인합니다. 신용거래는 기본 차단. 전송 전 리스크 한도는 `KISClient(..., risk=RiskLimits(...))`로 명시해 사용합니다.
+- **안전 코어** — 같은 주문의 중복 전송은 기본 차단되고, 타임아웃 시 재전송하지 않고 불명 상태를 보존합니다. `reconcile()` 은 저장된 증권사 주문번호가 있는 주문의 상태 갱신을 지원합니다. 신용거래는 기본 차단. 전송 전 리스크 한도는 `KISClient(..., risk=RiskLimits(...))`로 명시해 사용합니다.
 - **실시간** — 시세·호가·체결통보를 WebSocket으로 수신.
 - **세 가지 인터페이스** — 파이썬 API · 터미널 명령 `kis` · AI 에이전트용 MCP 서버/스킬.
 
@@ -75,7 +75,12 @@ kis.orders.modify(report.client_order_id, limit_price=70500)   # 가격 정정
 kis.orders.cancel(report.client_order_id)                      # 취소
 ```
 
-전송 타임아웃 등으로 접수 여부가 불명일 때만 `kis.orders.reconcile(report.client_order_id)` 로 상태를 확정합니다(완료된 주문엔 저장소에 남은 결과를 돌려줄 뿐 증권사 재조회는 하지 않습니다).
+지원 자산군에서 `kis.orders.reconcile(client_order_id)` 는 저장된 리포트가 있으면 반환합니다.
+현재 상태를 조회하려면 저장된 유효한 증권사 주문번호가 있는 주문에 `refresh=True` 를 사용합니다.
+최초 전송 타임아웃으로 그 번호가 없으면 조회 조건이 같다는 이유로 자동 연결하지 않고 `None` 과
+처리 중 기록을 유지합니다. 반환값 `report` 가 없을 수 있으므로 발주 전에 정한 요청 ID를 보관하고,
+재전송하지 말고 HTS/MTS나 해당 계좌의 주문·체결 조회로 확인하세요.
+자세한 예제와 한계는 [주문 안내](https://seokhoonj.github.io/kis-trader/orders.html)를 참고하세요.
 
 주문은 되돌릴 수 없습니다. 중복 주문을 막는 안전장치가 기본으로 동작합니다(신용거래는 기본
 차단). 자세한 규칙은 [주문 문서](https://seokhoonj.github.io/kis-trader/orders.html)에 있습니다.

@@ -88,19 +88,21 @@ def make_twap_schedule(
 ) -> TWAPSchedule:
     """TWAP 스케줄을 만든다(순수). ``interval = duration/slices``, 슬라이스 k 의 시각 = base + k*interval
     (base = ``start`` 또는 ``now`` 또는 현재 KST), 수량 = :func:`split_quantity`.
+    세션 날짜는 KST 로 판단하고 반환 슬라이스 시각은 입력의 UTC offset 을 유지한다.
 
     fail-closed 로 거부(:class:`~kis_trader.errors.KISUsageError`)하는 경우:
     ``slices`` <= 0 / ``quantity`` <= 0 / ``quantity`` < ``slices``; ``start``/``now`` 가 naive
-    (tz 없음 -- 호스트 시간대로 오해될 수 있어 KST tz-aware 를 요구); base 가 ``now`` 보다 과거
-    (과거 시작은 모든 슬라이스가 즉시 발주돼 연속 시장가 덤프가 되므로); 어느 슬라이스라도 base 당일의
+    (유효한 UTC offset 없음 -- 호스트 시간대로 오해될 수 있어 tz-aware 를 요구); base 가 ``now`` 보다 과거
+    (과거 시작은 모든 슬라이스가 즉시 발주돼 연속 시장가 덤프가 되므로); 어느 슬라이스라도 base 를 KST 로 환산한 당일의
     KRX 정규장(09:00~15:30 KST) 창 밖(시각뿐 아니라 날짜까지 -- 다음 날로 넘어가는 슬라이스도 거부)."""
     if slices <= 0:
         raise KISUsageError(f"슬라이스 수는 0보다 커야 한다: {slices}")
     span = parse_duration(duration)
     resolved_now = now if now is not None else datetime.now(_KST)
     base = start if start is not None else resolved_now
-    if base.tzinfo is None:
-        raise KISUsageError("start/now 는 KST tz-aware datetime 이어야 한다(naive 는 호스트 시간대로 오해됨).")
+    for name, value in (("now", resolved_now), ("start", start)):
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise KISUsageError(f"{name} 는 tz-aware datetime 이어야 한다(naive 는 호스트 시간대로 오해됨).")
     if base < resolved_now:
         raise KISUsageError(
             f"TWAP 시작 시각이 과거다({base.isoformat()}) -- 과거 시작은 모든 슬라이스를 즉시 연속 발주"
@@ -112,12 +114,13 @@ def make_twap_schedule(
         TWAPSlice(at=base + interval * index, quantity=qty)
         for index, qty in enumerate(quantities)
     )
-    session_open = datetime.combine(base.date(), _SESSION_OPEN, tzinfo=_KST)
-    session_close = datetime.combine(base.date(), _SESSION_CLOSE, tzinfo=_KST)
+    session_date = base.astimezone(_KST).date()
+    session_open = datetime.combine(session_date, _SESSION_OPEN, tzinfo=_KST)
+    session_close = datetime.combine(session_date, _SESSION_CLOSE, tzinfo=_KST)
     for entry in built:
         if not (session_open <= entry.at <= session_close):
             raise KISUsageError(
-                f"TWAP 슬라이스가 base 당일의 KRX 정규장(09:00~15:30 KST) 밖이다: {entry.at.isoformat()} "
+                f"TWAP 슬라이스가 base 의 KST 날짜에 해당하는 KRX 정규장(09:00~15:30 KST) 밖이다: {entry.at.isoformat()} "
                 f"-- 시작시각/소요시간/슬라이스 수를 조정하라(시간외/NXT/익일 이월은 미지원)."
             )
     return TWAPSchedule(symbol=symbol, side=side, slices=built)

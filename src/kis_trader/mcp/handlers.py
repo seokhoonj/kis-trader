@@ -485,10 +485,11 @@ def order_preview(
 
 
 def reconcile(kis: KISClient, *, client_order_id: str) -> dict[str, Any]:
-    """결과 불명 주문의 사후 확정(유일한 사후 진실). 미해소면 in-flight 로 남긴다.
+    """저장된 유효한 증권사 주문번호가 있는 주문의 상태를 갱신한다.
 
-    ``refresh=True`` 로 브로커를 **실제로** 재스캔한다 -- 사후확정 도구는 저장된 접수 스냅샷(체결 0)을
-    진실로 돌려주면 안 된다(그걸 보고 재주문하면 이중매수)."""
+    ``refresh=True`` 로 조회하되, 최초 응답이 없어 그 번호가 없으면 경제 조건만으로 연결하지 않고
+    미해소 결과와 처리 중 기록을 유지한다. 이 경우 HTS/MTS나 계좌 주문·체결 조회로 수동 확인하며
+    재전송하지 않는다. 저장된 접수 스냅샷의 체결 0을 현재 미체결의 증거로 사용하지 않는다."""
     report = kis.orders.reconcile(client_order_id, refresh=True)
     return {
         "client_order_id": client_order_id,

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 
@@ -444,16 +445,25 @@ def test_bond_modify_wire():
     assert call["body"]["BOND_ORD_UNPR"] == "10100"
 
 
-def test_bond_change_paper_fails_closed():
+@pytest.mark.parametrize("environment", ["paper", "real"])
+def test_bond_change_environment_gate_uses_matching_original(environment):
     # 모의 세션의 채권 정정·취소는 와이어에 닿기 전에 거부한다.
     store = OrderStore()
+    _client(FakeTransport(), store=store, environment=environment)  # 합성 원장의 귀속을 기록 생성 전에 확정
     order = _bond_order(client_order_id="bond-paper")
-    report = _change_report(order_id="0001234567")
+    report = replace(_change_report(order_id="0001234567"), client_order_id="bond-paper")
     store.record(report, order.fingerprint)
     change_t = FakeTransport(response=_CHANGE_ACCEPTED)
-    with pytest.raises(KISUsageError):
-        _client(change_t, environment="paper", store=store).orders.cancel("bond-paper")
-    assert change_t.request_count == 0
+    assert store.report_for("bond-paper") is report
+    if environment == "paper":
+        with pytest.raises(KISUsageError, match="모의투자 미지원"):
+            _client(change_t, environment=environment, store=store).orders.cancel("bond-paper")
+        assert change_t.request_count == 0
+    else:
+        _client(change_t, environment=environment, store=store).orders.cancel("bond-paper")
+        assert change_t.request_count == 1
+        assert change_t.calls[0]["path"] == _CHANGE
+        assert change_t.calls[0]["body"]["ORGN_ODNO"] == report.order_id
 
 
 def test_bond_change_idempotent():
@@ -474,6 +484,7 @@ def test_bond_reconcile_fails_closed_not_silent_none():
     # in-flight 채권 지문의 재조회는 엉뚱한 테이블을 훑어 None 을 돌려주는 대신, 미지원임을
     # 명시하며 fail-closed 해야 한다(파생·해외 fail-closed 분기와 대칭).
     store = OrderStore()
+    _client(FakeTransport(), store=store)  # 합성 원장의 귀속을 기록 생성 전에 확정
     order = _bond_order(client_order_id="bond-inflight")
     store.try_claim("bond-inflight", order.fingerprint)
     client = _client(FakeTransport(), store=store)

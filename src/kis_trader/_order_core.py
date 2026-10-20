@@ -1,6 +1,6 @@
 """지역 중립 주문 안전 코어 (내부) -- place / submit_change.
 
-이중체결 구조적 불가·쓰기 재시도 금지·보수적 재조회의 안전 불변식은 시장과 무관하다. 그 코어를
+동일 요청 ID의 중복 전송 차단·쓰기 재시도 금지·보수적 재조회의 안전 불변식은 시장과 무관하다. 그 코어를
 자산군 패키지(domestic/overseas)에서 분리해 여기 둔다 -- 각 시장 엔진이 자기 와이어 빌더
 (:class:`PlaceRequestBuilder`/:class:`ChangeRequestBuilder`)를 **주입**하고, 사전 리스크 점검도
 콜러블로 주입한다(이 코어는 국내/해외 어느 빌더에도 의존하지 않는다). ``build_request`` 는 필수다 --
@@ -9,7 +9,7 @@
 :func:`place` 흐름(안전 6단계):
 1. 계좌 주문가능 여부·수량 정수·사전 리스크·와이어 변환을 **먼저** 확인(불가/미구현이면 claim 전에 중단).
 2. :meth:`OrderStore.try_claim` 로 원자적 판정/확보: 완료면 리포트 replay, 같은 id 다른 지문은
-   충돌 거부, in-flight 면 재조회 요구, 새로 확보되면 전송.
+   충돌 거부, in-flight 면 저장 상태·계좌 조회와 수동 확인 안내, 새로 확보되면 전송.
 3. 전송. 타임아웃이면 재시도 없이 in-flight 유지 후 :class:`OrderTimeoutError`.
 4. 접수 거부(rt_cd!=0)면 in-flight 해제 후 :class:`OrderRejectedError`(체결 아님).
 5. 접수됐으나 쓸 수 있는 ODNO 없으면(누락 또는 전부-0) 재조회 불가 -> in-flight 유지하고 raise.
@@ -107,7 +107,8 @@ def _conflict_message(client_order_id: str) -> str:
 def _in_flight_message(client_order_id: str) -> str:
     return (
         f"주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
-        f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 판단하라."
+        f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+        "증권사 주문번호가 없으면 불명으로 유지되므로 재전송하지 말고 HTS/MTS나 계좌 주문·체결 조회로 확인하라."
     )
 
 
@@ -178,7 +179,8 @@ def place(
         # 재시도 금지: 체결 여부 불명. in-flight 유지, 재조회를 요구한다.
         raise OrderTimeoutError(
             f"주문 전송 시간초과 -- 체결 여부가 불명이다. 재전송하지 말고 "
-            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 HTS/MTS나 계좌 주문·체결 조회로 확인하라.",
             client_order_id=client_order_id,
         ) from err
     except KISAuthError:
@@ -195,7 +197,8 @@ def place(
         # 재조회를 요구한다 -- 조용히 재전송하면 (스로틀로 이미 접수됐을 때) 이중 주문이 날 수 있다.
         raise OrderTimeoutError(
             f"주문 전송 중 전송계층 오류 -- 접수 여부가 불명이다. 재전송하지 말고 "
-            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
+            f"kis.orders.reconcile({client_order_id!r}) 로 저장 상태를 확인하라. "
+            "증권사 주문번호가 없으면 불명으로 유지되므로 HTS/MTS나 계좌 주문·체결 조회로 확인하라.",
             client_order_id=client_order_id,
         ) from err
 
@@ -210,9 +213,8 @@ def place(
     output = extract(resp.body)
     order_id = output.get("ODNO")
     if not order_id or normalize_order_number(str(order_id)) == "":
-        # 접수(rt_cd=0)인데 거래소 주문번호 없음/전부-0(정규화 시 "") -> 재조회 불가. in-flight 유지하고
-        # raise. 전부-0 ODNO 를 저장하면 reconcile 이 그 ODNO 로 자기 행을 못 집어(정규화하면 빈값)
-        # 지문 폴백으로 형제를 오확정할 수 있으므로, 쓸 수 없는 ODNO 는 아예 미접수(in-flight)로 둔다.
+        # 접수 응답(rt_cd=0)인데 거래소 주문번호 없음/전부-0(정규화 시 "") -> 자동 재조회로
+        # 초기 요청에 행을 귀속할 수 없다. 접수 미확인(in-flight)을 유지하고 수동 확인하며 재전송하지 않는다.
         raise OrderError(
             "접수 응답(rt_cd=0)에 쓸 수 있는 거래소 주문번호(ODNO)가 없다 -- 재조회 불가.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -345,7 +347,8 @@ def submit_change(
     if isinstance(claim, PriorChangeInFlight):
         raise KISUsageError(
             f"원주문 {original_client_order_id!r} 에 결과 미확인 변경 {claim.other_request_id!r} 이 있다 -- "
-            f"kis.orders.reconcile({claim.other_request_id!r}) 로 해소한 뒤 재시도하라."
+            f"kis.orders.reconcile({claim.other_request_id!r}) 로 저장 상태를 확인하라. "
+            "처리 여부가 불명이면 변경 요청을 재전송하지 말고 HTS/MTS나 계좌 주문·체결 조회로 확인하라."
         )
     if isinstance(claim, StaleOriginal):
         raise KISUsageError(

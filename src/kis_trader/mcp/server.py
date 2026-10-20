@@ -537,7 +537,7 @@ def build_server(
 
     @server.tool()
     def reconcile(client_order_id: str) -> dict[str, Any]:
-        """결과 불명 주문의 사후 확정(활성 슬롯의 주문 저장소 기준)."""
+        """활성 슬롯의 알려진 주문번호 기반 상태 갱신. 번호 없는 불명 요청은 미해소로 유지."""
         return handlers.reconcile(account_session.read_client(), client_order_id=client_order_id)
 
     @server.tool()

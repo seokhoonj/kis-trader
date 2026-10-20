@@ -230,9 +230,9 @@ class ProgramFlowPoint:
 class TradingDay:
     """거래 캘린더의 하루(불변).
 
-    ``date`` 기준으로 그날이 영업일/거래일/개장일/결제일인지 알려준다. ``is_open`` 이 거래소 개장
+    ``calendar_date`` 기준으로 그날이 영업일/거래일/개장일/결제일인지 알려준다. ``is_open`` 이 거래소 개장
     여부(휴장일이면 False), ``is_settlement_day`` 는 결제일 여부다. :meth:`~kis_trader.domestic.market.
-    MarketQueries.trading_calendar` 가 기준일에서 앞으로 한 페이지를 돌려준다. ``date`` 는 순수 달력 날짜다.
+    MarketQueries.trading_calendar` 가 기준일에서 앞으로 한 페이지를 돌려준다. ``calendar_date`` 는 순수 달력 날짜다.
     """
 
     calendar_date: date                        # 기준일자(bass_dt; 순수 달력 날짜)

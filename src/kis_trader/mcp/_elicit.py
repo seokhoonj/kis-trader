@@ -1,9 +1,9 @@
 """MCP 주문 확인(elicitation) 래퍼 -- ``mcp`` 의존을 여기 격리한다.
 
-server 가 실주문 전에 :func:`confirm_order` 로 사람 확인을 받는다. elicitation 은 서버가 멈추고
-클라이언트를 통해 사람에게 **전체 주문 티켓**을 보여주고 accept 를 받는 흐름이라, 모델이 대신 승인할 수
-없다(모델이 자기 토큰을 echo 할 수 있는 in-band 토큰과 다르다). 클라가 elicitation 을 지원하지 않으면
-(백채널 없음) 예외를 삼켜 ``False`` 를 돌려 **fail-closed**(실주문 거부)한다.
+server 가 실주문 전에 :func:`confirm_order` 로 클라이언트에 **전체 주문 티켓**의 확인을 요청한다.
+클라이언트는 사람이 내용을 검토하고 승인하도록 표시해야 한다. 서버는 승인 응답을 검사하며 실제
+입력자가 사람인지 증명하지는 않는다. 클라이언트가 elicitation 을 지원하지 않아 백채널이 없으면
+``False`` 를 돌려 실주문을 거부한다.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ class SupportsElicit(Protocol):
 
 
 class _OrderConfirmation(BaseModel):
-    """elicitation 응답 스키마(primitive 만) -- 사람이 ``confirm`` 을 true 로 줘야 승인."""
+    """elicitation 응답 스키마 -- 승인에는 클라이언트의 ``confirm=true`` 응답이 필요하다."""
 
     confirm: bool
 
@@ -35,8 +35,8 @@ def _format_ticket(ticket: dict[str, Any]) -> str:
 
 
 async def confirm_order(ctx: SupportsElicit, ticket: dict[str, Any]) -> bool:
-    """전체 주문 티켓을 사람에게 보여주고 승인(``confirm=true``)을 받는다. ``accept`` + ``confirm`` 만
-    True. 클라 미지원(백채널 없음)·decline·cancel·오류는 전부 False(fail-closed)."""
+    """전체 주문 티켓의 확인을 클라이언트에 요청한다. ``accept`` + ``confirm`` 만 True.
+    백채널 미지원·decline·cancel 은 False이며 그 밖의 예외는 호출자에게 전달한다."""
     message = (
         "다음 실주문을 전송하려 합니다. 내용을 확인하고 confirm 을 true 로 승인하세요"
         "(거절하면 전송하지 않습니다):\n" + _format_ticket(ticket)

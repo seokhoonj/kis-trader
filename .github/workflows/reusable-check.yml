@@ -26,12 +26,13 @@ jobs:
       matrix:
         # Every version the unbounded requires-python (>=3.11) actually claims, through
         # the current stable release. 3.11 is the floor that claim has to hold on.
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Install
@@ -47,13 +48,18 @@ jobs:
         run: .venv/bin/pytest -q
 
       - name: Lint
-        run: .venv/bin/ruff check src tests
+        run: .venv/bin/ruff check src tests tools/check_docs.py
 
       - name: Type check
         run: .venv/bin/mypy
 
       - name: Type check narrowing fixtures
         run: .venv/bin/mypy --strict tests/typing
+
+      - name: Offline documentation contracts
+        run: |
+          .venv/bin/mypy --strict tools/check_docs.py
+          .venv/bin/python -m tools.check_docs --root .
 
       - name: Confirm the runtime dependencies are exactly the declared three
         # The three-dependency claim is documented in the pyproject comment; a claim
@@ -135,3 +141,29 @@ jobs:
             exit 1
           fi
           echo "leak-scan: artifacts carry no tooling, local-only paths, clone names, or embedded secrets"
+
+      - name: Run every shipped test against the installed wheel
+        if: matrix.python-version == '3.11'
+        run: |
+          artifact_root=$(mktemp -d)
+          checkout_root="$PWD"
+          wheels=("$PWD"/dist/*.whl)
+          archives=("$PWD"/dist/*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#archives[@]}" -eq 1
+          uv venv "$artifact_root/venv" --python 3.11
+          uv pip install --python "$artifact_root/venv/bin/python" "${wheels[0]}[dev]"
+          tar -xzf "${archives[0]}" -C "$artifact_root"
+          sources=("$artifact_root"/kis_trader-*)
+          test "${#sources[@]}" -eq 1
+          cd "${sources[0]}"
+          env -u PYTHONPATH "$artifact_root/venv/bin/python" - "$checkout_root" <<'PY'
+          import sys
+          from pathlib import Path
+          import kis_trader
+          origin = Path(kis_trader.__file__).resolve()
+          assert "site-packages" in origin.parts, origin
+          assert not origin.is_relative_to(Path.cwd()), origin
+          assert not origin.is_relative_to(Path(sys.argv[1]).resolve()), origin
+          PY
+          env -u PYTHONPATH "$artifact_root/venv/bin/python" -m pytest -q -o pythonpath=.
