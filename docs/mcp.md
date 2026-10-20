@@ -308,7 +308,10 @@ ChatGPT Desktop 앱은 앞의 Claude Desktop·Cursor 와 **붙는 방식이 다�
 3. **`Scan Tools`** 를 눌러 도구 목록을 받아옵니다. 인증을 걸었으면(OAuth/토큰) 그 단계를 먼저 통과합니다.
 4. 연결되면 ChatGPT 대화에서 "내 KIS 잔고 보여줘" 처럼 말하면 됩니다.
 
-안전: `kis-mcp` 는 **조회·주문 미리보기·대조만** 내주고 실주문 도구는 노출하지 않습니다([안전 설계](#안전-설계)).
+안전: `kis-mcp` 는 조회·주문 미리보기·대조에 더해 실주문 도구(`place_order`·`cancel_order`·`modify_order`)도
+내주지만, 실주문은 **기본 차단**입니다 -- 기동 시 명시적 언락 환경변수(`KIS_MCP_ALLOW_REAL` +
+`KIS_MCP_REAL_CONFIRM`)와 real 환경이 모두 갖춰지고 사람 확인을 거쳐야만 전송됩니다(기본은 paper,
+[안전 설계](#안전-설계)).
 HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부되고(fail-closed), 토큰 불일치 요청은
 `401` 로 막힙니다. 공개 URL 로 직접 bind 하기보다 **Secure MCP Tunnel 또는 역프록시**를 쓰는 편이
 안전합니다(자세한 env 설정은 위 **(고급) 전송 방식 바꾸기** 항목).

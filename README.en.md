@@ -91,6 +91,7 @@ Python. An order is not sent until you add `--execute` — until then it is a dr
 
 ```bash
 kis config                      # store credentials in a profile (interactive)
+kis config list                 # list stored profile names by live/paper environment
 kis stock quote 005930
 kis search 삼성전자
 kis ranking change --direction gainers
