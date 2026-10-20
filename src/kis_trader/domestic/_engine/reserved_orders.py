@@ -503,7 +503,8 @@ def _filter_matching_reserved(
     행은 제외한다 -- 넓은 조회창(오늘-7~오늘+31)에 든 같은 지문의 옛 pending 예약이 방금 발주분으로
     오확정되는 것을 막는다. 이 창은 발주일(claim 확보일)에 앵커하므로(:func:`~kis_trader._internal.
     _datetime._reconcile_recency_window`) 며칠 뒤 체결되는 예약을 늦게 reconcile 해도 접수일자가 창에
-    든다. 단 접수일자가 없거나 파싱 불가한 행은 좁히지 않고 남겨 종전 확정 동작을 보존한다(fail-open)."""
+    든다. 접수일자가 없거나 파싱 불가한 행은 해외 예약 매칭과 같이 제외해, 타임아웃 복구에서 같은
+    지문의 옛 예약을 방금 발주분으로 오확정하지 않는다(fail-closed)."""
     quantity = Decimal(fingerprint.quantity)
     limit_price = Decimal(fingerprint.limit_price) if fingerprint.limit_price else None
     want_side = _SIDE_CODE[fingerprint.side]
@@ -516,7 +517,7 @@ def _filter_matching_reserved(
         if str(row.get("cncl_ord_dt", "")).strip():  # 취소주문일자가 있으면 취소된 예약 -- 제외
             continue
         receipt = _parse_date(row.get("rsvn_ord_rcit_dt"))
-        if receipt is not None and receipt not in recent_receipt_dates:  # 접수일자 있으면 발주일창만
+        if receipt is None or receipt not in recent_receipt_dates:  # 접수일자 없거나 창 밖이면 제외(fail-closed)
             continue
         if str(row.get("pdno", "")).strip() != fingerprint.symbol:
             continue
