@@ -17,8 +17,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
 from ..._internal._response import (
-    _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from ..._internal._wire import (
     _apply_change_sign,
@@ -119,10 +119,7 @@ def _fetch_ranking_rows(
         method="GET", path=path, tr_id=tr, params=dict(params), idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
-        raise _missing_block_error("output2", resp)
-    return rows
+    return _require_mapping_rows("output2", resp)
 
 
 def _fetch_ranking(

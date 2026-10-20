@@ -114,6 +114,17 @@ def test_by_volume_down_sign_and_missing_output():
         _client(fake2).overseas.ranking.by_volume(exchange="NAS")
 
 
+def test_overseas_ranking_non_mapping_row_fails_closed():
+    rows = [
+        {"rank": "1", "excd": "NAS", "symb": "TSLA", "name": "테슬라", "ename": "TESLA",
+         "last": "250.5", "sign": "2", "diff": "5.5", "rate": "2.24", "tvol": "120000000",
+         "tamt": "30000000000"},
+        None,
+    ]
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_volume(exchange="NAS")
+
+
 def test_by_volume_bad_value_fails_closed():
     rows = [{"rank": "1", "excd": "NAS", "symb": "X", "name": "x", "ename": "X", "last": "n/a",
              "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
