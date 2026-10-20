@@ -138,3 +138,15 @@ def test_system_message_with_null_body_does_not_crash():
     msg = SystemMessage(tr_id="H0STCNI0", raw={"body": None})
     assert msg.encryption_key is None
     assert msg.return_code is None
+
+
+def test_system_message_with_scalar_body_does_not_crash():
+    msg = SystemMessage(tr_id="H0STCNI0", raw={"body": "error"})
+    assert msg.encryption_key is None
+    assert msg.return_code is None
+
+
+@pytest.mark.parametrize("raw", ["[]", '"error"'])
+def test_parse_frame_rejects_non_mapping_system_frame(raw):
+    with pytest.raises(ValueError, match="시스템 프레임이 매핑이 아니다"):
+        parse_frame(raw)

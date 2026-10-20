@@ -266,11 +266,12 @@ class RealtimeClient:
         진행 중이면(_running 전이 전) 이 호출은 no-op 이다 -- 시작 완료 후 다시 부르라."""
         if not self._running:
             return
-        # 수신 콜백은 백그라운드 스레드에서 돈다 -- 거기서 stop() 을 부르면 자기 루프를 기다려
-        # self-deadlock 이고 self._thread.join() 은 현재 스레드를 join 하려다 RuntimeError 다. fail-closed.
-        if threading.current_thread() is self._thread:
+        # 실시간 콜백은 수신/디스패치 백그라운드 스레드에서 돈다 -- 거기서 stop() 을 부르면 자기
+        # 스레드를 join 하려다 RuntimeError 또는 self-deadlock 이 난다. fail-closed.
+        if threading.current_thread() in (self._thread, self._dispatch_thread):
             raise RealtimeError(
-                "stop() 은 실시간 콜백(수신 스레드) 안에서 호출할 수 없습니다 -- 다른 스레드에서 부르세요."
+                "stop() 은 실시간 콜백(수신/디스패치 스레드) 안에서 호출할 수 없습니다 -- "
+                "다른 스레드에서 부르세요."
             )
         # 상태전이~teardown 은 수명주기 락 아래 -- start() 와 직렬화하고 동시 stop() 2개가 겹쳐
         # 들어와 _conn/_thread 를 중복 정리하지 않게 한다(콜백-스레드 거부는 위에서 락 전에 끝냈다).

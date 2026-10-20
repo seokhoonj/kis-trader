@@ -139,6 +139,12 @@ def test_malformed_json_system_frame_is_dropped():
     assert [m.data for m in msgs] == [["a", "b"]]
 
 
+def test_non_mapping_json_system_frame_is_dropped_without_stopping_receive_loop():
+    ws = FakeWebSocket(incoming=["[]", "0|DUMMYTR0|001|a^b"])
+    msgs = _drive(ws)
+    assert [m.data for m in msgs] == [["a", "b"]]
+
+
 def test_subscribe_registration_cap():
     async def scenario():
         ws = FakeWebSocket(incoming=[])

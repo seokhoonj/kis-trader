@@ -285,6 +285,32 @@ def test_subscribe_from_callback_does_not_deadlock():
     assert client._running is False
 
 
+def test_stop_from_callback_raises_realtime_error_and_main_thread_can_stop():
+    client = RealtimeClient("KEY", "ws://x", reconnect=False)
+    callback_finished = threading.Event()
+    callback_errors: list[BaseException] = []
+
+    def on_msg(_message):
+        try:
+            client.stop()
+        except BaseException as exc:  # noqa: BLE001 -- RuntimeError 퇴행도 단언하려고 포착
+            callback_errors.append(exc)
+        finally:
+            callback_finished.set()
+
+    client.subscribe("DUMMYTR0", "005930", on=on_msg)
+    client._running = True
+    client._dispatch_thread = threading.Thread(target=client._dispatch_worker, daemon=True)
+    client._dispatch_thread.start()
+    client._dispatch(RealtimeMessage("DUMMYTR0", "005930", ["tick"]))
+
+    assert callback_finished.wait(2.0)
+    assert len(callback_errors) == 1
+    assert isinstance(callback_errors[0], RealtimeError)
+    client.stop()
+    assert client._running is False
+
+
 def test_stop_does_not_reraise_cancelled_stop_coroutine(monkeypatch):
     # 종료 경합: _main 이 자연 종료하면 _run 의 정리 코드가 stop() 이 제출한 _conn.stop() 태스크를
     # pending 으로 보고 cancel 한다 -- 그러면 future.result() 가 concurrent.futures.CancelledError 를
