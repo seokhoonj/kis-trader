@@ -14,12 +14,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 
 from ..._internal._datetime import _KST, _parse_hhmmss
 from ..._internal._response import _CONTINUATION_END, _fetch_paginated_rows
-from ..._internal._wire import format_wire_decimal, normalize_order_number
+from ..._internal._wire import decimal_or_zero, format_wire_decimal, normalize_order_number
 from ...errors import KISError, KISUsageError, OrderTimeoutError
 from ...order import (
     AlgoStrategy,
@@ -554,11 +554,11 @@ def _filter_matching_ccnl_rows(
             continue
         if str(row.get("sll_buy_dvsn_cd", "")) != want_side:
             continue
-        if _parse_decimal(row.get("ft_ord_qty")) != quantity:
+        if decimal_or_zero(row.get("ft_ord_qty")) != quantity:
             continue
         if limit_price is not None:  # 지정가는 주문단가가 있고 같아야 한다(없으면 제외, 안전 방향)
             row_price = row.get("ft_ord_unpr3")
-            if row_price in (None, "") or _parse_decimal(row_price) != limit_price:
+            if row_price in (None, "") or decimal_or_zero(row_price) != limit_price:
                 continue
         matched.append(row)
     return matched
@@ -567,8 +567,8 @@ def _filter_matching_ccnl_rows(
 def _ccnl_report(
     client_order_id: str, fingerprint: ImmediateOrderFingerprint, row: Mapping[str, Any]
 ) -> ExecutionReport:
-    ordered = _parse_decimal(row.get("ft_ord_qty"))
-    filled = _parse_decimal(row.get("ft_ccld_qty"))
+    ordered = decimal_or_zero(row.get("ft_ord_qty"))
+    filled = decimal_or_zero(row.get("ft_ccld_qty"))
     rejected = str(row.get("rjct_rson", "")).strip() or str(row.get("prcs_stat_name", "")) == "거부"
     # 이 엔드포인트의 처리상태(prcs_stat_name)는 완료/거부/전송뿐이라 CANCELED 값이 없다(KIS 명세). 취소는
     # 별개 행이라 위 필터에서 제외되므로, 취소된 원주문은 마지막 working 상태(전송->NEW)로 읽힌다.
@@ -580,7 +580,7 @@ def _ccnl_report(
         status = OrderStatus.PARTIALLY_FILLED
     else:
         status = OrderStatus.NEW
-    avg = _parse_decimal(row.get("ft_ccld_unpr3"))
+    avg = decimal_or_zero(row.get("ft_ccld_unpr3"))
     return ExecutionReport(
         client_order_id=client_order_id,
         order_id=str(row.get("odno")) if row.get("odno") else None,
@@ -592,22 +592,6 @@ def _ccnl_report(
         recorded_at=datetime.now(_KST),
         _raw=row,
     )
-
-
-def _parse_decimal(value: object) -> Decimal:
-    """KIS 문자열 수치 -> Decimal. 공백/None 은 0, 값이 있는데 파싱 실패면 fail-closed(:class:`KISError`).
-
-    ``"nan"``/``"inf"`` 는 파싱되지만 비유한값이라 이후 수량·단가 비교가 무너져 오확정을 부른다 --
-    :meth:`Decimal.is_finite` 로 fail-closed 한다."""
-    if value is None or value == "":
-        return Decimal(0)
-    try:
-        number = Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError) as err:
-        raise KISError(f"해외 재조회 응답의 수치 파싱 실패: {value!r}") from err
-    if not number.is_finite():
-        raise KISError(f"해외 재조회 응답의 수치가 유한하지 않다(NaN/Infinity): {value!r}")
-    return number
 
 
 # --- 주문 조회 (미체결/알고 주문·체결) -- account 잔고조회와 분리 ---
@@ -759,4 +743,3 @@ def fetch_algo_executions(
 
 
 # --- 체결기준현재잔고 (CTRP6504R) -----------------------------------------
-

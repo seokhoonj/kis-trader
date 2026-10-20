@@ -19,12 +19,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
 from ..._internal._datetime import _KST
 from ..._internal._response import _CONTINUATION_END
-from ..._internal._wire import format_wire_decimal, normalize_order_number
+from ..._internal._wire import decimal_or_zero, format_wire_decimal, normalize_order_number
 from ...errors import KISError, KISUsageError, OrderError, OrderTimeoutError
 from ...order import (
     ChangeAction,
@@ -499,11 +499,11 @@ def _filter_matching_day_rows(
             continue
         if str(row.get("nmpr_type_cd", "")) != want_nmpr:
             continue
-        if _parse_decimal(row.get("ord_qty")) != quantity:
+        if decimal_or_zero(row.get("ord_qty")) != quantity:
             continue
         if limit_price is not None:  # 지정가는 주문단가가 있고 같아야 한다(없으면 제외, 안전 방향)
             row_price = row.get("ord_idx")
-            if row_price in (None, "") or _parse_decimal(row_price) != limit_price:
+            if row_price in (None, "") or decimal_or_zero(row_price) != limit_price:
                 continue
         matched.append(row)
     return matched
@@ -641,7 +641,7 @@ def fetch_night_remaining(
             f"야간 잔량 조회 행에 주문수량/총체결수량이 없어 실잔량(주문-체결)을 확정할 수 없다 -- "
             f"원주문 {order_id} 정정·취소를 중단한다(와이어 미접촉)."
         )
-    remaining_quantity = _parse_decimal(ordered) - _parse_decimal(filled)
+    remaining_quantity = decimal_or_zero(ordered) - decimal_or_zero(filled)
     if remaining_quantity <= 0:
         # 이미 전량 체결됐거나(잔량 0) 데이터 이상(음수)이면 정정·취소할 실잔량이 없다. 0/음수
         # ORD_QTY 를 실전 전용 와이어로 내보내면 서버 의미가 불명하므로 fail-closed(와이어 미접촉).
@@ -743,11 +743,11 @@ def _filter_matching_night_rows(
             continue
         if str(row.get("sll_buy_dvsn_cd", "")) != want_side:
             continue
-        if _parse_decimal(row.get("ord_qty")) != quantity:
+        if decimal_or_zero(row.get("ord_qty")) != quantity:
             continue
         if limit_price is not None:  # 지정가는 주문가격(ord_idx4)이 있고 같아야 한다(없으면 제외, 안전 방향)
             row_price = row.get("ord_idx4")
-            if row_price in (None, "") or _parse_decimal(row_price) != limit_price:
+            if row_price in (None, "") or decimal_or_zero(row_price) != limit_price:
                 continue
         matched.append(row)
     return matched
@@ -811,9 +811,9 @@ def _fo_report(
 ) -> ExecutionReport:
     """매칭된 체결내역 행을 표준 리포트로. 상태 사다리: 거부(rjct_qty>0 & 미체결) -> 전량체결 ->
     일부체결 -> 접수(NEW). 체결가 필드가 없어(주문단가 ord_idx 만) 평균가는 남기지 않는다."""
-    ordered = _parse_decimal(row.get("ord_qty"))
-    filled = _parse_decimal(row.get("tot_ccld_qty"))
-    rejected = _parse_decimal(row.get("rjct_qty"))
+    ordered = decimal_or_zero(row.get("ord_qty"))
+    filled = decimal_or_zero(row.get("tot_ccld_qty"))
+    rejected = decimal_or_zero(row.get("rjct_qty"))
     if rejected > 0 and filled == 0:
         status = OrderStatus.REJECTED
     elif ordered > 0 and filled >= ordered:
@@ -838,19 +838,3 @@ def _fo_report(
 def _is_original_odno(value: object) -> bool:
     """행의 원주문번호가 원주문 센티넬(0-채움/빈값)인지 -- 아니면 정정/취소 행이라 매칭에서 뺀다."""
     return str(value or "").strip().strip("0") == ""
-
-
-def _parse_decimal(value: object) -> Decimal:
-    """KIS 문자열 수치 -> Decimal. 공백/None 은 0, 값이 있는데 파싱 실패면 fail-closed(:class:`KISError`).
-
-    ``"nan"``/``"inf"`` 는 파싱되지만 비유한값이라 이후 수량·단가 비교가 무너져 오확정을 부른다 --
-    :meth:`Decimal.is_finite` 로 fail-closed 한다."""
-    if value is None or value == "":
-        return Decimal(0)
-    try:
-        number = Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError) as err:
-        raise KISError(f"파생 재조회 응답의 수치 파싱 실패: {value!r}") from err
-    if not number.is_finite():
-        raise KISError(f"파생 재조회 응답의 수치가 유한하지 않다(NaN/Infinity): {value!r}")
-    return number
