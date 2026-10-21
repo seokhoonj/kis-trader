@@ -1,0 +1,11 @@
+dev/
+refs/
+
+# AI coding agents
+CLAUDE.md
+.claude/
+AGENTS.md
+AGENT.md
+.codex/
+GEMINI.md
+.gemini/

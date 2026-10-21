@@ -1,0 +1,58 @@
+# kis-trader
+
+> 한국투자증권(KIS) Open API를 타입을 갖춘 깔끔한 파이썬 API로 감싼 비공식 클라이언트
+> (`import kis_trader`). 국내·해외 주식·지수·ETF·ETN·ELW·선물옵션·채권의 시세·재무·수급,
+> 계좌 잔고·손익, 순위·조건검색, 주문(매수·매도·정정·취소, 신용·예약·TWAP/VWAP 분할)을
+> 다룬다. 안전 코어가 중복 전송을 막고, 타임아웃 시 재전송하지 않는다. `reconcile()`은 저장된 유효한 증권사
+> 주문번호가 있는 주문의 상태를 갱신하며, 번호 없는 최초 불명 요청은 경제 조건만으로 연결하지 않는다.
+> 불명 상태는 HTS/MTS나 계좌 주문·체결 조회로 수동 확인한다. 파이썬 API·`kis` CLI·MCP 서버/스킬의 세 인터페이스를 제공한다.
+
+주의: 비공식 클라이언트다. 시세·계좌 원장 값은 KIS 응답을 사용하며, 통합 잔고와 TWAP 결과에는
+문서화된 패키지 집계가 포함된다. 임의로 숫자를 만들어 보완하지 않는다. 신용거래는 기본 차단이다.
+SDK 호출자는 실전 권한을 직접 관리해야 하며 저장된 기본 환경도 real을 선택할 수 있다. CLI는
+execute/환경 일치/확인 절차, MCP는 실주문 언락·도구별 가드·사람 확인을 적용한다. 체결은 되돌릴 수 없다.
+
+## 시작하기
+
+- [빠른 시작](https://seokhoonj.github.io/kis-trader/quickstart.html): 설치·자격증명·첫 조회
+- [앱키 발급](https://seokhoonj.github.io/kis-trader/appkey.html): KIS 개발자센터에서 앱키·시크릿 발급
+- [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html): `kis config` 저장소·환경변수·실전/모의 전환
+
+## 국내 주식
+
+- [시세](https://seokhoonj.github.io/kis-trader/quotes.html): 현재가·차트·호가·체결
+- [재무·실적](https://seokhoonj.github.io/kis-trader/financials.html): 재무제표·실적·투자지표
+- [종목 수급](https://seokhoonj.github.io/kis-trader/flows.html): 투자자별 매매동향
+- [계좌·손익](https://seokhoonj.github.io/kis-trader/account.html): 잔고·보유·실현/평가손익
+- [주문](https://seokhoonj.github.io/kis-trader/orders.html): 매수·매도·정정·취소, 안전 코어와 reconcile 규칙
+
+## 시장·검색
+
+- [순위·조건검색](https://seokhoonj.github.io/kis-trader/screening.html): 등락률·거래량·시가총액 순위, 조건검색
+- [시장·지수](https://seokhoonj.github.io/kis-trader/market.html): 지수·업종·시장 통계
+- [기업행위·일정](https://seokhoonj.github.io/kis-trader/corporate-actions.html): 배당·공모주·증자·감자·합병·상장 등 기업행위 일정
+
+## 해외·연금
+
+- [해외주식](https://seokhoonj.github.io/kis-trader/overseas.html): 미국 등 해외 시세·주문, 거래소 자동 판별
+- [퇴직연금](https://seokhoonj.github.io/kis-trader/pension.html): IRP 조회
+
+## 다른 상품
+
+- [ETF·ETN](https://seokhoonj.github.io/kis-trader/etf.html)
+- [ELW](https://seokhoonj.github.io/kis-trader/elw.html)
+- [선물·옵션](https://seokhoonj.github.io/kis-trader/derivatives.html)
+- [채권](https://seokhoonj.github.io/kis-trader/bonds.html)
+
+## 명령줄·에이전트
+
+- [명령줄 (kis)](https://seokhoonj.github.io/kis-trader/cli.html): 터미널에서 조회·주문, `--execute` 전까지 dry-run
+- [Claude 스킬](https://seokhoonj.github.io/kis-trader/claude-skill.html): AI 에이전트용 운전 플레이북
+- [Codex 스킬](https://seokhoonj.github.io/kis-trader/codex-skill.html)
+- [MCP 서버](https://seokhoonj.github.io/kis-trader/mcp.html): 조회·주문 미리보기와 게이트를 거친 국내·해외 주식 주문, 계좌·환경 런타임 전환
+
+## 참고
+
+- [실시간 (WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html): 시세·호가·체결통보 구독
+- [한계·미구현](https://seokhoonj.github.io/kis-trader/limits.html): 다루지 않는 범위와 서버측 제약
+- [API 지도](https://seokhoonj.github.io/kis-trader/taxonomy.html): 기능축·시장축으로 본 전체 구조
