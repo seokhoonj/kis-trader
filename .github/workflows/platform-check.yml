@@ -34,6 +34,153 @@ jobs:
           uv venv --python 3.13
           uv pip install --python "${{ matrix.python }}" -e ".[dev]"
           "${{ matrix.python }}" -c "import sys; assert sys.version_info[:2] == (3, 13); assert sys.version_info.releaselevel == 'final'; print(sys.version, sys.platform)"
+      - name: Native Windows directory rename boundaries
+        if: runner.os == 'Windows'
+        run: |
+          "${{ matrix.python }}" - <<'PY'
+          """Synthetic-only diagnostic; never releases a child lock to enable rename."""
+          import ctypes
+          import json
+          import msvcrt
+          import os
+          from pathlib import Path
+          import tempfile
+
+          api = ctypes.WinDLL('kernel32', use_last_error=True)
+          api.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+          api.CreateFileW.restype = ctypes.c_void_p
+          api.CloseHandle.argtypes = [ctypes.c_void_p]
+          api.CloseHandle.restype = ctypes.c_int
+          api.SetFileInformationByHandle.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+          api.SetFileInformationByHandle.restype = ctypes.c_int
+          invalid = ctypes.c_void_p(-1).value
+          payload = b'synthetic-lock-payload'
+
+
+          def open_handle(path, access, flags):
+              handle = api.CreateFileW(str(path), access, 7, None, 3, flags, None)
+              if handle is None or handle == invalid:
+                  raise ctypes.WinError(ctypes.get_last_error())
+              return handle
+
+
+          def rename_handle(source, destination, information_class, flags, source_handle=None):
+              # FILE_RENAME_INFO union occupies DWORD, HANDLE is naturally aligned.
+              encoded = str(destination).encode('utf-16-le')
+              class RenameInfo(ctypes.Structure):
+                  _fields_ = [('Flags', ctypes.c_uint32), ('RootDirectory', ctypes.c_void_p),
+                              ('FileNameLength', ctypes.c_uint32), ('FileName', ctypes.c_ubyte * len(encoded))]
+              information = RenameInfo()
+              information.Flags = flags
+              information.FileNameLength = len(encoded)
+              information.FileName[:] = encoded
+              handle = source_handle
+              if handle is None:
+                  try:
+                      handle = open_handle(source, 0x00010000, 0x02200000)
+                  except OSError as error:
+                      error.probe_stage = 'open_source'
+                      raise
+              try:
+                  if not api.SetFileInformationByHandle(handle, information_class, ctypes.byref(information), ctypes.sizeof(information)):
+                      error = ctypes.WinError(ctypes.get_last_error())
+                      error.probe_stage = 'rename'
+                      raise error
+              finally:
+                  if source_handle is None:
+                      api.CloseHandle(handle)
+
+
+          def record_error(result, stage, error):
+              details = dict(stage=stage, winerror=getattr(error, 'winerror', None), errno=error.errno)
+              if stage in ('read_owner', 'read_target'):
+                  result['postcheck_failed'] = True
+                  result['postcheck_error'] = details
+                  return True
+              result.update(renamed=False, **details)
+              return False
+
+
+          postcheck_failures = []
+          cases = [(child, method, target, False)
+                   for child in ('closed', 'shared_raw', 'shared_crt', 'shared_locked')
+                   for method in ('os_rename', 'rename_info', 'rename_ex_0', 'rename_ex_posix')
+                   for target in ('absent', 'empty', 'nonempty')]
+          cases.extend(('shared_locked', method, 'absent', True)
+                       for method in ('rename_info', 'rename_ex_0', 'rename_ex_posix'))
+          for child_mode, method, target, preopened in cases:
+              with tempfile.TemporaryDirectory() as temporary:
+                  root = Path(temporary)
+                  source, destination = root / 'source', root / 'destination'
+                  source.mkdir()
+                  child = source / 'journal.json.lock'
+                  child.write_bytes(payload)
+                  if target != 'absent':
+                      destination.mkdir()
+                      if target == 'nonempty':
+                          (destination / 'sentinel').write_bytes(b'target-sentinel')
+                  raw = descriptor = source_handle = None
+                  locked = False
+                  result = dict(child=child_mode, method=method, target=target, source_preopened=preopened)
+                  stage = 'open_source' if preopened else 'open_child'
+                  try:
+                      if preopened:
+                          try:
+                              source_handle = open_handle(source, 0x00010000, 0x02200000)
+                          except OSError as error:
+                              result.update(renamed=False, stage='open_source', winerror=error.winerror, errno=error.errno)
+                              print(json.dumps(result, sort_keys=True), flush=True)
+                              continue
+                      stage = 'open_child'
+                      if child_mode != 'closed':
+                          raw = open_handle(child, 0xC0000000, 0x00200080)
+                      stage = 'transfer_child'
+                      if child_mode in ('shared_crt', 'shared_locked'):
+                          descriptor = msvcrt.open_osfhandle(raw, os.O_RDWR | os.O_BINARY)
+                          raw = None
+                      stage = 'lock_child'
+                      if child_mode == 'shared_locked':
+                          os.lseek(descriptor, 0, os.SEEK_SET)
+                          msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+                          locked = True
+                      try:
+                          if method == 'os_rename':
+                              os.rename(source, destination)
+                          else:
+                              rename_handle(source, destination, 3 if method == 'rename_info' else 22,
+                                            2 if method == 'rename_ex_posix' else 0, source_handle)
+                          result['renamed'] = True
+                      except OSError as error:
+                          result.update(renamed=False, stage=getattr(error, 'probe_stage', 'rename'), winerror=error.winerror, errno=error.errno)
+                      stage = 'read_owner'
+                      if descriptor is not None:
+                          os.lseek(descriptor, 0, os.SEEK_SET)
+                          result['owner_bytes_preserved'] = os.read(descriptor, len(payload) + 1) == payload
+                      stage = 'read_target'
+                      result['source_exists'] = source.exists()
+                      result['target_sentinel_preserved'] = target != 'nonempty' or (destination / 'sentinel').read_bytes() == b'target-sentinel'
+                      if target != 'absent' and result['renamed']:
+                          raise AssertionError('NO-CLOBBER VIOLATION')
+                      if not result['target_sentinel_preserved'] or result.get('owner_bytes_preserved') is False:
+                          raise AssertionError('BYTE PRESERVATION VIOLATION')
+                  except OSError as error:
+                      if record_error(result, stage, error):
+                          postcheck_failures.append(dict(result))
+                  finally:
+                      if descriptor is not None:
+                          if locked:
+                              os.lseek(descriptor, 0, os.SEEK_SET)
+                              msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+                          os.close(descriptor)
+                      elif raw is not None:
+                          api.CloseHandle(raw)
+                      if source_handle is not None:
+                          api.CloseHandle(source_handle)
+                  print(json.dumps(result, sort_keys=True), flush=True)
+
+          if postcheck_failures:
+              raise SystemExit('POSTCHECK FAILED: ' + str(len(postcheck_failures)) + ' cases; rename results retained above')
+          PY
       - name: Native Windows normal-close and crash lock recovery
         if: runner.os == 'Windows'
         run: >-
