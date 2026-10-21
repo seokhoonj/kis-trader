@@ -15,6 +15,8 @@ from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 import yaml
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import expect, sync_playwright
 
 
@@ -150,39 +152,71 @@ def check(site: Path, project: Path, artifacts: Path) -> None:
                         finally:
                             page.screenshot(path=str(artifacts / f"{label}-{Path(relative).stem}.png"), full_page=True)
                     # Grounded selectors: generated sidebar navigation, copy button, Quarto autocomplete.
-                    page.goto(origin + "/index.html", wait_until="networkidle")
-                    if label == "mobile":
-                        page.locator("button.quarto-btn-toggle").click()
-                    link = page.locator('#quarto-sidebar a.sidebar-link[href$="/quickstart.html"]')
-                    expect(link).to_be_visible()
-                    link.click()
-                    expect(page).to_have_url(origin + "/quickstart.html")
-                    expect(page.locator("main#quarto-document-content")).to_be_visible()
-                    button = page.locator("main .code-copy-button").first
-                    expected_text = button.locator("..").locator("code").inner_text().strip()
-                    assert expected_text, "Copy fixture code is empty"
-                    button.click()
-                    expect(button).to_have_class(re.compile(r".*code-copy-button-checked.*"))
-                    copied = page.evaluate("navigator.clipboard.readText()")
-                    assert copied.strip() == expected_text, "Copy control did not copy the displayed code"
-                    if label == "mobile":
-                        page.locator("button.quarto-search-button").click()
-                    search = page.locator(".aa-Form .aa-Input:visible").first
-                    expect(search).to_be_visible()
-                    search.fill("reconcile")
-                    result = page.locator("#quarto-search-results a.search-result-link:visible").first
-                    expect(result).to_be_visible()
-                    destination = result.get_attribute("href")
-                    assert destination, "Search result has no destination"
-                    resolved = urlparse(urljoin(origin + "/", destination))
-                    assert (resolved.scheme, resolved.netloc) == ("http", urlparse(origin).netloc), f"Nonlocal search target: {destination}"
-                    result.click()
-                    page.wait_for_load_state("networkidle")
-                    assert page.url.startswith(origin + "/") and ".html" in page.url
-                    expect(page.locator("main#quarto-document-content")).to_be_visible()
-                    assert not errors, errors
-                    page.screenshot(path=str(artifacts / f"{label}-search-destination.png"), full_page=True)
-                    results.append({"viewport": label, "controls": ["sidebar-navigation", "copy-exact-text", "search-result-navigation"]})
+                    try:
+                        page.goto(origin + "/index.html", wait_until="networkidle")
+                        if label == "mobile":
+                            page.locator("button.quarto-btn-toggle").click()
+                        link = page.locator('#quarto-sidebar a.sidebar-link[href$="/quickstart.html"]')
+                        expect(link).to_be_visible()
+                        link.click()
+                        expect(page).to_have_url(origin + "/quickstart.html")
+                        expect(page.locator("main#quarto-document-content")).to_be_visible()
+                        button = page.locator("main .code-copy-button").first
+                        expected_text = button.locator("..").locator("code").inner_text().strip()
+                        assert expected_text, "Copy fixture code is empty"
+                        button.click()
+                        expect(button).to_have_class(re.compile(r".*code-copy-button-checked.*"))
+                        copied = page.evaluate("navigator.clipboard.readText()")
+                        assert copied.strip() == expected_text, "Copy control did not copy the displayed code"
+                        if label == "mobile":
+                            page.locator("button.quarto-search-button").click()
+                        search = page.locator(".aa-Form .aa-Input:visible").first
+                        expect(search).to_be_visible()
+                        search.fill("reconcile")
+                        # 좁은 화면에서는 생성된 검색 UI가 별도 컨테이너로 이동한다.
+                        search_panel = ".aa-DetachedContainer" if label == "mobile" else "#quarto-search-results"
+                        result = page.locator(search_panel + " a.search-result-link:visible").first
+                        expect(result).to_be_visible()
+                        destination = result.get_attribute("href")
+                        assert destination, "Search result has no destination"
+                        resolved = urlparse(urljoin(origin + "/", destination))
+                        assert (resolved.scheme, resolved.netloc) == ("http", urlparse(origin).netloc), f"Nonlocal search target: {destination}"
+                        result.click()
+                        page.wait_for_load_state("networkidle")
+                        assert page.url.startswith(origin + "/") and ".html" in page.url
+                        expect(page.locator("main#quarto-document-content")).to_be_visible()
+                        assert not errors, errors
+                        page.screenshot(path=str(artifacts / f"{label}-search-destination.png"), full_page=True)
+                        results.append({"viewport": label, "controls": ["sidebar-navigation", "copy-exact-text", "search-result-navigation"]})
+                    except (AssertionError, PlaywrightTimeoutError) as error:
+                        diagnostic: dict[str, object] = {"viewport": label, "error": str(error), "page_errors": list(errors)}
+                        try:
+                            diagnostic["dom"] = page.locator(".aa-Input, .aa-Panel, .aa-DetachedOverlay, .aa-DetachedContainer, #quarto-search-results, a.search-result-link, button.quarto-search-button").evaluate_all("""elements => elements.slice(0, 100).map(element => {
+                                const rectangle = element.getBoundingClientRect();
+                                const style = getComputedStyle(element);
+                                return {tag: element.tagName, class: element.className,
+                                    id: element.id, value: element.value ?? null,
+                                    href: element.getAttribute('href'),
+                                    left: rectangle.left, top: rectangle.top,
+                                    width: rectangle.width, height: rectangle.height,
+                                    display: style.display, visibility: style.visibility,
+                                    ancestors: (() => {
+                                        const parents = [];
+                                        let parent = element.parentElement;
+                                        while (parent && parents.length < 5) {
+                                            parents.push({tag: parent.tagName, class: parent.className, id: parent.id});
+                                            parent = parent.parentElement;
+                                        }
+                                        return parents;
+                                    })()};
+                            })""")
+                            diagnostic["aria"] = page.locator("body").aria_snapshot()
+                            page.screenshot(path=str(artifacts / f"{label}-controls-failure.png"), full_page=True)
+                        except (PlaywrightError, OSError) as diagnostic_error:
+                            diagnostic["capture_error"] = type(diagnostic_error).__name__
+                        (artifacts / f"{label}-controls-failure.json").write_text(
+                            json.dumps(diagnostic, ensure_ascii=False, indent=2), encoding="utf-8")
+                        raise
                     context.close()
             finally:
                 browser.close()
