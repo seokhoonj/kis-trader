@@ -98,8 +98,8 @@ def test_claude_marketplace_source_points_at_the_plugin():
     assert (target / ".claude-plugin" / "plugin.json").is_file()
 
 
-def test_plugin_server_requirement_pins_tested_published_version():
-    """서버 실행 요구사항은 검증한 배포 버전에 고정하고 실행 명령을 보존한다."""
+def test_plugin_server_requirement_pins_tested_release_version():
+    """서버 실행 요구사항은 검증할 릴리스의 정확한 버전에 고정하고 실행 명령을 보존한다."""
     manifest = _load_json("plugins/kis-trader/.claude-plugin/plugin.json")
     server = manifest["mcpServers"]["kis-trader"]
     assert server["command"] == "uvx"
@@ -109,6 +109,6 @@ def test_plugin_server_requirement_pins_tested_published_version():
     requirement = Requirement(server["args"][1])
     assert requirement.name == "kis-trader"
     assert requirement.extras == {"mcp"}
-    assert str(requirement.specifier) == "==0.11.0"
+    assert str(requirement.specifier) == f"=={_pyproject_version()}"
     assert requirement.url is None
     assert requirement.marker is None

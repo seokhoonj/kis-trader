@@ -3,6 +3,53 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.0 - 2026-10-21
+
+### Added
+
+- `DomesticAccount.combined_order_history()` and `StockOrderHistoryCollection` query
+  recent and historical domestic stock order records together. Original summaries
+  remain available as `recent` and `historical`; no combined average or expenses are
+  inferred. Both query families are fully paginated or the operation fails.
+- Durable account/product/environment binding for order journals, current-generation
+  submission anchors, and an explicit offline order-journal layout migration command.
+- Python 3.15 support and offline documentation contract checks.
+
+### Changed (breaking)
+
+- Domestic-stock `kis account fills` now queries recent and historical records by
+  default and returns `orders`, `recent`, and `historical`. The explicit
+  `--older-than-three-months` mode and existing Python `order_history()` modes retain
+  their single-source behavior. Provider retention and accepted date ranges still apply.
+- Initial requests without a usable stored broker order number remain unresolved;
+  `reconcile()` does not bind another order solely from matching economic conditions.
+  Inspect HTS/MTS or account order history without resending an uncertain request.
+- Default order journals use the state directory. Existing legacy journals require
+  the documented explicit offline migration; nonempty unscoped journals require
+  explicit account-scope attestation before use. Journal writes use schema 12.
+- TWAP results expose completion, uncertainty, interruption, and shortfall outcomes;
+  the CLI preserves partial output and returns the corresponding nonzero exit code.
+
+### Fixed
+
+- Prevent secret-bearing transport/configuration exception chains from exposing
+  request credentials or malformed credential-file contents.
+- Enforce configured risk limits on domestic reserved placements/modifications and
+  overseas reserved placements; reject unknown domestic order divisions and non-KRX
+  domestic TWAP.
+- Preserve fixed-generation reservation/night inquiry anchors and known overseas
+  reservation receipt dates, and reject stale recovery writebacks after rebinding.
+- Harden realtime termination, callback-worker restart guards, buffered EOF draining,
+  and cleanup after failed startup.
+- Preserve credential migration environments, compose clients from one credential
+  snapshot, update credential fields under a fresh lock, and close CLI-owned journals.
+- Validate persisted report values and required overseas balance summaries; normalize
+  overseas minute-bar timestamps from the provider's Korean date/time fields.
+- Retain actual US reservation venues in request identity and match stop-limit trigger
+  prices in domestic order candidates.
+- Repair distribution test dependencies and extracted-archive checks, pin the plugin
+  server requirement to the tested release, and correct public documentation/examples.
+
 ## 0.11.0 - 2026-10-20
 
 Naming normalization across the public surface plus order-safety hardening from a
