@@ -1,6 +1,8 @@
 name: platform and documentation checks
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       package-source:
@@ -9,9 +11,9 @@ on:
         options: [checkout, pypi]
         default: checkout
       published-version:
-        description: Exact published version used by the pypi source
+        description: Exact published version; blank uses the checked-out package version
         type: string
-        default: '0.12.1'
+        default: ''
 
 permissions:
   contents: read
@@ -34,7 +36,7 @@ jobs:
     env:
       PYTHONUTF8: "1"
       PYTHONPATH: ""
-      PACKAGE_SOURCE: ${{ inputs.package-source }}
+      PACKAGE_SOURCE: ${{ inputs.package-source || 'checkout' }}
       PUBLISHED_VERSION: ${{ inputs.published-version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,12 +47,18 @@ jobs:
       - name: Install Python 3.13 and development dependencies
         run: |
           [[ "$PACKAGE_SOURCE" == checkout || "$PACKAGE_SOURCE" == pypi ]]
-          [[ "$PUBLISHED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           uv venv --python 3.13
+          if [[ -z "$PUBLISHED_VERSION" ]]; then
+            PUBLISHED_VERSION=$("${{ matrix.python }}" -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          fi
+          [[ "$PUBLISHED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          export PUBLISHED_VERSION
+          echo "PUBLISHED_VERSION=$PUBLISHED_VERSION" >> "$GITHUB_ENV"
+          echo "Package source: $PACKAGE_SOURCE; version: $PUBLISHED_VERSION"
           if [[ "$PACKAGE_SOURCE" == pypi ]]; then
             unset UV_INDEX UV_EXTRA_INDEX_URL UV_INDEX_URL UV_DEFAULT_INDEX
             uv --no-config pip install --python "${{ matrix.python }}" \
-              --default-index https://pypi.org/simple --only-binary kis-trader \
+              --no-cache --default-index https://pypi.org/simple --only-binary kis-trader \
               "kis-trader[dev]==$PUBLISHED_VERSION"
           else
             uv pip install --python "${{ matrix.python }}" -e ".[dev]"
