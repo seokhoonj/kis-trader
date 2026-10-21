@@ -204,12 +204,11 @@ def test_order_store_path_refuses_actual_legacy_directory(monkeypatch, tmp_path,
     from kis_trader import store
     before = {entry.name: entry.read_bytes() for entry in old.iterdir()}
     tree = _migration_tree_snapshot(tmp_path)
-    expected = "Windows.*지원하지 않습니다" if store._WINDOWS else "migrate-orders.*--offline"
-    with pytest.raises(KISUsageError, match=expected) as error:
+    expected = "migrate-orders.*--offline"
+    with pytest.raises(KISUsageError, match=expected):
         order_store_path(account="synthetic-01", environment="paper")
     if store._WINDOWS:
         assert _migration_tree_snapshot(tmp_path) == tree
-        assert "migrate-orders" not in str(error.value)
     assert old.is_dir() and not old.is_symlink()
     assert {entry.name: entry.read_bytes() for entry in old.iterdir()} == before
     assert not (tmp_path / "state" / "kis-trader" / "orders").exists()
@@ -541,8 +540,7 @@ def test_offline_migration_never_merges_independent_journals(tmp_path, equal):
     (state / "paper-synthetic.json").write_bytes(before["paper-synthetic.json"] if equal else b"different")
     destination = (state / "paper-synthetic.json").read_bytes()
     tree = _migration_tree_snapshot(tmp_path)
-    # Windows refuses before inventory/merge; supported platforms reach the merge guard.
-    expected = "Windows.*지원하지 않습니다" if layout.store._WINDOWS else "자동 병합"
+    expected = "자동 병합"
     with pytest.raises(KISUsageError, match=expected):
         layout.migrate_order_store_directory(state, cache, offline=True)
     if layout.store._WINDOWS:
@@ -1082,9 +1080,9 @@ def _migration_tree_snapshot(directory):
     return snapshot
 
 
-@pytest.mark.parametrize('state_kind', ['absent', 'empty', 'equal', 'different'])
+@pytest.mark.parametrize('state_kind', ['equal', 'different'])
 @pytest.mark.parametrize('payload', [b'', b'synthetic-byte-zero'])
-def test_windows_legacy_migration_refuses_before_any_mutation(tmp_path, monkeypatch, state_kind, payload):
+def test_windows_independent_layout_refuses_before_any_mutation(tmp_path, monkeypatch, state_kind, payload):
     state, cache = _windows_migration_layout(tmp_path, payload)
     if state_kind != 'absent':
         state.mkdir(parents=True)
@@ -1100,13 +1098,13 @@ def test_windows_legacy_migration_refuses_before_any_mutation(tmp_path, monkeypa
         patch.setattr(layout, '_write_transaction', forbidden)
         patch.setattr(layout, '_rename_no_replace', forbidden)
         patch.setattr(OrderStore, '_acquire_single_writer_lock', forbidden)
-        with pytest.raises(KISUsageError, match='Windows'):
+        with pytest.raises(KISUsageError, match='자동 병합'):
             layout.migrate_order_store_directory(state, cache, offline=True)
     assert _migration_tree_snapshot(tmp_path) == before
 
 
 @pytest.mark.parametrize('marker_bytes', [b'{}', b'synthetic-invalid-marker'])
-def test_windows_unfinished_migration_refuses_before_marker_read_or_mutation(tmp_path, monkeypatch, marker_bytes):
+def test_windows_invalid_marker_refuses_before_mutation(tmp_path, monkeypatch, marker_bytes):
     state = tmp_path/'state'/'kis-trader'/'orders'
     cache = tmp_path/'cache'/'kis-trader'/'orders'
     state.parent.mkdir(parents=True)
@@ -1122,53 +1120,10 @@ def test_windows_unfinished_migration_refuses_before_marker_read_or_mutation(tmp
     with monkeypatch.context() as patch:
         patch.setattr(layout.store, '_WINDOWS', True)
         patch.setattr(Path, 'mkdir', forbidden)
-        patch.setattr(layout, '_load_transaction', forbidden)
         patch.setattr(OrderStore, '_acquire_single_writer_lock', forbidden)
-        with pytest.raises(KISUsageError, match='Windows'):
+        with pytest.raises(KISUsageError):
             layout.migrate_order_store_directory(state, cache, offline=True)
     assert _migration_tree_snapshot(tmp_path) == before
-
-
-@pytest.mark.parametrize('state_exists', [False, True])
-def test_windows_empty_legacy_directory_refuses_without_mutation(tmp_path, monkeypatch, state_exists):
-    state = tmp_path/'state'/'kis-trader'/'orders'
-    cache = tmp_path/'cache'/'kis-trader'/'orders'
-    cache.mkdir(parents=True)
-    if state_exists:
-        state.mkdir(parents=True)
-    before = _migration_tree_snapshot(tmp_path)
-    with monkeypatch.context() as patch:
-        patch.setattr(layout.store, '_WINDOWS', True)
-        with pytest.raises(KISUsageError, match='Windows'):
-            layout.migrate_order_store_directory(state, cache, offline=True)
-    assert _migration_tree_snapshot(tmp_path) == before
-
-
-@pytest.mark.skipif(os.name != 'nt', reason='native Windows early refusal and ordinary byte-lock controls')
-@pytest.mark.parametrize('payload', [b'', b'synthetic-byte-zero'])
-def test_native_windows_legacy_migration_refuses_preserving_all_entries(tmp_path, payload):
-    state, cache = _windows_migration_layout(tmp_path, payload)
-    before = _migration_tree_snapshot(tmp_path)
-    with OrderStore(cache/'synthetic.json', retention_days=0) as holder:
-        with pytest.raises(KISUsageError, match='Windows'):
-            layout.migrate_order_store_directory(state, cache, offline=True)
-        assert holder.is_in_flight('pending')
-        assert not state.parent.exists()
-    assert _migration_tree_snapshot(tmp_path) == before
-    with pytest.raises(KISUsageError, match='Windows'):
-        layout.migrate_order_store_directory(state, cache, offline=True)
-    assert _migration_tree_snapshot(tmp_path) == before
-    # 별도 새 배치와 기존 state의 무이동 검증은 계속 지원한다.
-    fresh_state = tmp_path/'fresh-state'/'kis-trader'/'orders'
-    fresh_cache = tmp_path/'fresh-cache'/'kis-trader'/'orders'
-    assert layout.ensure_order_store_directory(fresh_state, fresh_cache) == fresh_state
-    with OrderStore(fresh_state/'synthetic.json', retention_days=0) as instance:
-        instance.try_claim('pending', Order.market('005930', side='buy', quantity=1).fingerprint)
-    fresh_before = _migration_tree_snapshot(fresh_state)
-    layout.migrate_order_store_directory(fresh_state, fresh_cache, offline=True)
-    assert _migration_tree_snapshot(fresh_state) == fresh_before
-    with OrderStore(fresh_state/'synthetic.json', retention_days=0) as reopened:
-        assert reopened.is_in_flight('pending')
 
 
 @pytest.mark.parametrize('kind', ['legacy-empty', 'legacy-json', 'unfinished-marker'])
@@ -1200,6 +1155,5 @@ def test_public_windows_config_path_has_actionable_supported_guidance(tmp_path, 
     with pytest.raises(KISUsageError) as caught:
         order_store_path(account='synthetic-01', environment='paper')
     message = str(caught.value)
-    assert 'Windows' in message and '지원하지 않습니다' in message
-    assert 'migrate-orders --offline' not in message
+    assert 'migrate-orders --offline' in message
     assert _migration_tree_snapshot(tmp_path) == before

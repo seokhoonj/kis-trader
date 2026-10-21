@@ -181,13 +181,15 @@ jobs:
           if postcheck_failures:
               raise SystemExit('POSTCHECK FAILED: ' + str(len(postcheck_failures)) + ' cases; rename results retained above')
           PY
-      - name: Native Windows lock recovery and legacy migration refusal
+      - name: Native Windows lock recovery and offline migration
         if: runner.os == 'Windows'
         run: >-
           "${{ matrix.python }}" -m pytest -q
           tests/test_store_dir_fsync.py::test_native_windows_process_exclusion_and_recovery
-          tests/test_order_live_findings.py::test_native_windows_legacy_migration_refuses_preserving_all_entries
-          tests/test_order_live_findings.py::test_public_windows_config_path_has_actionable_supported_guidance
+          tests/test_windows_offline_migration.py
+      - name: Native exclusive rename primitives
+        run: >-
+          "${{ matrix.python }}" -m pytest -q tests/test_order_layout_rename.py
       - name: Portable refusal and root-isolation tests
         run: >-
           "${{ matrix.python }}" -m pytest -q
@@ -259,20 +261,6 @@ jobs:
                       if entry.name.endswith('.json.lock') else ('json-bytes', entry.read_bytes())
                       for entry in directory.iterdir()}
 
-          def complete_tree(directory):
-              result = {}
-              for entry in sorted(directory.rglob('*')):
-                  details = entry.lstat()
-                  identity = (details.st_dev, details.st_ino, details.st_mode)
-                  if entry.is_symlink():
-                      value = ('link', identity, os.readlink(entry))
-                  elif entry.is_dir():
-                      value = ('directory', identity)
-                  else:
-                      value = ('file', identity, entry.read_bytes())
-                  result[str(entry.relative_to(directory))] = value
-              return result
-
           with tempfile.TemporaryDirectory(prefix='kis-native-synthetic-') as temporary:
               root = Path(temporary)
               state = root/'fresh-state'/'kis-trader'/'orders'
@@ -303,7 +291,6 @@ jobs:
                   lock_path = cache/'synthetic.json.lock'
                   lock_path.write_bytes(lock_payload)  # Closed fixture: include real nonempty byte-zero coverage.
                   closed_lock_bytes = lock_path.read_bytes()
-                  windows_tree = complete_tree(case_root) if windows else None
                   with OrderStore(cache/'synthetic.json', retention_days=0) as held:
                       before = contents(cache)
                       try:
@@ -316,41 +303,24 @@ jobs:
                   assert lock_path.read_bytes() == closed_lock_bytes
                   before = contents(cache)
                   source_identity = (cache.stat().st_dev, cache.stat().st_ino)
+                  layout.migrate_order_store_directory(state, cache, offline=True)
+                  assert state.is_dir() and not state.is_symlink()
+                  assert contents(state) == before
+                  backups = list(cache.parent.glob('.orders-backup-*'))
+                  assert len(backups) == 1 and contents(backups[0]) == before
+                  assert (backups[0].stat().st_dev, backups[0].stat().st_ino) == source_identity
+                  assert (state/'synthetic.json.lock').read_bytes() == closed_lock_bytes
+                  assert (backups[0]/'synthetic.json.lock').read_bytes() == closed_lock_bytes
+                  assert not (state.parent/'.orders-migration.json').exists()
                   if windows:
-                      # Legacy migration is unsupported: refuse before any topology or byte mutation.
-                      assert complete_tree(case_root) == windows_tree
-                      try:
-                          layout.migrate_order_store_directory(state, cache, offline=True)
-                      except KISUsageError as error:
-                          assert 'Windows' in str(error)
-                      else:
-                          raise AssertionError('unsupported Windows legacy migration unexpectedly proceeded')
-                      assert complete_tree(case_root) == windows_tree
-                      assert contents(cache) == before
-                      assert lock_path.read_bytes() == closed_lock_bytes
-                      assert (cache.stat().st_dev, cache.stat().st_ino) == source_identity
-                      assert not state.parent.exists()
-                      assert not list(cache.parent.glob('.orders-backup-*'))
-                      assert not (state.parent/'.orders-migration.json').exists()
-                      with OrderStore(cache/'synthetic.json', retention_days=0) as reopened:
-                          assert reopened.is_in_flight('synthetic-pending')
-                      print('native Windows: explicit legacy refusal preserved all entries; fresh/state-only operations supported; payload size', len(lock_payload))
+                      assert not os.path.lexists(cache)
                   else:
-                      # Current implementation supports renameat2 only on POSIX; macOS has no fallback.
-                      # A native unsupported result must preserve every original entry and inode.
-                      try:
-                          layout.migrate_order_store_directory(state, cache, offline=True)
-                      except KISUsageError as error:
-                          assert '배타적' in str(error)
-                      else:
-                          raise AssertionError('unexpected macOS migration success: review the primitive contract before changing this expectation')
-                      assert contents(cache) == before
-                      assert lock_path.read_bytes() == closed_lock_bytes
-                      assert (cache.stat().st_dev, cache.stat().st_ino) == source_identity
-                      assert not state.exists() and not cache.is_symlink()
-                      assert not list(cache.parent.glob('.orders-backup-*'))
-                      assert (state.parent/'.orders-migration.json').is_file()
-                      print('native macOS: unsupported migration preserved original JSON/closed lock bytes/inode; payload size', len(lock_payload))
+                      assert cache.is_symlink() and cache.samefile(state)
+                  with OrderStore(state/'synthetic.json', retention_days=0) as reopened:
+                      assert reopened.is_in_flight('synthetic-pending')
+                  layout.ensure_order_store_directory(state, cache)
+                  print('native physical-state migration preserved pending records, backup and lock bytes; payload size', len(lock_payload))
+
           PY
 
   browser-docs:

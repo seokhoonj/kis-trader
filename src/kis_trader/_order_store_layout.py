@@ -30,9 +30,24 @@ def _requires_legacy_alias() -> bool:
     return importlib.util.find_spec("fcntl") is not None
 
 
+def _reject_reparse_directory(path: Path) -> None:
+    """Windows junction을 포함한 reparse 루트는 대상 파일을 열기 전에 거부한다."""
+    import stat
+
+    try:
+        details = path.lstat()
+    except FileNotFoundError:
+        return
+    if getattr(details, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        raise KISUsageError("주문 디렉터리에 알 수 없는 reparse 별칭이 있습니다. " + _OFFLINE)
+
+
 def _validate_roots(state: Path, cache: Path) -> None:
+    _reject_reparse_directory(state)
     if state.is_symlink() or (_present(state) and not state.is_dir()):
         raise KISUsageError("주문 state 디렉터리가 실제 디렉터리가 아닙니다. " + _OFFLINE)
+    if not _shared_alias(state, cache):
+        _reject_reparse_directory(cache)
     try:
         physical_state = state.resolve()
         cache_tree = cache.parent.parent.resolve()
@@ -58,12 +73,15 @@ def ensure_order_store_directory(state: Path, cache: Path) -> Path:
     읽지 못하는 구 버전은 같은 저장소에서 안전하게 거부될 수 있다.
     """
     _validate_roots(state, cache)
-    _check_migration_platform(state, cache)
+    if store._WINDOWS:
+        if _present(state.parent / ".orders-migration.json"):
+            raise KISUsageError("완료되지 않은 주문 저장소 이전이 있습니다. " + _OFFLINE)
+        if _present(cache) and not _shared_alias(state, cache):
+            raise KISUsageError("기존 주문 캐시 디렉터리 또는 알 수 없는 별칭이 있습니다. " + _OFFLINE)
     state.parent.mkdir(parents=True, exist_ok=True)
     # JSON은 만들지 않는다. 실제 OrderStore 수명 락을 재사용하되 읽기/스키마 검증만 한다.
     with store.OrderStore(path=state.parent / ".orders-layout", retention_days=0):
         _validate_roots(state, cache)
-        _check_migration_platform(state, cache)
         if _present(state.parent / ".orders-migration.json"):
             raise KISUsageError("완료되지 않은 주문 저장소 이전이 있습니다. " + _OFFLINE)
         if _present(cache):
@@ -99,6 +117,7 @@ def _journal_entries(directory: Path) -> list[Path]:
     """잠긴 바이트를 열지 않고 이름·정규 파일 여부만 검사한다."""
     import stat
 
+    _reject_reparse_directory(directory)
     entries = sorted(directory.iterdir())
     for entry in entries:
         if not stat.S_ISREG(entry.lstat().st_mode) or not entry.name.endswith((".json", ".json.lock")):
@@ -112,16 +131,32 @@ class _JournalLocks(ExitStack):
     def __init__(self) -> None:
         super().__init__()
         self._descriptors: dict[tuple[int, int], int] = {}
+        self._journals_by_directory: dict[tuple[int, int], list[store.OrderStore]] = {}
+        self.callback(self._descriptors.clear)
+        self.callback(self._journals_by_directory.clear)
 
     def acquire(self, directory: Path) -> None:
+        journals = self._journals_by_directory.setdefault(_identity(directory), [])
         names = {entry.name.removesuffix(".lock") if entry.name.endswith(".json.lock") else entry.name
                  for entry in _journal_entries(directory)}
         for name in sorted(names):
             journal = self.enter_context(store.OrderStore(path=directory / name, retention_days=0))
+            journals.append(journal)
             descriptor = journal._process_lock_fd
             assert descriptor is not None
             details = os.fstat(descriptor)
             self._descriptors[(details.st_dev, details.st_ino)] = descriptor
+
+    def release_source(self, directory: Path) -> None:
+        """오프라인 인계에서 원본 그룹만 닫는다. 목적지와 전체 작업 잠금은 유지한다."""
+        journals = self._journals_by_directory.pop(_identity(directory))
+        for journal in journals:
+            descriptor = journal._process_lock_fd
+            if descriptor is not None:
+                for identity, owned in list(self._descriptors.items()):
+                    if owned == descriptor:
+                        del self._descriptors[identity]
+            journal.close()
 
     @contextmanager
     def open_read(self, path: Path) -> Iterator[BinaryIO]:
@@ -190,6 +225,7 @@ def _rename_no_replace(source: Path, destination: Path) -> None:
     """사용 가능한 배타적 rename만 쓰고 불지원 플랫폼에서 덮어쓰기로 폴백하지 않는다.
 
     Linux RENAME_NOREPLACE: https://man7.org/linux/man-pages/man2/rename.2.html
+    macOS RENAME_EXCL: https://developer.apple.com/documentation/foundation/urlresourcevalues/volumesupportsexclusiverenaming
     Windows 대상 존재 거부: https://docs.python.org/3/library/os.html#os.rename
     """
     if os.name == "nt":
@@ -197,14 +233,24 @@ def _rename_no_replace(source: Path, destination: Path) -> None:
         return
     import ctypes
     import errno
+    import sys
 
     library = ctypes.CDLL(None, use_errno=True)
-    rename = getattr(library, "renameat2", None)
-    if rename is None:
-        raise KISUsageError("이 플랫폼은 배타적 디렉터리 설치를 지원하지 않습니다. 원본은 보존됩니다.")
-    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
-    rename.restype = ctypes.c_int
-    if rename(-100, os.fsencode(source), -100, os.fsencode(destination), 1) != 0:
+    if sys.platform == "darwin":
+        rename = getattr(library, "renamex_np", None)
+        if rename is None:
+            raise KISUsageError("이 플랫폼은 배타적 디렉터리 설치를 지원하지 않습니다. 원본은 보존됩니다.")
+        rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(os.fsencode(source), os.fsencode(destination), 4)
+    else:
+        rename = getattr(library, "renameat2", None)
+        if rename is None:
+            raise KISUsageError("이 플랫폼은 배타적 디렉터리 설치를 지원하지 않습니다. 원본은 보존됩니다.")
+        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(-100, os.fsencode(source), -100, os.fsencode(destination), 1)
+    if result != 0:
         code = ctypes.get_errno()
         if code in {errno.ENOSYS, errno.EINVAL, errno.ENOTSUP}:
             raise KISUsageError("이 파일시스템은 배타적 디렉터리 설치를 지원하지 않습니다. 원본은 보존됩니다.")
@@ -351,8 +397,9 @@ def _resume_migration(
         if list(_identity(stage)) != transaction["stage_identity"]:
             raise KISUsageError("기록되지 않은 임시 디렉터리는 채택하지 않습니다. 모든 사본을 보존하세요.")
         _assert_copy_metadata(stage, entries)
-        _lock_inventory(stack, stage)
-        destination_locked = True
+        if not store._WINDOWS:
+            _lock_inventory(stack, stage)
+            destination_locked = True
         _assert_copy(stage, entries, stack)  # 부분 복사는 추측해서 덮어쓰지 않고 보존·거부한다.
         _advance(marker, transaction, "copied")
     if transaction["stage"] == "copied":
@@ -360,7 +407,7 @@ def _resume_migration(
             _assert_copy_metadata(stage, entries)
             if list(_identity(stage)) != transaction["stage_identity"]:
                 raise KISUsageError("이전 임시 디렉터리가 기록과 다릅니다. 모든 사본을 보존하고 수동 점검하세요.")
-            if not destination_locked:
+            if not destination_locked and not store._WINDOWS:
                 _lock_inventory(stack, stage)
                 destination_locked = True
             _assert_copy(stage, entries, stack)
@@ -372,6 +419,12 @@ def _resume_migration(
                 state.rmdir()  # 오프라인에서 검증한 빈 자리만 제거한다.
             _rename_no_replace(stage, state)
             store._fsync_dir(state.parent)
+        if store._WINDOWS and not destination_locked:
+            _assert_copy_metadata(state, entries)
+            if list(_identity(state)) != transaction["stage_identity"]:
+                raise KISUsageError("설치된 주문 디렉터리가 기록과 다릅니다.")
+            _lock_inventory(stack, state)
+            destination_locked = True
         _assert_copy(state, entries, stack)
         if list(_identity(state)) != transaction["stage_identity"]:
             raise KISUsageError("설치된 주문 디렉터리가 기록과 다릅니다.")
@@ -387,8 +440,14 @@ def _resume_migration(
     if transaction["stage"] == "installed":
         if _present(cache) and not cache.is_symlink():
             _assert_source(cache, transaction, stack)
+            if store._WINDOWS:
+                # 모든 SDK/CLI 사용자와 자동 재시작 중지가 전제다. 목적지·작업 잠금은 유지한다.
+                stack.release_source(cache)
             _rename_no_replace(cache, backup)
             store._fsync_dir(cache.parent)
+            if store._WINDOWS:
+                _assert_source_metadata(backup, transaction)
+                _lock_inventory(stack, backup)
         _assert_source(backup, transaction, stack)
         _advance(marker, transaction, "backed_up")
     if transaction["stage"] == "backed_up":
@@ -411,41 +470,35 @@ def _resume_migration(
     store._fsync_dir(marker.parent)
 
 
-def _check_migration_platform(state: Path, cache: Path) -> None:
-    """Windows의 디렉터리 이동 경로만 변경 전에 거부한다.
-
-    열린 자식 파일 핸들을 유지하는 디렉터리 rename은 이 이전 절차로 지원하지 않는다.
-    https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information
-    """
-    marker = state.parent / ".orders-migration.json"
-    if store._WINDOWS and (_present(marker) or (_present(cache) and not cache.is_symlink())):
-        raise KISUsageError(
-            "현재 Windows에서는 자식 파일 잠금을 유지하는 구 주문 디렉터리 자동 이전·재개를 "
-            "지원하지 않습니다. 원본·임시·백업 디렉터리와 이전 기록을 모두 보존하고, "
-            "모든 사용 프로세스를 중지한 상태에서 별도 복구 절차를 검토하세요."
-        )
-
-
 def migrate_order_store_directory(state: Path, cache: Path, *, offline: bool) -> None:
     """모든 사용자를 중지한 운영자의 명시적 선언 아래에만 디렉터리를 이전·복구한다.
 
     이 선언은 구 프로세스의 재시작을 기술적으로 막지 않는다. 완료할 때까지 모든 계좌의
     구·신 프로세스와 자동 재시작을 중지해야 한다. 백업은 자동 삭제하지 않으며, 스키마나
     계좌 귀속을 바꾸지 않는다. 알 수 없는 중단 상태는 사본을 보존하고 거부한다.
-    Windows의 구 디렉터리 이전·재개는 자식 파일 잠금을 유지하는 이 프로토콜로 지원하지
-    않으며, 어떠한 파일·디렉터리를 변경하기 전에 거부한다. 기존 state 검증은 유지한다.
+    Windows는 목적지를 잠근 뒤 원본 잠금만 해제해 디렉터리를 옮기고 백업 잠금을 다시 확보한다.
+    이 인계 중에도 모든 직접 SDK 사용자와 구 버전의 재시작 중지가 필요하다.
     """
     if offline is not True:
         raise KISUsageError("--offline 은 모든 주문 저장소 사용자와 자동 재시작을 중지했다는 선언입니다.")
     _validate_roots(state, cache)
     marker = state.parent / ".orders-migration.json"
-    _check_migration_platform(state, cache)
+    if store._WINDOWS:
+        if _present(marker):
+            _load_transaction(marker, state, cache)
+        elif _present(cache) and not cache.is_symlink():
+            if not cache.is_dir():
+                raise KISUsageError("기존 주문 캐시 경로가 실제 디렉터리가 아닙니다.")
+            _journal_entries(cache)
+            if _present(state) and any(state.iterdir()):
+                raise KISUsageError("양쪽에 독립 주문 데이터가 있습니다. 자동 병합하지 않습니다.")
+        elif _present(cache) and not _shared_alias(state, cache):
+            raise KISUsageError("알 수 없는 주문 디렉터리 별칭은 자동 복구하지 않습니다.")
     state.parent.mkdir(parents=True, exist_ok=True)
     cache.parent.mkdir(parents=True, exist_ok=True)
     with _JournalLocks() as stack:
         stack.enter_context(store.OrderStore(path=state.parent / ".orders-layout", retention_days=0))
         _validate_roots(state, cache)
-        _check_migration_platform(state, cache)
         if _present(marker):
             transaction = _load_transaction(marker, state, cache)
             _resume_migration(state, cache, marker, transaction, stack)
