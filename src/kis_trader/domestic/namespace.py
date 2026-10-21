@@ -50,7 +50,11 @@ if TYPE_CHECKING:
     )
     from .entities.product import DomesticProductInfo
     from .entities.saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
-    from .entities.stock_orders import StockOrderHistory, StockOrderHistoryCollection
+    from .entities.stock_orders import (
+        StockOrderHistory,
+        StockOrderHistoryCollection,
+        StockOrderHistorySeries,
+    )
     from .entities.trade_profit import DailyProfitHistory, TradeProfitHistory
 
 
@@ -136,7 +140,7 @@ class DomesticAccount:
     def combined_order_history(
         self, *, start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
         unfilled_only: bool = False,
-    ) -> StockOrderHistoryCollection:
+    ) -> StockOrderHistoryCollection | StockOrderHistorySeries:
         """국내주식 최근·과거 주문 내역을 같은 기간으로 각각 조회한다.
 
         ``start``/``end`` 는 YYYYMMDD 실재 날짜, 시작일 <= 종료일이어야 한다.
@@ -144,7 +148,10 @@ class DomesticAccount:
         그 외에는 미체결·거부 주문도 포함한다. 최근·과거 각각의 합계는 반환값의 ``recent`` /
         ``historical`` 에 보존하며 통합 합계는 만들지 않는다. 같은 완전 식별정보의 관측이
         서로 다르면 오류다. 어느 한 조회 실패 시 부분 결과를 반환하지 않는다.
-        공급자의 보관기간·허용 조회기간을 보장하지 않는다. 실전·모의 모두 지원한다.
+        양 끝을 포함해 365일 이하는 위 단일 결과, 더 긴 기간은 최대 365일씩 나눈
+        StockOrderHistorySeries를 반환한다. 각 기간의 원본은 ``periods`` 에 보존하고
+        ``orders`` 는 오래된 기간부터 연결한다. 긴 조회는 주문일자가 없거나 해당 기간 밖인
+        행이 있으면 실패한다. 공급자의 보관기간은 보장하지 않는다. 실전·모의 모두 지원한다.
         """
         cano, product_code = self._client._require_account()
         return account_api.fetch_combined_stock_order_history(

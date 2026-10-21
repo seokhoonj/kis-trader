@@ -72,7 +72,8 @@ def test_documented_combined_history_uses_both_sources_and_keeps_summaries():
         if isinstance(node, ast.Call)
         and ast.unparse(node.func) == "account.combined_order_history"
     ]
-    assert len(calls) == 1, "The account guide must include the combined query recipe"
+    calls = [call for call in calls if literal_args(call)[1]["start"] == "20240101"]
+    assert len(calls) == 1, "The account guide must include the short combined query recipe"
     args, kwargs = literal_args(calls[0])
     assert not args and set(kwargs) == {"start", "end"}
 
@@ -114,6 +115,84 @@ def test_documented_combined_history_uses_both_sources_and_keeps_summaries():
     assert result.recent.estimated_expenses == Decimal(1)
     assert result.historical.estimated_expenses == Decimal(2)
     assert set(to_jsonable(result)) == {"orders", "recent", "historical"}
+
+
+def test_documented_long_history_preserves_every_period_and_provider_summary():
+    from datetime import date, timedelta
+
+    from kis_trader import KISClient, OrderStore
+    from kis_trader.cli.output import to_jsonable
+    from kis_trader.transport import RawResponse
+
+    calls = [
+        node
+        for block in blocks("docs/account.md")
+        if block.language == "python"
+        for node in ast.walk(ast.parse(block.text))
+        if isinstance(node, ast.Call)
+        and ast.unparse(node.func) == "account.combined_order_history"
+        and literal_args(node)[1]["start"] == "20200509"
+    ]
+    assert len(calls) == 1, "The account guide must demonstrate the original long query"
+    _, kwargs = literal_args(calls[0])
+    assert kwargs == {"start": "20200509", "end": "20261022"}
+
+    class Transport:
+        def __init__(self):
+            self.calls = []
+
+        def request(self, *, method, path, tr_id, params=None, body=None,
+                    idempotent, tr_cont=""):
+            assert method == "GET" and path.endswith("/inquire-daily-ccld")
+            assert body is None and idempotent and tr_cont == ""
+            start = date.fromisoformat(
+                f'{params["INQR_STRT_DT"][:4]}-{params["INQR_STRT_DT"][4:6]}-{params["INQR_STRT_DT"][6:]}'
+            )
+            end = date.fromisoformat(
+                f'{params["INQR_END_DT"][:4]}-{params["INQR_END_DT"][4:6]}-{params["INQR_END_DT"][6:]}'
+            )
+            assert 0 <= (end - start).days < 365
+            self.calls.append((tr_id, start, end))
+            index = len(self.calls)
+            summary = {
+                "tot_ord_qty": "1", "tot_ccld_qty": "1", "tot_ccld_amt": str(index * 100),
+                "pchs_avg_pric": str(index * 11), "prsm_tlex_smtl": str(index * 7),
+                "period_marker": {"index": index},
+            }
+            row = {
+                "ord_dt": params["INQR_STRT_DT"], "odno": f"SYNTHETIC{index}",
+                "ord_gno_brno": "SYNTHETIC_BRANCH", "ord_orgno": "SYNTHETIC_ORG",
+                "sll_buy_dvsn_cd": "02", "pdno": "005930", "ord_qty": "1",
+            }
+            return RawResponse("0", "synthetic", "", {"output1": [row], "output2": summary})
+
+    transport = Transport()
+    with OrderStore() as store, KISClient(
+        app_key="synthetic", app_secret="synthetic", account="synthetic-01",
+        environment="real", transport=transport, store=store,
+    ) as client:
+        result = client.account.domestic.combined_order_history(**kwargs)
+    assert len(result.orders) == 14
+    assert len(result.periods) == 7
+    assert len(transport.calls) == 14
+    assert result.periods[0].start == date(2020, 5, 9)
+    assert result.periods[-1].end == date(2026, 10, 22)
+    for index, period in enumerate(result.periods):
+        if index:
+            assert period.start == result.periods[index - 1].end + timedelta(days=1)
+        assert transport.calls[2 * index:2 * index + 2] == [
+            ("TTTC0081R", period.start, period.end), ("CTSC9215R", period.start, period.end),
+        ]
+        for offset, source in enumerate((period.history.recent, period.history.historical), 1):
+            marker = 2 * index + offset
+            assert source.average_purchase_price == Decimal(marker * 11)
+            assert source.estimated_expenses == Decimal(marker * 7)
+            assert source._raw["period_marker"]["index"] == marker
+    encoded = to_jsonable(result, include_raw=True)
+    assert set(encoded) == {"orders", "periods"}
+    assert encoded["periods"][0]["start"] == "2020-05-09"
+    assert encoded["periods"][-1]["end"] == "2026-10-22"
+    assert encoded["periods"][-1]["history"]["historical"]["_raw"]["period_marker"] == {"index": 14}
 
 
 @pytest.fixture(autouse=True)

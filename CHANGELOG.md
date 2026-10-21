@@ -3,6 +3,20 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.2 - 2026-10-21
+
+### Fixed
+
+- Split long domestic-stock order history into gapless periods of at most 365 days,
+  querying and fully paginating both recent and historical sources for every period.
+- Preserve each period’s original provider summaries without inventing combined
+  average prices, expenses or totals. Long queries return `StockOrderHistorySeries`
+  with `orders` and `periods`; queries of up to 365 inclusive days retain the existing
+  `StockOrderHistoryCollection` result shape.
+- Reject missing or out-of-period order dates during long queries and fail the whole
+  operation on any source, page or observation conflict, without partial CLI output.
+- Align documentation examples and API-tree comments while preserving their commands.
+
 ## 0.12.1 - 2026-10-21
 
 ### Fixed

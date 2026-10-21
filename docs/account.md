@@ -81,27 +81,51 @@ account.realized_profit_balance()                        # 실현손익 포함 �
 ## 미체결·주문가능
 
 ```python
-account.open_orders()                                                                  # 미체결 / 정정취소 가능 주문
+from kis_trader import StockOrderHistoryCollection, StockOrderHistorySeries
+
+account.open_orders()  # 미체결 / 정정취소 가능 주문
+
+# 365일 이내: 최근·과거 조회별 원본 요약
 history = account.combined_order_history(start="20240101", end="20240229")
-history.orders                                                                         # 최근·과거 조회를 결합한 주문·체결 행
-history.recent.average_purchase_price                                                  # 최근 조회의 원본 요약
-history.historical.estimated_expenses                                                  # 과거 조회의 원본 요약
+if isinstance(history, StockOrderHistoryCollection):
+    history.orders                         # 최근·과거 조회를 결합한 주문·체결 행
+    history.recent.average_purchase_price  # 최근 조회의 원본 요약
+    history.historical.estimated_expenses  # 과거 조회의 원본 요약
+
+# 365일 초과: 구간별 조회와 원본 요약
+long_history = account.combined_order_history(start="20200509", end="20261022")
+if isinstance(long_history, StockOrderHistorySeries):
+    long_history.orders  # 전체 기간의 주문·체결 행
+    for period in long_history.periods:
+        print(period.start, period.end)
+        print(period.history.recent.total_filled_quantity)
+        print(period.history.historical.total_filled_quantity)
+
 account.order_history(start="20240101", end="20240229", older_than_three_months=True)  # 과거 조회만
 stock = kis.domestic.stock("005930")
 stock.buyable()                                                                        # 매수 가능 수량·금액
 stock.sellable()                                                                       # 매도 가능 수량
 ```
 
-`combined_order_history()` 는 지정한 기간을 최근·과거 조회 양쪽에 보내고, 각각의 연속조회를 끝까지
-수행합니다. `StockOrderHistoryCollection` 의 `orders` 는 결합한 행이며, `recent` 와 `historical` 은
-각 조회의 `StockOrderHistory` 를 그대로 보존합니다. 평균 매입가격·추정 비용은 합산하지 않습니다.
-한쪽 조회가 실패하면 부분 결과를 성공으로 반환하지 않습니다. 날짜·주문번호·지점·조직 정보가 갖춰진
+`combined_order_history()` 는 시작일·종료일을 포함해 최대 365일씩 기간을 나누고, 각 구간에서
+최근·과거 조회와 각각의 연속조회를 끝까지 수행합니다. 날짜 사이에 빠지거나 겹치는 날은 없습니다.
+365일 이내이면 기존 `StockOrderHistoryCollection` 을 반환하며, `recent` 와 `historical` 에
+각 조회의 `StockOrderHistory` 를 그대로 보존합니다. 365일을 초과하면 `StockOrderHistorySeries` 를
+반환합니다. `periods` 의 각 `StockOrderHistoryPeriod` 에는 시작일 `start`·종료일 `end` 와 해당
+구간의 `history` 가 있고, `history.recent`·`history.historical` 에 원본 요약을 보존합니다.
+두 결과 모두 `orders` 에 결합한 주문·체결 행을 담습니다. 장기 조회에서는 오래된 구간부터 나열하며,
+각 구간 안에서는 최근 조회 다음 과거 조회 순서입니다. 평균 매입가격·추정 비용을 합쳐 전체 기간의
+요약을 만들지는 않습니다.
+
+한 구간이나 페이지라도 실패하면 부분 결과를 성공으로 반환하지 않습니다. 장기 조회의 응답에 날짜가
+없거나 요청 구간 밖의 날짜가 있으면 구간을 확인할 수 없으므로 오류를 반환합니다. 날짜·주문번호·지점·조직 정보가 갖춰진
 동일 주문의 관측 내용이 두 출처에서 다르면 결합 오류로 알립니다. 조회 사이의 정상적인 상태 변화일 수도
 있으므로, 이 오류 자체가 증권사 데이터 손상을 뜻하지는 않습니다. 식별 정보가 부족한 행은 임의로 합쳐
 없애지 않으며, 양쪽 조회에 모두 있으면 결합 목록에 함께 남을 수 있습니다.
 
 기존 `order_history()` 는 기본으로 최근 조회만 하며, `older_than_three_months=True` 이면 과거 조회만
-합니다. 두 방식 모두 증권사의 조회 가능 기간·보관 범위 안에서 동작하며, 다년간의 완전한 보관을 보장하지
+합니다. 이 단일 출처 조회는 기간을 자동 분할하지 않으므로 1년 이내의 기간을 지정하세요.
+자동 분할은 증권사의 보관 범위를 늘리는 기능은 아닙니다. 두 방식 모두 다년간의 완전한 보관을 보장하지
 않습니다. 미체결·거부 주문도 포함하므로 체결된 주문만의 목록으로 해석하지 마세요.
 
 각 `StockOrder` 는 주문·체결 상태(수량·단가·평균가·거래소)를 담고, 스톱지정가 체결이면

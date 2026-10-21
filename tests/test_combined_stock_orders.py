@@ -58,7 +58,7 @@ def query(transport, *, environment="real", **kwargs):
     with KISClient(app_key="synthetic", app_secret="synthetic", account="12345678-01",
                    environment=environment, transport=transport) as client:
         return client.account.domestic.combined_order_history(
-            **({"start": "20200101", "end": "20261021"} | kwargs))
+            **({"start": "20260101", "end": "20261021"} | kwargs))
 
 
 @pytest.mark.parametrize(("environment", "want"), [
@@ -66,7 +66,7 @@ def query(transport, *, environment="real", **kwargs):
     ("paper", ["VTTC0081R", "VTSC9215R"]),
 ])
 @pytest.mark.parametrize("recent", [[], [row(odno="recent", ord_dt="20261020")]])
-def test_always_queries_both_families_with_exact_wide_range(environment, want, recent):
+def test_always_queries_both_families_with_exact_short_range(environment, want, recent):
     transport = HistoryTransport([response(recent), response([row()])])
     result = query(transport, environment=environment, side="sell", symbol="005930", unfilled_only=True)
     assert [order.order_id for order in result.orders] == (["recent"] if recent else []) + ["0000000001"]
@@ -74,7 +74,7 @@ def test_always_queries_both_families_with_exact_wide_range(environment, want, r
     assert [call[0] for call in transport.calls] == want
     assert not transport.pages
     for _, params, continuation in transport.calls:
-        assert params["INQR_STRT_DT"] == "20200101"
+        assert params["INQR_STRT_DT"] == "20260101"
         assert params["INQR_END_DT"] == "20261021"
         assert params["SLL_BUY_DVSN_CD"] == "01"
         assert params["PDNO"] == "005930"

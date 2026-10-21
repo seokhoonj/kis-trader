@@ -246,6 +246,8 @@ from .domestic.entities.stock_orders import (
     StockOrder,
     StockOrderHistory,
     StockOrderHistoryCollection,
+    StockOrderHistoryPeriod,
+    StockOrderHistorySeries,
     StopTrigger,
 )
 from .domestic.entities.trade_profit import (
@@ -719,6 +721,8 @@ __all__ = [
     "StockOrder",
     "StockOrderHistory",
     "StockOrderHistoryCollection",
+    "StockOrderHistoryPeriod",
+    "StockOrderHistorySeries",
     "StockProfile",
     "StockStatus",
     "StopTrigger",

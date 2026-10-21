@@ -105,6 +105,8 @@ kis stock quote 005930 --format json --include-raw  # KIS 원본 필드 포함
 `--side`(all/buy/sell)·`--symbol`(주식 6자리 / 채권 ISIN)·`--unfilled-only` 로 좁힙니다. 주식 체결내역은
 기본으로 **최근·과거 조회를 모두 수행**하므로, 오래된 기간에도 별도 플래그가 필요하지 않습니다.
 `--older-than-three-months` 를 명시하면 기존처럼 과거 조회만 합니다.
+국내주식의 기본 조회는 긴 기간도 시작일·종료일을 포함해 최대 365일씩 자동 분할합니다.
+`--older-than-three-months` 를 명시한 단일 출처 조회는 자동 분할하지 않으므로 1년 이내로 지정하세요.
 체결내역(`fills`)은 국내주식은 실전·모의 모두, 장내채권은 실전 계좌 전용입니다(모의투자 미지원).
 미체결(정정·취소 대상)만 보려면 `kis account orders` 를 씁니다 -- 국내주식·장내채권 모두 실전 계좌
 전용입니다(정정취소가능주문조회는 모의투자 미지원).
@@ -112,6 +114,8 @@ kis stock quote 005930 --format json --include-raw  # KIS 원본 필드 포함
 ```bash
 # 최근·과거 자동 조회
 kis account fills --start 20240101 --end 20240131
+# 장기 조회: 최대 365일씩 자동 분할
+kis account fills --start 20200509 --end 20261022
 # 종목·매수만
 kis account fills --start 20240101 --end 20240131 --symbol 005930 --side buy
 # 3개월 이전 체결내역
@@ -122,9 +126,13 @@ kis account fills --asset bond --start 20240101 --end 20240131
 kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only
 ```
 
-국내주식의 기본 결과는 결합한 `orders` 와 출처별 `recent`·`historical` 내역입니다. 기존 단일 조회의
-최상위 합계 필드를 읽던 스크립트는 출처별 요약을 확인해야 합니다. 평균 매입가격·추정 비용을 임의로 합친
-값은 제공하지 않습니다. 한쪽 조회 실패나 식별 정보가 갖춰진 동일 주문의 서로 다른 관측이 발견되면 결합 오류를 반환하며,
+국내주식의 기본 결과는 365일 이내이면 결합한 `orders` 와 출처별 `recent`·`historical` 내역입니다.
+365일을 초과하면 `orders` 와 구간별 `periods` 를 반환합니다. 각 구간의 `start`·`end` 는
+`YYYY-MM-DD` 형식이며, `history.recent`·`history.historical` 에 해당 구간의 원본 요약이 있습니다.
+자동 처리가 필요한 스크립트는 `--format json` 으로 받고, 전체 내역은 `data.orders`, 장기 조회의
+구간별 요약은 `data.periods` 를 읽으세요. 평균 매입가격·추정 비용을 임의로 합친 값은 제공하지 않습니다.
+한 구간·출처·페이지라도 실패하거나 장기 조회에서 날짜가 없거나 요청 구간 밖인 행을 받으면 전체 조회가 실패합니다.
+식별 정보가 갖춰진 동일 주문의 서로 다른 관측이 발견돼도 결합 오류를 반환하며,
 조회 기간·보관 범위를 넘어선 내역의 존재까지 보장하지는 않습니다.
 
 예약주문(정규장이 열리기 전에 미리 걸어두는 예약) 목록은 `kis account reserved --start/--end` 로

@@ -116,3 +116,28 @@ class StockOrderHistoryCollection:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "orders", tuple(self.orders))
+
+
+@dataclass(frozen=True, slots=True)
+class StockOrderHistoryPeriod:
+    """최대 365일의 양 끝 날짜와 해당 기간의 최근·과거 조회 원본(불변)."""
+
+    start: date
+    end: date
+    history: StockOrderHistoryCollection
+
+
+@dataclass(frozen=True, slots=True)
+class StockOrderHistorySeries:
+    """365일을 넘는 주문 내역을 오래된 기간부터 담은 결과(불변).
+
+    ``orders`` 는 각 기간의 통합 행을 순서대로 연결한다. ``periods`` 의 ``history`` 에
+    공급자별 행과 요약을 보존하며 기간 간 평균가격·제비용·합계는 계산하지 않는다.
+    """
+
+    orders: tuple[StockOrder, ...]
+    periods: tuple[StockOrderHistoryPeriod, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "orders", tuple(self.orders))
+        object.__setattr__(self, "periods", tuple(self.periods))

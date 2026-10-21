@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
@@ -45,6 +45,8 @@ from ..entities.stock_orders import (
     StockOrder,
     StockOrderHistory,
     StockOrderHistoryCollection,
+    StockOrderHistoryPeriod,
+    StockOrderHistorySeries,
     StopTrigger,
 )
 from ..entities.trade_profit import (
@@ -584,10 +586,12 @@ def fetch_combined_stock_order_history(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
     unfilled_only: bool = False,
-) -> StockOrderHistoryCollection:
+) -> StockOrderHistoryCollection | StockOrderHistorySeries:
     """최근·과거 TR을 같은 기간으로 각각 끝까지 조회하고 공급자 요약을 따로 보존한다.
 
     ``start``/``end`` 는 실재하는 YYYYMMDD 날짜이며 시작일이 종료일보다 늦을 수 없다.
+    365일 이하는 단일 통합 결과, 그보다 길면 최대 365일씩 나눠 오래된 기간부터 반환한다.
+    긴 조회의 모든 행은 해당 기간 안의 주문일자가 있어야 한다.
     어느 조회든 실패하거나 같은 완전 식별정보의 관측이 다르면 부분 통합 결과를 반환하지 않는다.
     ``TTTC0081R``/``CTSC9215R`` (모의 ``VTTC0081R``/``VTSC9215R``)를 사용한다.
     """
@@ -600,6 +604,39 @@ def fetch_combined_stock_order_history(
             raise KISUsageError("조회 날짜는 실재하는 YYYYMMDD 날짜여야 한다.") from None
     if start > end:
         raise KISUsageError("조회 시작일은 종료일보다 늦을 수 없다.")
+    start_date = datetime.strptime(start, "%Y%m%d").date()
+    end_date = datetime.strptime(end, "%Y%m%d").date()
+    if (end_date - start_date).days < 365:
+        return _fetch_stock_order_history_collection(
+            transport, cano=cano, product_code=product_code, environment=environment,
+            start=start, end=end, side=side, symbol=symbol, unfilled_only=unfilled_only,
+        )
+    periods: list[StockOrderHistoryPeriod] = []
+    period_start = start_date
+    while True:
+        period_end = date.fromordinal(min(period_start.toordinal() + 364, end_date.toordinal()))
+        history = _fetch_stock_order_history_collection(
+            transport, cano=cano, product_code=product_code, environment=environment,
+            start=f"{period_start.year:04d}{period_start.month:02d}{period_start.day:02d}",
+            end=f"{period_end.year:04d}{period_end.month:02d}{period_end.day:02d}",
+            side=side, symbol=symbol, unfilled_only=unfilled_only,
+            period_bounds=(period_start, period_end),
+        )
+        periods.append(StockOrderHistoryPeriod(start=period_start, end=period_end, history=history))
+        if period_end == end_date:
+            break
+        period_start = date.fromordinal(period_end.toordinal() + 1)
+    return StockOrderHistorySeries(
+        orders=tuple(order for period in periods for order in period.history.orders),
+        periods=tuple(periods),
+    )
+
+
+def _fetch_stock_order_history_collection(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str, side: SideFilter, symbol: str | None, unfilled_only: bool,
+    period_bounds: tuple[date, date] | None = None,
+) -> StockOrderHistoryCollection:
     recent = fetch_stock_order_history(
         transport, cano=cano, product_code=product_code, environment=environment,
         start=start, end=end, side=side, symbol=symbol, unfilled_only=unfilled_only,
@@ -610,6 +647,12 @@ def fetch_combined_stock_order_history(
         start=start, end=end, side=side, symbol=symbol, unfilled_only=unfilled_only,
         older_than_three_months=True, _preserve_unidentified=True,
     )
+    if period_bounds is not None:
+        period_start, period_end = period_bounds
+        for source in (recent, historical):
+            for order in source.orders:
+                if order.order_date is None or not period_start <= order.order_date <= period_end:
+                    raise KISError("주문일자가 없거나 조회 기간을 벗어나 기간별 내역을 통합할 수 없다.")
     return StockOrderHistoryCollection(
         orders=_merge_stock_order_histories(recent, historical), recent=recent, historical=historical,
     )
