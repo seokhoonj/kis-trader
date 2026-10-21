@@ -9,18 +9,18 @@
 ```python
 market = kis.domestic.market
 
-market.investor_flows()           # 시장 전체 투자자 동향
-market.investor_net_buy_stocks()  # 투자자별 순매수 상위 종목
+market.investor_flows()                                             # 시장 전체 투자자 동향
+market.investor_net_buy_stocks()                                    # 투자자별 순매수 상위 종목
 market.investor_snapshot(market_code="0001", industry_code="0001")  # 시장·업종별 세부 매수/매도/순매수
 ```
 
 ## 프로그램 매매
 
 ```python
-market.program_trades()             # 일별 프로그램매매 종합(차익/비차익; KOSPI/KOSDAQ)
-market.program_flow()               # 당일 시간대별 프로그램 순매수 대금
-market.program_investor_trades()    # 당일 프로그램매매 투자자 집계
-market.foreign_broker_trades()      # 외국계 창구 매매
+market.program_trades()           # 일별 프로그램매매 종합(차익/비차익; KOSPI/KOSDAQ)
+market.program_flow()             # 당일 시간대별 프로그램 순매수 대금
+market.program_investor_trades()  # 당일 프로그램매매 투자자 집계
+market.foreign_broker_trades()    # 외국계 창구 매매
 ```
 
 ## 자금·금리
@@ -44,7 +44,7 @@ market.futures_market_schedule()  # 국내선물 인접 영업일·장 시작/�
 
 ```python
 market.broker_opinions(member_code="003")  # 한 증권사(회원사 코드)가 낸 종목 투자의견·목표가
-market.news()                         # 시황·공시 뉴스 제목 피드
+market.news()                              # 시황·공시 뉴스 제목 피드
 ```
 
 ## 지수
@@ -76,9 +76,9 @@ index.expected_trend()     # 장 시작 전·마감 예상체결 지수 추이
 분봉(`1m`)을, 국채·금은 기간봉만 줍니다.
 
 ```python
-kis.overseas.index("SPX").quote()                                    # S&P500 현재가
-kis.overseas.index_quotes(["SPX", "NDX"])                           # 여러 해외지수 현재가
-kis.overseas.index("SPX").bars("1d", start="20240101")              # S&P500 기간봉
+kis.overseas.index("SPX").quote()                                     # S&P500 현재가
+kis.overseas.index_quotes(["SPX", "NDX"])                             # 여러 해외지수 현재가
+kis.overseas.index("SPX").bars("1d", start="20240101")                # S&P500 기간봉
 kis.overseas.index("FX@KRW", kind="fx").bars("1d", start="20240101")  # 환율(원/달러) 히스토리
 kis.overseas.index("FX@KRW", kind="fx").bars("1m", max_bars=100)      # 환율 당일 분봉
 ```

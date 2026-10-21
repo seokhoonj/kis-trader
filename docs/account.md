@@ -81,15 +81,15 @@ account.realized_profit_balance()                        # 실현손익 포함 �
 ## 미체결·주문가능
 
 ```python
-account.open_orders()                                    # 미체결 / 정정취소 가능 주문
+account.open_orders()                                                                  # 미체결 / 정정취소 가능 주문
 history = account.combined_order_history(start="20240101", end="20240229")
-history.orders                         # 최근·과거 조회를 결합한 주문·체결 행
-history.recent.average_purchase_price  # 최근 조회의 원본 요약
-history.historical.estimated_expenses  # 과거 조회의 원본 요약
+history.orders                                                                         # 최근·과거 조회를 결합한 주문·체결 행
+history.recent.average_purchase_price                                                  # 최근 조회의 원본 요약
+history.historical.estimated_expenses                                                  # 과거 조회의 원본 요약
 account.order_history(start="20240101", end="20240229", older_than_three_months=True)  # 과거 조회만
 stock = kis.domestic.stock("005930")
-stock.buyable()                       # 매수 가능 수량·금액
-stock.sellable()                      # 매도 가능 수량
+stock.buyable()                                                                        # 매수 가능 수량·금액
+stock.sellable()                                                                       # 매도 가능 수량
 ```
 
 `combined_order_history()` 는 지정한 기간을 최근·과거 조회 양쪽에 보내고, 각각의 연속조회를 끝까지
@@ -120,14 +120,14 @@ account.integrated_margin()                       # 통합증거금
 
 ```python
 account = kis.account.overseas
-account.positions(market=None)                           # None = 전체 시장 합산
-account.balance(market="US")                             # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
-account.present_balance()                                # 체결기준 현재잔고
-account.trade_profits(start="20240101", end="20240630")  # 기간 실현손익
-account.transactions(start="20240101", end="20240630")   # 거래내역
-account.foreign_margin()                                 # 통화별 외화 증거금
-account.algo_orders()                                    # 미국 알고(twap/vwap) 주문 목록
-account.algo_executions(order_id, order_date="20240102") # 한 알고주문의 체결내역
+account.positions(market=None)                            # None = 전체 시장 합산
+account.balance(market="US")                              # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
+account.present_balance()                                 # 체결기준 현재잔고
+account.trade_profits(start="20240101", end="20240630")   # 기간 실현손익
+account.transactions(start="20240101", end="20240630")    # 거래내역
+account.foreign_margin()                                  # 통화별 외화 증거금
+account.algo_orders()                                     # 미국 알고(twap/vwap) 주문 목록
+account.algo_executions(order_id, order_date="20240102")  # 한 알고주문의 체결내역
 ```
 
 ## 채권 계좌

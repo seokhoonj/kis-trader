@@ -6,7 +6,7 @@
 ## 설치
 
 ```bash
-pip install kis-trader   # 파이썬에서 import 할 때 (파이썬 3.11+)
+pip install kis-trader  # 파이썬에서 import 할 때 (파이썬 3.11+)
 ```
 
 명령줄 `kis` 도구나 **Claude Desktop MCP** 로 쓰려면 `uv tool install 'kis-trader[mcp]'` 가 편합니다
@@ -17,7 +17,7 @@ pip install kis-trader   # 파이썬에서 import 할 때 (파이썬 3.11+)
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(app_key="…", app_secret="…", account="12345678-01", environment="paper")   # 세션 열기
+kis = KISClient(app_key="…", app_secret="…", account="12345678-01", environment="paper")  # 세션 열기
 
 kis.domestic.stock("005930").quote()                 # 삼성전자 현재가
 kis.overseas.stock("AAPL").quote()                   # AAPL (거래소 자동)

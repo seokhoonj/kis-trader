@@ -19,10 +19,10 @@ stock.daily_program_trades()       # 프로그램매매 일별 추이
 ```python
 market = kis.domestic.market
 
-market.investor_flows(market="KOSPI")           # 시장 전체 개인/외국인/기관 순매수(일자별)
+market.investor_flows(market="KOSPI")                               # 시장 전체 개인/외국인/기관 순매수(일자별)
 market.investor_net_buy_stocks(investor="foreign", basis="amount")  # 외국인 순매수 상위 종목
-market.program_investor_trades(market="KOSPI")  # 투자자별 프로그램매매
-market.program_flow(market="KOSPI")             # 장중 프로그램매매 순매수 흐름
+market.program_investor_trades(market="KOSPI")                      # 투자자별 프로그램매매
+market.program_flow(market="KOSPI")                                 # 장중 프로그램매매 순매수 흐름
 ```
 
 터미널에선 `kis stock investors <코드>`(종목)·`kis market investors`·`kis market net-buy`(시장)로,
@@ -40,13 +40,13 @@ stock.loan_trend(start="20240101", end="20240630")        # 대차거래(대여)
 ## 회원사·체결분포
 
 ```python
-stock.broker_activity()     # 매도/매수 상위 회원사(증권사) 비중
-stock.broker_trade_ticks()  # 회원사 실시간 매매 체결 틱
+stock.broker_activity()                                                 # 매도/매수 상위 회원사(증권사) 비중
+stock.broker_trade_ticks()                                              # 회원사 실시간 매매 체결 틱
 stock.broker_daily_activity("99999", start="20240101", end="20240131")  # 한 회원사 일별
 
-stock.expected_price_trend()    # 동시호가 예상체결가 추이
-stock.intraday_trades()     # 당일 체결·최우선호가·체결강도
-stock.volume_profile()          # 가격대별 거래량 분포(매물대)
-stock.trade_amount_bands()      # 체결금액대별 매매비중
+stock.expected_price_trend()                                # 동시호가 예상체결가 추이
+stock.intraday_trades()                                     # 당일 체결·최우선호가·체결강도
+stock.volume_profile()                                      # 가격대별 거래량 분포(매물대)
+stock.trade_amount_bands()                                  # 체결금액대별 매매비중
 stock.daily_trade_volume(start="20240101", end="20240630")  # 일별 매수/매도 체결량
 ```

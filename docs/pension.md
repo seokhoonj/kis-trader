@@ -4,7 +4,7 @@
 `.pension` 렌즈로 접근합니다. 모두 **모의투자 미지원**(실전만).
 
 ```python
-pension = kis.account.pension              # IRP(29) 전용 조회 렌즈
+pension = kis.account.pension  # IRP(29) 전용 조회 렌즈
 
 pension.deposit()                                    # 예수금총액·정산예정
 pension.balance()                                    # 보유종목 + 예수금 요약

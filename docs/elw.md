@@ -7,11 +7,11 @@
 ```python
 elw = kis.domestic.elw("58J297")  # ELW 종목코드
 
-elw.quote()                       # 현재가
-elw.indicator_trend()             # 투자지표(레버리지·기어링·내재가치·패리티) 추이
-elw.sensitivity_trend()           # 민감도(그릭스) 추이
-elw.volatility_trend()            # 내재변동성 추이
-elw.lp_flows()                    # 일별 LP(유동성공급자) 매매 흐름
+elw.quote()              # 현재가
+elw.indicator_trend()    # 투자지표(레버리지·기어링·내재가치·패리티) 추이
+elw.sensitivity_trend()  # 민감도(그릭스) 추이
+elw.volatility_trend()   # 내재변동성 추이
+elw.lp_flows()           # 일별 LP(유동성공급자) 매매 흐름
 ```
 
 ## 스크리너
@@ -23,7 +23,7 @@ screener.underlyings()                               # ELW 가 상장된 기초�
 screener.by_underlying("005930")                     # 한 기초자산(삼성전자)에 상장된 ELW
 screener.comparables("005930")                       # 비교대상 ELW (코드/이름)
 base_date = input("조회 기준일 YYYYMMDD (API가 허용하는 영업일): ")
-screener.newly_listed(base_date=base_date)  # issuer 생략 시 패키지 기본 발행사(한국투자증권)
+screener.newly_listed(base_date=base_date)           # issuer 생략 시 패키지 기본 발행사(한국투자증권)
 screener.expiring(start="20240101", end="20240630")  # 만기예정 ELW
 ```
 
@@ -32,8 +32,8 @@ screener.expiring(start="20240101", end="20240630")  # 만기예정 ELW
 ```python
 ranking = kis.domestic.elw_ranking
 
-ranking.by_volume()                 # 거래량
-ranking.by_indicator()              # 투자지표(레버리지 등)
-ranking.by_sensitivity()            # 민감도(델타 등)
-ranking.by_quick_change()           # 당일 급변
+ranking.by_volume()        # 거래량
+ranking.by_indicator()     # 투자지표(레버리지 등)
+ranking.by_sensitivity()   # 민감도(델타 등)
+ranking.by_quick_change()  # 당일 급변
 ```

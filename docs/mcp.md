@@ -210,9 +210,9 @@ Claude Desktop 은 `kis-mcp` 를 **stdio** 로 직접 띄웁니다 -- 설정 파
 export KIS_APP_KEY=...
 export KIS_APP_SECRET=...
 export KIS_ACCOUNT=...
-export KIS_MCP_ENVIRONMENT=paper   # 실전은 real (명시할 때만)
+export KIS_MCP_ENVIRONMENT=paper  # 실전은 real (명시할 때만)
 
-kis-mcp   # 서버 시작. 오류 없이 뜨면 정상 -- 연결을 기다리며 멈춰 있고, Ctrl-C 로 끕니다.
+kis-mcp  # 서버 시작. 오류 없이 뜨면 정상 -- 연결을 기다리며 멈춰 있고, Ctrl-C 로 끕니다.
 ```
 
 ```powershell
@@ -220,9 +220,9 @@ kis-mcp   # 서버 시작. 오류 없이 뜨면 정상 -- 연결을 기다리며
 $env:KIS_APP_KEY="..."
 $env:KIS_APP_SECRET="..."
 $env:KIS_ACCOUNT="..."
-$env:KIS_MCP_ENVIRONMENT="paper"   # 실전은 real (명시할 때만)
+$env:KIS_MCP_ENVIRONMENT="paper"  # 실전은 real (명시할 때만)
 
-kis-mcp   # 서버 시작. 오류 없이 멈춰 있으면 정상 -- Ctrl-C 로 끕니다.
+kis-mcp  # 서버 시작. 오류 없이 멈춰 있으면 정상 -- Ctrl-C 로 끕니다.
 ```
 
 오류 없이 멈춰 있으면 정상입니다. 이건 "제대로 뜨는지"만 보는 점검용이라, 이 상태로 사람이 직접 대화할
@@ -254,9 +254,9 @@ Cursor도 **stdio**를 지원합니다. [공식 수동 설정 안내](https://pr
 | `streamable-http` | HTTP(스트리밍) | `http://127.0.0.1:8000/mcp` |
 
 ```bash
-export KIS_MCP_TRANSPORT=streamable-http   # 또는 sse
-export KIS_MCP_HOST=127.0.0.1               # bind host (기본 127.0.0.1, 로컬 전용)
-export KIS_MCP_PORT=8000                    # 기본 8000
+export KIS_MCP_TRANSPORT=streamable-http  # 또는 sse
+export KIS_MCP_HOST=127.0.0.1             # bind host (기본 127.0.0.1, 로컬 전용)
+export KIS_MCP_PORT=8000                  # 기본 8000
 kis-mcp
 ```
 

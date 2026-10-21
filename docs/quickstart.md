@@ -5,20 +5,20 @@
 **파이썬에서 `import`** 하려면:
 
 ```bash
-uv pip install kis-trader     # 또는: pip install kis-trader
+uv pip install kis-trader  # 또는: pip install kis-trader
 ```
 
 **명령줄 `kis` 도구**로 쓰려면:
 
 ```bash
-uv tool install kis-trader    # kis 명령 설치 (또는: pipx install kis-trader)
+uv tool install kis-trader  # kis 명령 설치 (또는: pipx install kis-trader)
 kis --version
 ```
 
 **MCP 서버(`kis-mcp`, Claude Desktop 연결)까지** 쓰려면 `[mcp]` 를 붙여 설치합니다(설정은 [MCP 서버](mcp.md)):
 
 ```bash
-uv tool install 'kis-trader[mcp]'   # kis + kis-mcp 둘 다 설치
+uv tool install 'kis-trader[mcp]'  # kis + kis-mcp 둘 다 설치
 ```
 
 ## 세션 만들기
@@ -61,11 +61,11 @@ quote.volume          # 거래량
 ```python
 report = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)  # 10주 지정가 매수 -- 바로 접수됨
 
-report.order_id          # 거래소 주문번호(ODNO) -- 접수 성공
-report.status            # 주문 상태 (NEW = 접수됨. 체결 여부는 별개)
-report.client_order_id   # 이 주문의 고유 키 -- 정정·취소할 때 지목
+report.order_id         # 거래소 주문번호(ODNO) -- 접수 성공
+report.status           # 주문 상태 (NEW = 접수됨. 체결 여부는 별개)
+report.client_order_id  # 이 주문의 고유 키 -- 정정·취소할 때 지목
 
-kis.orders.cancel(report.client_order_id)   # 정정·취소는 이 키로 지목
+kis.orders.cancel(report.client_order_id)  # 정정·취소는 이 키로 지목
 ```
 
 `reconcile` 은 저장된 리포트를 반환하거나, 지원 자산군에서 저장된 유효한 증권사 주문번호가 있는

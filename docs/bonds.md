@@ -5,9 +5,9 @@
 ```python
 bond = kis.domestic.bond("KR6095572D97")
 
-bond.profile()                                     # 기본/발행 정보 (발행일·만기·표면금리·만기수익률·통화)
-bond.issuance()                                    # 상세 발행조건·발행기관·신용등급·거래상태
-bond.daily_prices()                                # 날짜별 현재가·등락·OHLCV (과거→현재)
+bond.profile()       # 기본/발행 정보 (발행일·만기·표면금리·만기수익률·통화)
+bond.issuance()      # 상세 발행조건·발행기관·신용등급·거래상태
+bond.daily_prices()  # 날짜별 현재가·등락·OHLCV (과거→현재)
 
 bond.valuations(start="20240101", end="20240630")  # 평가기관별 단가·수익률 일별 시계열
 ```
@@ -37,9 +37,9 @@ for position in bonds.balance():
 지정 단가로 살 때의 매수가능 여력·미체결·체결:
 
 ```python
-bonds.buyable("KR6095572D97", limit_price=10500)   # 매수가능 금액·수량
-bonds.open_orders(order_date="20240628")      # 정정·취소 가능한 미체결 주문
-bonds.order_history(start="20240101", end="20240630") # 일별 주문·체결 (side/symbol/unfilled_only 필터)
+bonds.buyable("KR6095572D97", limit_price=10500)       # 매수가능 금액·수량
+bonds.open_orders(order_date="20240628")               # 정정·취소 가능한 미체결 주문
+bonds.order_history(start="20240101", end="20240630")  # 일별 주문·체결 (side/symbol/unfilled_only 필터)
 ```
 
 - `buyable()` → `BondBuyable`: `orderable_cash`(주문가능현금), `buyable_amount`·`buyable_quantity`(매수가능 금액·수량).

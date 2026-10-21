@@ -33,10 +33,10 @@ stock.buy(quantity=10, limit_price=150, algo="twap")  # 미국 서버 알고 분
 취소는 `kis.orders.cancel(...)` 로 합니다(미국 예약은 예약번호로 취소).
 
 ```python
-hk_stock = kis.overseas.stock("00700")                              # 홍콩 (자동 판별)
-report = hk_stock.reserve_buy(quantity=100, limit_price=350)        # 홍콩 예약
-hk_stock.reserve_buy(quantity=100, limit_price=350, currency="CNY") # 홍콩 CNY 결제 (기본 HKD)
-kis.orders.cancel(report.client_order_id)                           # 아시아 예약 취소
+hk_stock = kis.overseas.stock("00700")                               # 홍콩 (자동 판별)
+report = hk_stock.reserve_buy(quantity=100, limit_price=350)         # 홍콩 예약
+hk_stock.reserve_buy(quantity=100, limit_price=350, currency="CNY")  # 홍콩 CNY 결제 (기본 HKD)
+kis.orders.cancel(report.client_order_id)                            # 아시아 예약 취소
 ```
 
 ::: {.callout-note}
@@ -87,8 +87,8 @@ account.buyable(symbol="AAPL", exchange="NAS", limit_price=150)  # 매수가능 
 account.trade_profits(start="20240101", end="20240630")          # 기간 실현손익 (매도청산 종목별)
 account.transactions(start="20240101", end="20240630")           # 거래내역
 account.foreign_margin()                                         # 통화별 외화 증거금
-account.algo_orders()                                                # 미국 알고(twap/vwap) 주문 목록
-account.algo_executions(order_id, order_date="20240102")             # 한 알고주문의 체결내역
+account.algo_orders()                                            # 미국 알고(twap/vwap) 주문 목록
+account.algo_executions(order_id, order_date="20240102")         # 한 알고주문의 체결내역
 ```
 
 이 중 `settlement_balance`·`trade_profits`·`transactions`·`foreign_margin`·`algo_orders`·`algo_executions` 는 **실전 전용**(모의투자 미지원)이라 `paper` 세션에서 부르면 `KISUsageError` 입니다. `positions`·`balance`·`present_balance`·`buyable` 은 모의도 지원합니다.
@@ -110,33 +110,33 @@ account.algo_executions(order_id, order_date="20240102")             # 한 알�
 
 ```python
 ranking = kis.overseas.ranking
-ranking.by_change(exchange="NAS")  # 모든 순위가 거래소(exchange)를 받습니다
+ranking.by_change(exchange="NAS")              # 모든 순위가 거래소(exchange)를 받습니다
 ranking.by_volume(exchange="NAS")
 ranking.by_trading_amount(exchange="NAS")
 ranking.by_market_cap(exchange="NAS")
-ranking.by_turnover(exchange="NAS")           # 거래회전율
-ranking.by_execution_strength(exchange="NAS")       # 매수 체결강도
+ranking.by_turnover(exchange="NAS")            # 거래회전율
+ranking.by_execution_strength(exchange="NAS")  # 매수 체결강도
 ranking.by_volume_growth(exchange="NAS")       # 거래증가율
-ranking.by_volume_surge(exchange="NAS")       # 거래량 급증
+ranking.by_volume_surge(exchange="NAS")        # 거래량 급증
 ranking.by_new_high_low(exchange="NAS")        # 신고가/신저가
-ranking.by_sharp_change(exchange="NAS")  # 급등/급락
+ranking.by_sharp_change(exchange="NAS")        # 급등/급락
 
 kis.overseas.screen_stocks("NAS", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건
-kis.overseas.screen_stocks("US", price=(10, 500))   # NAS/NYS/AMS 를 각각 조회해 합침
-kis.overseas.news(country="US")  # 미국 뉴스 헤드라인 (전체 피드는 kis.overseas.news())
-kis.overseas.industries("NAS")  # 업종
+kis.overseas.screen_stocks("US", price=(10, 500))                           # NAS/NYS/AMS 를 각각 조회해 합침
+kis.overseas.news(country="US")                                             # 미국 뉴스 헤드라인 (전체 피드는 kis.overseas.news())
+kis.overseas.industries("NAS")                                              # 업종
 ```
 
 ## 종목정보·기업행위·심화
 
 ```python
-kis.overseas.product_info("AAPL", exchange="NAS")               # 상품기본정보(통화·상장주식수·SEDOL…)
-kis.overseas.industry_stocks("NAS", industry_code="010")             # 업종별 종목 시세
-kis.overseas.breaking_news()                           # 해외속보
-kis.overseas.corporate_actions("AAPL", country="US")           # 권리·기업행사 일정
-kis.overseas.rights(start="20240101", end="20240630")  # 배당·증자·합병 권리
-kis.overseas.collateral_stocks("AAPL", country="US")           # 담보대출 가능종목
-kis.overseas.settlement_dates()                        # 시장별 결제일자
+kis.overseas.product_info("AAPL", exchange="NAS")         # 상품기본정보(통화·상장주식수·SEDOL…)
+kis.overseas.industry_stocks("NAS", industry_code="010")  # 업종별 종목 시세
+kis.overseas.breaking_news()                              # 해외속보
+kis.overseas.corporate_actions("AAPL", country="US")      # 권리·기업행사 일정
+kis.overseas.rights(start="20240101", end="20240630")     # 배당·증자·합병 권리
+kis.overseas.collateral_stocks("AAPL", country="US")      # 담보대출 가능종목
+kis.overseas.settlement_dates()                           # 시장별 결제일자
 ```
 
 미국 종목 오버나이트 매도: `kis.overseas.stock("AAPL").overnight_sell(quantity=1, limit_price=150)`.
@@ -147,12 +147,12 @@ kis.overseas.settlement_dates()                        # 시장별 결제일자
 전송 결과가 불명이면 재전송하지 말고 아래 계좌 조회와 HTS/MTS에서 확인하세요.
 
 ```python
-account = kis.account                      # 상품코드 08 세션
+account = kis.account  # 상품코드 08 세션
 
 deposit = account.deposit(currency="USD")  # 예수금현황
 print(deposit.cash_balance, deposit.orderable_amount, deposit.unrealized_pnl)
 
-for position in account.positions():       # 미결제(보유) 현황 (product="all" 전체)
+for position in account.positions():  # 미결제(보유) 현황 (product="all" 전체)
     print(f"{position.symbol:10s} {position.side} {position.quantity}  평가손익 {position.unrealized_pnl}")
 ```
 
@@ -182,8 +182,8 @@ for position in account.positions():       # 미결제(보유) 현황 (product="
 
 ```python
 account.orderable("ESU24", "buy", price=5300)  # 계약 주문가능수량 (price 없으면 시장가 기준)
-account.margin_detail(currency="USD")           # 증거금상세 (주문가능·위탁/유지 증거금)
-account.today_orders()                          # 당일 주문 (체결/미체결)
+account.margin_detail(currency="USD")          # 증거금상세 (주문가능·위탁/유지 증거금)
+account.today_orders()                         # 당일 주문 (체결/미체결)
 ```
 
 - `orderable()` → `OverseasDerivativeOrderable`: `new_orderable_quantity`(신규주문가능), `total_orderable_quantity`(총주문가능), `market_orderable_quantity`(시장가총주문가능), `liquidatable_quantity`(청산가능).
@@ -193,9 +193,9 @@ account.today_orders()                          # 당일 주문 (체결/미체�
 기간 조회(체결·주문·손익·입출금):
 
 ```python
-account.daily_fills(start="20240101", end="20240630")   # 일별 체결내역 + 기간 합계
-account.daily_orders(start="20240101", end="20240630")  # 일별 주문내역
-account.period_pnl(start="20240101", end="20240630")    # 기간 손익 (통화별 + 종목별)
+account.daily_fills(start="20240101", end="20240630")        # 일별 체결내역 + 기간 합계
+account.daily_orders(start="20240101", end="20240630")       # 일별 주문내역
+account.period_pnl(start="20240101", end="20240630")         # 기간 손익 (통화별 + 종목별)
 account.cash_transactions(start="20240101", end="20240630")  # 기간 입출금(원장)
 ```
 

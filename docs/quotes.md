@@ -54,10 +54,10 @@ for bar in bars[-5:]:  # 최근 5봉
 ```python
 order_book = stock.order_book()
 if order_book.bids:
-    best_bid = order_book.bids[0]                    # 최우선 매수호가
+    best_bid = order_book.bids[0]  # 최우선 매수호가
     print("매수", best_bid.price, best_bid.quantity)
 if order_book.asks:
-    best_ask = order_book.asks[0]                    # 최우선 매도호가
+    best_ask = order_book.asks[0]  # 최우선 매도호가
     print("매도", best_ask.price, best_ask.quantity)
 print(order_book.total_bid_quantity, order_book.total_ask_quantity)  # 총 매수/매도 잔량
 ```
@@ -90,10 +90,10 @@ kis.domestic.quotes([("KRX", "005930"), ("NXT", "000660")])
 ## 시간외
 
 ```python
-stock.after_hours_quote()         # 시간외 현재가
-stock.after_hours_daily()         # 시간외 단일가 일자별 종가
-stock.after_hours_trades()   # 시간외 시간별 체결
-stock.after_hours_order_book()    # 시간외 호가창
+stock.after_hours_quote()       # 시간외 현재가
+stock.after_hours_daily()       # 시간외 단일가 일자별 종가
+stock.after_hours_trades()      # 시간외 시간별 체결
+stock.after_hours_order_book()  # 시간외 호가창
 ```
 
 ## 상태·과거 분봉

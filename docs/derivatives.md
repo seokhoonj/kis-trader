@@ -7,12 +7,12 @@
 ```python
 futures = kis.domestic.futures("101W09")  # 지수선물 계약 핸들
 
-futures.quote()                           # 현재가
-futures.underlying_quote()                # 선물 + 기초지수 나란히 (베이시스 판단)
-futures.expected_execution_trend()        # 예상체결 요약·추이
-futures.order_book()                      # 호가
+futures.quote()                     # 현재가
+futures.underlying_quote()          # 선물 + 기초지수 나란히 (베이시스 판단)
+futures.expected_execution_trend()  # 예상체결 요약·추이
+futures.order_book()                # 호가
 
-option = kis.domestic.option("201W09350") # 지수옵션 계약 핸들
+option = kis.domestic.option("201W09350")  # 지수옵션 계약 핸들
 option.quote()
 ```
 
@@ -27,10 +27,10 @@ kis.domestic.option_board_futures()  # 전광판 하단 선물 계약별 시세 
 ## 해외
 
 ```python
-futures = kis.overseas.futures("ESZ25")                          # 해외 선물 (E-mini S&P 2025.12 = 시리즈코드)
+futures = kis.overseas.futures("ESZ25")  # 해외 선물 (E-mini S&P 2025.12 = 시리즈코드)
 
-futures.quote()                                                  # 현재가
-futures.detail()                                                 # 계약 명세
+futures.quote()   # 현재가
+futures.detail()  # 계약 명세
 
 kis.overseas.futures_details(["ESZ25", "NQZ25"])            # 여러 계약 명세 (최대 32)
 kis.overseas.futures_open_interest("ES", as_of="20240628")  # CFTC 미결제약정
@@ -42,7 +42,7 @@ kis.overseas.derivatives_market_hours()                     # 상품군별 장�
 국내파생(03) 세션에서 `kis.account` 는 파생 계좌 뷰를 돌려줍니다. 금액은 원화, 수량은 계약수입니다.
 
 ```python
-account = kis.account        # 03 세션
+account = kis.account  # 03 세션
 
 balance = account.balance()  # 잔고 (보유내역 + 예수금·증거금·손익 요약, 모의 지원)
 print(balance.total_deposit, balance.orderable_cash, balance.total_unrealized_pnl)
@@ -84,13 +84,13 @@ for order in account.open_orders():  # 미체결(정정·취소 가능) 주문 -
 나머지 조회는 **실전투자 전용**입니다.
 
 ```python
-account.deposit()                      # 총자산현황 (DomesticDerivativeDeposit)
-account.valuation_pnl()                 # 잔고평가손익 (종목별 평가/매매 손익)
-account.settlement_pnl(base_date="20240628")   # 잔고정산손익
-account.base_date_fills(order_date="20240628")  # 기준일 체결내역 (start_time/end_time 로 시각 구간)
+account.deposit()                                      # 총자산현황 (DomesticDerivativeDeposit)
+account.valuation_pnl()                                # 잔고평가손익 (종목별 평가/매매 손익)
+account.settlement_pnl(base_date="20240628")           # 잔고정산손익
+account.base_date_fills(order_date="20240628")         # 기준일 체결내역 (start_time/end_time 로 시각 구간)
 account.commissions(start="20240101", end="20240630")  # 기간약정수수료 일별
-account.night_margin(margin_division="consignment")  # 야간 증거금상세 (consignment/maintenance)
-account.night_balance()                # 야간 잔고현황 -- 계좌비밀번호 필요(account_password, 아래 참조)
+account.night_margin(margin_division="consignment")    # 야간 증거금상세 (consignment/maintenance)
+account.night_balance()                                # 야간 잔고현황 -- 계좌비밀번호 필요(account_password, 아래 참조)
 ```
 
 `night_balance()` 는 계좌비밀번호가 있어야 조회됩니다(와이어 `ACNT_PWD` 로만 쓰이고 로그·`_raw`
@@ -102,8 +102,8 @@ account.night_balance()                # 야간 잔고현황 -- 계좌비밀번�
 ```python
 futures = kis.domestic.futures("101W09")
 
-futures.orderable("buy", limit_price=340.0)   # 주간 (모의 지원)
-futures.night_orderable("buy")                # 야간 주문가능 조회(STTN5105R, 실전투자 전용)
+futures.orderable("buy", limit_price=340.0)  # 주간 (모의 지원)
+futures.night_orderable("buy")               # 야간 주문가능 조회(STTN5105R, 실전투자 전용)
 ```
 
 `orderable()` 의 `DomesticDerivativeOrderable`: `orderable_quantity`(주문가능수량), `total_quantity`(총가능수량), `liquidatable_quantity`(청산가능수량), `base_index`(기준지수).
@@ -111,7 +111,7 @@ futures.night_orderable("buy")                # 야간 주문가능 조회(STTN5
 증거금율 표는 계약이 아니라 시장 값이라 네임스페이스에 있습니다(**실전투자 전용**).
 
 ```python
-kis.domestic.derivative_margin_rates("20240628")                  # 전체 기초자산
+kis.domestic.derivative_margin_rates("20240628")                       # 전체 기초자산
 kis.domestic.derivative_margin_rates("20240628", underlying_id="101")  # 한 기초자산
 ```
 

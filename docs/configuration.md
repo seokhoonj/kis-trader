@@ -20,7 +20,7 @@ from kis_trader import KISConfig
 KISConfig(profile="general", app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET",
           account="12345678-01", environment="real").save()
 
-KISClient(profile="general", environment="real")   # 저장된 자격증명을 자동으로 읽어 세션을 엽니다
+KISClient(profile="general", environment="real")  # 저장된 자격증명을 자동으로 읽어 세션을 엽니다
 ```
 
 이 장은 그 **프로필**과 **환경**을 다룹니다 -- 각각이 무엇인지, 자격증명을 어떻게 넣는지 차례로 봅니다.
@@ -31,11 +31,11 @@ KISClient(profile="general", environment="real")   # 저장된 자격증명을 �
 
 ```
 ~/
-├── .config/kis-trader/credentials.json    # [설정] 내가 저장한 앱키·시크릿·계좌 (프로필별)
+├── .config/kis-trader/credentials.json  # [설정] 내가 저장한 앱키·시크릿·계좌 (프로필별)
 ├── .cache/kis-trader/
-│   ├── tokens/     # [캐시] 접속 토큰 -- 자동 발급·재사용 (real/paper 별로 생김)
-│   └── masters/    # [캐시] 종목마스터(이름↔코드) -- 처음 쓸 때 자동 다운로드
-└── .local/state/kis-trader/orders/         # [상태] CLI 주문 요청 ID별 기록 -- 세션 구성 시 생길 수 있음, 지우지 마세요
+│   ├── tokens/                          # [캐시] 접속 토큰 -- 자동 발급·재사용 (real/paper 별로 생김)
+│   └── masters/                         # [캐시] 종목마스터(이름↔코드) -- 처음 쓸 때 자동 다운로드
+└── .local/state/kis-trader/orders/      # [상태] CLI 주문 요청 ID별 기록 -- 세션 구성 시 생길 수 있음, 지우지 마세요
 ```
 
 - `.config` 는 **내가 넣은 값**입니다. `tokens/` 와 `masters/` 는 다시 만들 수 있는 캐시지만,
@@ -99,8 +99,8 @@ SDK 프로그램까지 포함해 모든 사용자와 자동 재시작을 반드�
 모의냐**를 고릅니다. 둘은 서로 다른 축이라, 같은 프로필을 환경만 바꿔 실전·모의로 각각 엽니다:
 
 ```python
-KISClient(profile="general", environment="real")    # 종합위탁 실계좌
-KISClient(profile="general", environment="paper")   # 같은 종합위탁, 모의
+KISClient(profile="general", environment="real")   # 종합위탁 실계좌
+KISClient(profile="general", environment="paper")  # 같은 종합위탁, 모의
 ```
 
 프로필은 저장할 **자격증명 묶음의 이름**입니다. 각 `(프로필, 환경)` 슬롯에 앱키·앱시크릿·계좌번호를
@@ -138,7 +138,7 @@ KISClient(profile="general", environment="paper")   # 같은 종합위탁, 모�
 ```python
 from kis_trader import KISConfig
 
-KISConfig.set_default_environment("real")   # credentials.json 최상위에 "default_environment": "real" 기록
+KISConfig.set_default_environment("real")  # credentials.json 최상위에 "default_environment": "real" 기록
 ```
 
 ::: {.callout-note}
@@ -163,13 +163,13 @@ KISConfig.set_default_environment("real")   # credentials.json 최상위에 "def
 ```python
 from kis_trader import KISConfig
 
-KISConfig.set_default_profile("general")   # credentials.json 최상위에 "default_profile": "general" 기록
+KISConfig.set_default_profile("general")  # credentials.json 최상위에 "default_profile": "general" 기록
 ```
 
 **환경변수** (그 셸 세션에서만, 파일보다 우선) -- `KIS_DEFAULT_PROFILE` 은 OS 환경변수라 셸에서 정합니다:
 
 ```bash
-export KIS_DEFAULT_PROFILE=general       # Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)
+export KIS_DEFAULT_PROFILE=general  # Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)
 # $env:KIS_DEFAULT_PROFILE="general"     # Windows PowerShell
 ```
 
@@ -240,7 +240,7 @@ KISConfig(profile="pension", app_key="...", app_secret="...", account="87654321-
 from kis_trader.config import list_profiles
 
 list_profiles()                    # 두 환경 합집합
-list_profiles(environment="real") # 실전 환경에 저장된 프로필만
+list_profiles(environment="real")  # 실전 환경에 저장된 프로필만
 ```
 
 ::: {.callout-note}
@@ -268,9 +268,9 @@ list_profiles(environment="real") # 실전 환경에 저장된 프로필만
 ```bash
 export KIS_GENERAL_REAL_APP_KEY=YOUR_APP_KEY
 export KIS_GENERAL_REAL_APP_SECRET=YOUR_APP_SECRET
-export KIS_GENERAL_REAL_ACCOUNT=12345678-01   # 종합계좌번호-상품코드 (시세만 볼 거면 생략 가능)
-export KIS_DEFAULT_PROFILE=general            # 환경변수만으로 열 때는 기본 프로필을 지정
-export KIS_DEFAULT_ENVIRONMENT=real           # (생략 시 모의)
+export KIS_GENERAL_REAL_ACCOUNT=12345678-01  # 종합계좌번호-상품코드 (시세만 볼 거면 생략 가능)
+export KIS_DEFAULT_PROFILE=general           # 환경변수만으로 열 때는 기본 프로필을 지정
+export KIS_DEFAULT_ENVIRONMENT=real          # (생략 시 모의)
 ```
 
 필드별 키의 모양과 공유·기본값 키:
@@ -384,7 +384,7 @@ CLI 에서는 `--profile` 로 계좌 종류를, `--environment` 로 실전/모�
   kis config setup --profile isa
   # [real]  실전 설정? → y, 앱키·시크릿·계좌번호 입력
   # [paper] ... APP KEY (없으면 Enter): → Enter (건너뜀)
-  kis config default environment real    # 단일 실전 계좌를 인자 없이 열리게 (아래 6번)
+  kis config default environment real  # 단일 실전 계좌를 인자 없이 열리게 (아래 6번)
   ```
 - **(B) 파일** -- `real` 블록만 둡니다(`paper` 블록 자체를 넣지 않음):
   ```json
@@ -443,7 +443,7 @@ CLI 주문 전송에는 별도로 `--execute real` 과 확인 절차가 필요�
   kis config setup --profile general
   kis config setup --profile isa
   kis config setup --profile pension
-  kis config default profile general    # 이름 없이 열 때 여는 기본 계좌
+  kis config default profile general  # 이름 없이 열 때 여는 기본 계좌
   ```
 - **(B) 파일** -- 한 블록 안에 프로필을 나열:
   ```json
@@ -468,9 +468,9 @@ CLI 주문 전송에는 별도로 `--execute real` 과 확인 절차가 필요�
 
 - **(A) CLI**:
   ```bash
-  kis config default profile general     # (여러 개일 때) 어느 걸 열지
-  kis config default environment real    # 실전을 인자 없이 열려면 한 번
-  kis config default                     # 파일에 저장된 기본값 확인
+  kis config default profile general   # (여러 개일 때) 어느 걸 열지
+  kis config default environment real  # 실전을 인자 없이 열려면 한 번
+  kis config default                   # 파일에 저장된 기본값 확인
   ```
 - **(B) 파일** -- 최상위에 마커 두 줄:
   ```json
@@ -487,8 +487,8 @@ CLI 주문 전송에는 별도로 `--execute real` 과 확인 절차가 필요�
 덮어쓰지 않고 멈춤):
 
 ```bash
-kis config migrate         # 대화형: 병합을 확인
-kis config show            # 변환 결과 확인(비밀값 마스킹)
+kis config migrate  # 대화형: 병합을 확인
+kis config show     # 변환 결과 확인(비밀값 마스킹)
 ```
 
 ## 계좌번호와 상품코드
@@ -557,7 +557,7 @@ IRP(`29`)는 세션이 주문을 자동으로 막고, DC가입자(`55`)는 세�
 
 ```
 # macOS
-~/Library/Application Support/Claude/claude_desktop_config.json   # Claude Desktop 이 읽는 MCP 설정
+~/Library/Application Support/Claude/claude_desktop_config.json  # Claude Desktop 이 읽는 MCP 설정
 
 # Windows
 %APPDATA%\Claude\claude_desktop_config.json

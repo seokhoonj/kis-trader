@@ -8,8 +8,8 @@
 ```python
 stock = kis.domestic.stock("005930")
 
-report = stock.buy(quantity=10, limit_price=70000)            # 1) 지정가 매수
-print(report.client_order_id, report.status)                  #    -> 주문 키, 상태
+report = stock.buy(quantity=10, limit_price=70000)  # 1) 지정가 매수
+print(report.client_order_id, report.status)        #    -> 주문 키, 상태
 
 kis.orders.modify(report.client_order_id, limit_price=70500)  # 2) 가격 정정
 kis.orders.cancel(report.client_order_id)                     # 3) 취소
@@ -80,18 +80,18 @@ stock.buy(quantity=10, division="post_market_close")                     # 장�
 
 # 애프터마켓 (KRX 16:00~20:00, exchange="KRX")
 am = kis.domestic.stock("005930", exchange="KRX")
-am.buy(quantity=10, limit_price=70000, division="after_market_limit")    # 애프터마켓 지정가 (limit_price 필요)
-am.buy(quantity=10, division="after_market_immediate_limit")             # 애프터마켓 최유리지정가
-am.buy(quantity=10, division="after_market_priority_limit")              # 애프터마켓 최우선지정가 (day 전용)
+am.buy(quantity=10, limit_price=70000, division="after_market_limit")  # 애프터마켓 지정가 (limit_price 필요)
+am.buy(quantity=10, division="after_market_immediate_limit")           # 애프터마켓 최유리지정가
+am.buy(quantity=10, division="after_market_priority_limit")            # 애프터마켓 최우선지정가 (day 전용)
 
 # NXT 프리마켓 GTP (Good Till Pre-Market, exchange="NXT")
 gtp = kis.domestic.stock("005930", exchange="NXT")
-gtp.buy(quantity=10, limit_price=70000, division="gtp_limit")            # GTP 지정가 (limit_price 필요, day 전용)
-gtp.buy(quantity=10, division="gtp_immediate_limit")                     # GTP 최유리지정가 (day 전용)
+gtp.buy(quantity=10, limit_price=70000, division="gtp_limit")  # GTP 지정가 (limit_price 필요, day 전용)
+gtp.buy(quantity=10, division="gtp_immediate_limit")           # GTP 최유리지정가 (day 전용)
 
-stock.buy(quantity=10, limit_price=70000, stop_price=69000)              # 스톱지정가 (트리거 도달 시 limit_price 로 접수, KRX 전용)
-stock.buy(quantity=10, limit_price=70000, time_in_force="ioc")           # IOC (즉시체결·잔량취소)
-stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (전량아니면 취소)
+stock.buy(quantity=10, limit_price=70000, stop_price=69000)     # 스톱지정가 (트리거 도달 시 limit_price 로 접수, KRX 전용)
+stock.buy(quantity=10, limit_price=70000, time_in_force="ioc")  # IOC (즉시체결·잔량취소)
+stock.buy(quantity=10, limit_price=70000, time_in_force="fok")  # FOK (전량아니면 취소)
 ```
 
 ### 주문 구분·조건 한눈에
@@ -183,10 +183,10 @@ kis.orders.reconcile(report.client_order_id)
 ## 예약·주간거래
 
 ```python
-stock.reserve_buy(quantity=10, limit_price=70000)                      # 국내 예약(다음 영업일)
-kis.overseas.stock("AAPL").overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트(한국 낮)
-kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)    # 미국 예약
-kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350) # 홍콩 예약(거래소 자동판별)
+stock.reserve_buy(quantity=10, limit_price=70000)                       # 국내 예약(다음 영업일)
+kis.overseas.stock("AAPL").overnight_buy(quantity=1, limit_price=150)   # 미국 오버나이트(한국 낮)
+kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)     # 미국 예약
+kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350)  # 홍콩 예약(거래소 자동판별)
 ```
 
 해외 예약은 **거래소로 자동 라우팅**됩니다 — `stock(symbol)` 이 종목 마스터로 거래소를 찾아
@@ -211,7 +211,7 @@ account = kis.account.overseas
 account.reserved_orders(start="20240101", end="20240107")  # 미국+아시아 예약 목록(실전 전용)
 
 report = kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350)
-kis.orders.cancel(report.client_order_id)                 # 아시아 취소 = client_order_id 로
+kis.orders.cancel(report.client_order_id)  # 아시아 취소 = client_order_id 로
 
 report = kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)
 account.cancel_reserved_order(report.order_id, receipt_date="20240102")  # 미국 취소 = 예약번호+접수일자
@@ -227,12 +227,12 @@ account.cancel_reserved_order(report.order_id, receipt_date="20240102")  # 미�
 
 ```python
 aapl = kis.overseas.stock("AAPL")
-aapl.buy(quantity=10, limit_price=150, algo="twap")   # 시간창 생략 = 정규장 전체(종료까지) 집행
-aapl.buy(quantity=10, limit_price=150, algo="vwap")   # vwap 도 동일
+aapl.buy(quantity=10, limit_price=150, algo="twap")  # 시간창 생략 = 정규장 전체(종료까지) 집행
+aapl.buy(quantity=10, limit_price=150, algo="vwap")  # vwap 도 동일
 # 명시 시간창을 줄 때는 KST HHMMSS, 같은 날 안(시작 < 종료). 미국 정규장은 KST 로 자정을 넘으므로
 # (EDT 22:30~05:00 / EST 23:30~06:00) 한 창이 세션 전체를 덮을 수 없습니다 -- 한쪽 구간만 지정합니다.
 aapl.buy(quantity=10, limit_price=150, algo="twap",
-         algo_window=("223000", "235959"))   # 자정 이전 구간(EDT 저녁). 이후 구간은 ("000000","050000")
+         algo_window=("223000", "235959"))  # 자정 이전 구간(EDT 저녁). 이후 구간은 ("000000","050000")
 ```
 
 **시간창은 생략이 전체 세션 집행입니다.** 명시하려면 `algo_window=(시작, 종료)` 를 **KST HHMMSS** 로,
@@ -295,9 +295,9 @@ CLI 는 기본이 **dry-run**(스케줄만 표시, 발주 없음)이고 `--execu
 같은 날의 미래 13시를 뜻하며, 이미 13시가 지났으면 거부됩니다:
 
 ```bash
-kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3   # dry-run: 스케줄 미리보기
+kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3  # dry-run: 스케줄 미리보기
 kis --environment paper order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \
-  --start 130000 --execute paper --yes                                  # 13:00 시작, 실제 실행
+  --start 130000 --execute paper --yes  # 13:00 시작, 실제 실행
 ```
 
 ## 선물·옵션 주문
@@ -307,27 +307,27 @@ kis --environment paper order twap 005930 --side buy --quantity 100 --over 30m -
 계약코드는 전광판(`kis.domestic.option_board_futures()`)이나 만기(`kis.domestic.option_expiries()`)로 얻습니다.
 
 ```python
-futures = kis.domestic.futures("101W09")            # 지수선물 계약
-futures.buy(quantity=1, limit_price=350.0)          # 지정가 매수
-futures.sell(quantity=1)                            # 시장가 매도 (limit_price 생략)
+futures = kis.domestic.futures("101W09")    # 지수선물 계약
+futures.buy(quantity=1, limit_price=350.0)  # 지정가 매수
+futures.sell(quantity=1)                    # 시장가 매도 (limit_price 생략)
 
-option = kis.domestic.option("201W09350", right="call")   # 콜옵션 (발주엔 right 필수)
+option = kis.domestic.option("201W09350", right="call")  # 콜옵션 (발주엔 right 필수)
 option.buy(quantity=1, limit_price=2.5)
 ```
 
 주문 구분(`division`)·유효기간(`time_in_force`)·야간장(`night`):
 
 ```python
-futures.buy(quantity=1, division="immediate_limit")                     # 최유리지정가(가격 없음; 파생엔 최우선 없음)
-futures.buy(quantity=1, limit_price=350.0, time_in_force="ioc")         # day/ioc/fok
-futures.buy(quantity=1, limit_price=350.0, night=True)                  # KRX 파생 야간장(STTN, 실전 전용)
+futures.buy(quantity=1, division="immediate_limit")              # 최유리지정가(가격 없음; 파생엔 최우선 없음)
+futures.buy(quantity=1, limit_price=350.0, time_in_force="ioc")  # day/ioc/fok
+futures.buy(quantity=1, limit_price=350.0, night=True)           # KRX 파생 야간장(STTN, 실전 전용)
 ```
 
 정정·취소·재조회는 현물과 같은 `kis.orders.*` 로 `client_order_id` 를 지목합니다:
 
 ```python
 report = futures.buy(quantity=1, limit_price=350.0)
-kis.orders.modify(report.client_order_id, limit_price=351.0)   # 가격 정정
+kis.orders.modify(report.client_order_id, limit_price=351.0)  # 가격 정정
 kis.orders.cancel(report.client_order_id)                     # 취소
 ```
 
@@ -420,7 +420,7 @@ from kis_trader import KISClient
 kis = KISClient(profile="general", environment="real", risk=RiskLimits(
     max_order_quantity=1000,                 # 한 주문 최대 수량
     max_order_notional=Decimal("50000000"),  # 한 주문 최대 금액(원) -- 국내(KRW) 주문에 적용
-    max_order_notional_by_currency={          # 해외주식: 거래소 그룹 검사통화별 최대 금액
+    max_order_notional_by_currency={         # 해외주식: 거래소 그룹 검사통화별 최대 금액
         "USD": Decimal("10000"),
         "JPY": Decimal("1500000"),
     },

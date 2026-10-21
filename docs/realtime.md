@@ -7,15 +7,15 @@
 ## 기본 사용 (동기)
 
 ```python
-realtime = kis.realtime()                           # /oauth2/Approval 로 접속키 발급
+realtime = kis.realtime()  # /oauth2/Approval 로 접속키 발급
 
 realtime.subscribe(tr_id="H0STCNT0", tr_key="005930", on=print)  # 삼성전자 실시간 체결(콜백)
-realtime.start()                                    # 백그라운드 스레드에서 수신 시작
+realtime.start()                                                 # 백그라운드 스레드에서 수신 시작
 
-for tick in realtime.stream():                      # 또는 이터레이터로
+for tick in realtime.stream():  # 또는 이터레이터로
     print(tick.tr_id, tick.data.current_price, tick.data.trade_volume)
 
-realtime.stop()                                     # 종료 (with 문도 가능)
+realtime.stop()  # 종료 (with 문도 가능)
 ```
 
 `subscribe`는 `start` 전에 불러도 되고(연결 후 자동 전송), 후에 불러도 됩니다. 수신 메시지는
@@ -50,8 +50,8 @@ DerivativeOrderBook, StockExecutionNotice, DerivativeExecutionNotice`로 가져�
 realtime = kis.realtime()
 realtime.start()
 
-sub = realtime.domestic.stock("005930").trades()   # RealtimeSubscription[StockTick]
-for tick in sub:                                    # 이 계약만 흘러옵니다
+sub = realtime.domestic.stock("005930").trades()  # RealtimeSubscription[StockTick]
+for tick in sub:                                  # 이 계약만 흘러옵니다
     print(tick.symbol, tick.current_price, tick.trade_volume)
 ```
 
@@ -145,7 +145,7 @@ from kis_trader.realtime import RealtimeConnection, fetch_approval_key, websocke
 approval = fetch_approval_key(app_key, app_secret, "real")
 async with RealtimeConnection(approval, websocket_url("real")) as conn:
     await conn.subscribe("H0STCNT0", "005930")
-    async for msg in conn:            # 브라우저로 relay 등
+    async for msg in conn:  # 브라우저로 relay 등
         ...
 ```
 

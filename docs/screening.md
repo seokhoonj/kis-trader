@@ -29,11 +29,11 @@ else:
 ```python
 ranking = kis.domestic.ranking
 
-ranking.by_change(direction="gainers")  # 상승률 상위
-ranking.by_change(direction="losers")   # 하락률 상위
-ranking.by_volume()           # 거래대금 상위(기본)
+ranking.by_change(direction="gainers")      # 상승률 상위
+ranking.by_change(direction="losers")       # 하락률 상위
+ranking.by_volume()                         # 거래대금 상위(기본)
 ranking.by_volume(metric="average_volume")  # 평균거래량 상위
-ranking.by_market_cap()                 # 시가총액 상위
+ranking.by_market_cap()                     # 시가총액 상위
 ```
 
 `by_change()` 의 각 행은 `DomesticRankedStock`, `by_volume()` 은 `VolumeRanking`,
@@ -58,7 +58,7 @@ ranking.by_credit_balance()                            # 신용잔고 상위
 ranking.by_near_high_low()                             # 신고가/신저가 근접
 ranking.by_dividend(start="20240101", end="20240630")  # 배당률 상위
 ranking.by_disparity()                                 # 이격도
-ranking.by_execution_strength()                              # 체결강도
+ranking.by_execution_strength()                        # 체결강도
 ranking.by_views()                                     # HTS 조회 상위
 ```
 
@@ -80,8 +80,8 @@ kis.domestic.saved_screens(user_id="your_hts_id")  # 또는 직접 지정
 ## 관심종목
 
 ```python
-kis.domestic.watchlist_groups()             # 관심종목 그룹 (user_id 는 최상위 공유 hts_id)
-kis.domestic.watchlist(group_code="…")      # 그룹 안 종목
+kis.domestic.watchlist_groups()         # 관심종목 그룹 (user_id 는 최상위 공유 hts_id)
+kis.domestic.watchlist(group_code="…")  # 그룹 안 종목
 ```
 
 ## 재무·가치 순위
@@ -90,25 +90,25 @@ kis.domestic.watchlist(group_code="…")      # 그룹 안 종목
 
 ```python
 ranking.by_financial_ratio(year=2024)  # 재무비율
-ranking.by_valuation(year=2024)      # 밸류에이션(PER/PBR 등)
-ranking.by_profit_asset(year=2024)   # 수익성·자산
+ranking.by_valuation(year=2024)        # 밸류에이션(PER/PBR 등)
+ranking.by_profit_asset(year=2024)     # 수익성·자산
 ```
 
 ## 시간외·예상·기타 순위
 
 ```python
-ranking.by_bulk_trade_count(side="buy")                     # 대량체결건수
-ranking.by_quote_balance(metric="net_buy")             # 호가잔량
-ranking.by_watchlist_registrations()                                  # 관심종목 등록상위
-ranking.by_preferred_share_disparity()                       # 우선주 괴리율
-ranking.by_expected_close()                            # 장마감 예상체결
-ranking.by_expected_execution_change(direction="gainers")   # 장전 예상체결 등락
+ranking.by_bulk_trade_count(side="buy")                                      # 대량체결건수
+ranking.by_quote_balance(metric="net_buy")                                   # 호가잔량
+ranking.by_watchlist_registrations()                                         # 관심종목 등록상위
+ranking.by_preferred_share_disparity()                                       # 우선주 괴리율
+ranking.by_expected_close()                                                  # 장마감 예상체결
+ranking.by_expected_execution_change(direction="gainers")                    # 장전 예상체결 등락
 ranking.by_house_trade_volume(side="buy", start="20240101", end="20240131")  # 당사매매 종목
 
-ranking.by_after_hours_balance(side="ask")              # 시간외 잔량
-ranking.by_after_hours_change(direction="gainers")          # 시간외 등락률
-ranking.by_after_hours_expected_change(direction="gainers") # 시간외 예상체결 등락
-ranking.by_after_hours_volume()                             # 시간외 거래량
+ranking.by_after_hours_balance(side="ask")                   # 시간외 잔량
+ranking.by_after_hours_change(direction="gainers")           # 시간외 등락률
+ranking.by_after_hours_expected_change(direction="gainers")  # 시간외 예상체결 등락
+ranking.by_after_hours_volume()                              # 시간외 거래량
 ```
 
 (ELW 스크리너·순위는 [ELW](elw.md) 챕터에 있습니다.)
