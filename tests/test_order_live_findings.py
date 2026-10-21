@@ -201,9 +201,15 @@ def test_order_store_path_refuses_actual_legacy_directory(monkeypatch, tmp_path,
     old.mkdir(parents=True)
     if legacy_kind != "empty":
         (old / ("other.json" if legacy_kind == "journal" else "other.json.lock")).write_bytes(b"synthetic")
+    from kis_trader import store
     before = {entry.name: entry.read_bytes() for entry in old.iterdir()}
-    with pytest.raises(KISUsageError, match="migrate-orders.*--offline"):
+    tree = _migration_tree_snapshot(tmp_path)
+    expected = "Windows.*지원하지 않습니다" if store._WINDOWS else "migrate-orders.*--offline"
+    with pytest.raises(KISUsageError, match=expected) as error:
         order_store_path(account="synthetic-01", environment="paper")
+    if store._WINDOWS:
+        assert _migration_tree_snapshot(tmp_path) == tree
+        assert "migrate-orders" not in str(error.value)
     assert old.is_dir() and not old.is_symlink()
     assert {entry.name: entry.read_bytes() for entry in old.iterdir()} == before
     assert not (tmp_path / "state" / "kis-trader" / "orders").exists()
@@ -534,8 +540,13 @@ def test_offline_migration_never_merges_independent_journals(tmp_path, equal):
     state.mkdir(parents=True)
     (state / "paper-synthetic.json").write_bytes(before["paper-synthetic.json"] if equal else b"different")
     destination = (state / "paper-synthetic.json").read_bytes()
-    with pytest.raises(KISUsageError, match="자동 병합"):
+    tree = _migration_tree_snapshot(tmp_path)
+    # Windows refuses before inventory/merge; supported platforms reach the merge guard.
+    expected = "Windows.*지원하지 않습니다" if layout.store._WINDOWS else "자동 병합"
+    with pytest.raises(KISUsageError, match=expected):
         layout.migrate_order_store_directory(state, cache, offline=True)
+    if layout.store._WINDOWS:
+        assert _migration_tree_snapshot(tmp_path) == tree
     assert {p.name: p.read_bytes() for p in cache.iterdir()} == before
     assert (state / "paper-synthetic.json").read_bytes() == destination
 

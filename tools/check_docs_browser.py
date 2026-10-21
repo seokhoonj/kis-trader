@@ -56,6 +56,7 @@ def check(site: Path, project: Path, artifacts: Path) -> None:
     worker.start()
     origin = f"http://127.0.0.1:{server.server_port}"
     results: list[dict[str, object]] = []
+    chapter_failures: list[dict[str, str]] = []
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
@@ -90,6 +91,18 @@ def check(site: Path, project: Path, artifacts: Path) -> None:
                             broken = page.locator("main img").evaluate_all("images => images.filter(image => !image.complete || image.naturalWidth === 0).map(image => image.getAttribute('src'))")
                             assert not broken, f"Broken images: {broken}"
                             overflow = page.evaluate("({width: innerWidth, scroll: document.documentElement.scrollWidth})")
+                            if overflow["scroll"] > overflow["width"] + 2:
+                                diagnostics = page.locator("main#quarto-document-content *").evaluate_all("""elements => elements.map(element => {
+                                    const rectangle = element.getBoundingClientRect();
+                                    const style = getComputedStyle(element);
+                                    return {tag: element.tagName, class: element.className,
+                                        left: rectangle.left, right: rectangle.right, width: rectangle.width,
+                                        client: element.clientWidth, scroll: element.scrollWidth,
+                                        whiteSpace: style.whiteSpace, overflowX: style.overflowX,
+                                        overflowWrap: style.overflowWrap};
+                                }).filter(element => element.right > innerWidth + 2).slice(0, 20)""")
+                                (artifacts / f"{label}-{Path(relative).stem}-overflow.json").write_text(
+                                    json.dumps({"page": overflow, "elements": diagnostics}, indent=2), encoding="utf-8")
                             assert overflow["scroll"] <= overflow["width"] + 2, f"Horizontal page overflow: {overflow}"
                             if label == "mobile":
                                 tables = page.locator("main#quarto-document-content table")
@@ -130,6 +143,10 @@ def check(site: Path, project: Path, artifacts: Path) -> None:
                                                     "table_index": table_index, "horizontal_scroll": scrolling})
                             assert len(errors) == start_errors, errors[start_errors:]
                             results.append({"viewport": label, "chapter": relative, "checks": "passed"})
+                        except AssertionError as error:
+                            failure = {"viewport": label, "chapter": relative, "message": str(error)}
+                            chapter_failures.append(failure)
+                            results.append({**failure, "checks": "failed"})
                         finally:
                             page.screenshot(path=str(artifacts / f"{label}-{Path(relative).stem}.png"), full_page=True)
                     # Grounded selectors: generated sidebar navigation, copy button, Quarto autocomplete.
@@ -176,6 +193,8 @@ def check(site: Path, project: Path, artifacts: Path) -> None:
         (artifacts / "results.json").write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     if worker.is_alive():
         raise RuntimeError("Documentation server did not stop")
+    if chapter_failures:
+        raise AssertionError(f"Documentation chapter checks failed: {chapter_failures}")
 
 
 def main() -> None:

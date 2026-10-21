@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Run audited CLI query commands in non-orderable memory sessions without opening or
+  migrating unrelated order journals; order and recovery commands retain durable guards.
 - Reject unsupported Windows legacy-directory migration and recovery before changing
   files. Fresh-state initialization and ordinary Windows journal locking remain available.
 - Preserve locked journal bytes and reject changed recovery inventories before creating

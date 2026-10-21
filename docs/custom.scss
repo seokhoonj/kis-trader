@@ -183,6 +183,10 @@ pre:not(.sourceCode) > code {
 
 // 좁은 화면의 표는 셀의 읽기 폭을 유지하고 표 안에서 가로 스크롤한다.
 @media (max-width: 767.98px) {
+  #quarto-document-content :not(pre) > code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   #quarto-document-content table {
     display: block;
     max-width: 100%;

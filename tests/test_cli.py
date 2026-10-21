@@ -1472,7 +1472,7 @@ def test_build_client_keeps_one_snapshot_across_store_allocation(tmp_path, monke
     args = ["--profile", "general"]
     if override:
         args += ["--account", override]
-    kis = context.build_client(_args(args + ["stock", "quote", "005930"]))
+    kis = context.build_client(_args(args + ["order", "reconcile", "synthetic-request"]))
     assert len(snapshots) == 1
     assert kis._app_key == "FIRSTKEY"
     assert kis._app_secret == "FIRSTSECRET"
@@ -2728,7 +2728,7 @@ def test_build_client_constructor_failure_releases_journal(tmp_path, monkeypatch
         raise failure
     monkeypatch.setattr(context, "KISClient", construct)
     with pytest.raises(type(failure)) as caught:
-        context.build_client(_args(["--profile", "general", "stock", "quote", "005930"]))
+        context.build_client(_args(["--profile", "general", "order", "reconcile", "synthetic-request"]))
     assert caught.value is failure
     with OrderStore(path=context.order_store_path(account="12345678-01", environment="paper")):
         pass
