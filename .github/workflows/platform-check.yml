@@ -111,9 +111,10 @@ jobs:
                   prove_origin()
 
 
-          prove_origin()
-          options = ['-o', 'pythonpath=', '--import-mode=importlib'] if os.environ['PACKAGE_SOURCE'] == 'pypi' else []
-          raise SystemExit(pytest.main([*options, *sys.argv[1:]], plugins=[OriginProof()]))
+          if __name__ == '__main__':
+              prove_origin()
+              options = ['-o', 'pythonpath=', '--import-mode=prepend'] if os.environ['PACKAGE_SOURCE'] == 'pypi' else []
+              raise SystemExit(pytest.main([*options, *sys.argv[1:]], plugins=[OriginProof()]))
           """
           (Path(os.environ['RUNNER_TEMP']) / 'kis-native-pytest.py').write_text(wrapper, encoding='utf-8')
           PY
