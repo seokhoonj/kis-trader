@@ -473,10 +473,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>종목이 아니라 시장(KOSPI/KOSDAQ) 단위 투자자 매매동향은 <code>kis.domestic.market</code> 으로 봅니다.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>market <span class="op">=</span> kis.domestic.market</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>market.investor_flows(market<span class="op">=</span><span class="st">"KOSPI"</span>)           <span class="co"># 시장 전체 개인/외국인/기관 순매수(일자별)</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>market.investor_flows(market<span class="op">=</span><span class="st">"KOSPI"</span>)                               <span class="co"># 시장 전체 개인/외국인/기관 순매수(일자별)</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>market.investor_net_buy_stocks(investor<span class="op">=</span><span class="st">"foreign"</span>, basis<span class="op">=</span><span class="st">"amount"</span>)  <span class="co"># 외국인 순매수 상위 종목</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>market.program_investor_trades(market<span class="op">=</span><span class="st">"KOSPI"</span>)  <span class="co"># 투자자별 프로그램매매</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>market.program_flow(market<span class="op">=</span><span class="st">"KOSPI"</span>)             <span class="co"># 장중 프로그램매매 순매수 흐름</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>market.program_investor_trades(market<span class="op">=</span><span class="st">"KOSPI"</span>)                      <span class="co"># 투자자별 프로그램매매</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>market.program_flow(market<span class="op">=</span><span class="st">"KOSPI"</span>)                                 <span class="co"># 장중 프로그램매매 순매수 흐름</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>터미널에선 <code>kis stock investors &lt;코드&gt;</code>(종목)·<code>kis market investors</code>·<code>kis market net-buy</code>(시장)로, AI 채팅(MCP)에선 <code>stock_investor_flows</code>·<code>market_investor_flows</code>·<code>investor_net_buy_stocks</code> 도구로 같은 수급을 조회합니다(<a href="./cli.html">명령줄</a> · <a href="./mcp.html">MCP 서버</a>).</p>
 </section>
 <section id="공매도신용대차" class="level2" data-number="8.2">
@@ -487,14 +487,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="회원사체결분포" class="level2" data-number="8.3">
 <h2 data-number="8.3" class="anchored" data-anchor-id="회원사체결분포"><span class="header-section-number">8.3</span> 회원사·체결분포</h2>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>stock.broker_activity()     <span class="co"># 매도/매수 상위 회원사(증권사) 비중</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>stock.broker_trade_ticks()  <span class="co"># 회원사 실시간 매매 체결 틱</span></span>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>stock.broker_activity()                                                 <span class="co"># 매도/매수 상위 회원사(증권사) 비중</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>stock.broker_trade_ticks()                                              <span class="co"># 회원사 실시간 매매 체결 틱</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>stock.broker_daily_activity(<span class="st">"99999"</span>, start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240131"</span>)  <span class="co"># 한 회원사 일별</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>stock.expected_price_trend()    <span class="co"># 동시호가 예상체결가 추이</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>stock.intraday_trades()     <span class="co"># 당일 체결·최우선호가·체결강도</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>stock.volume_profile()          <span class="co"># 가격대별 거래량 분포(매물대)</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>stock.trade_amount_bands()      <span class="co"># 체결금액대별 매매비중</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>stock.expected_price_trend()                                <span class="co"># 동시호가 예상체결가 추이</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>stock.intraday_trades()                                     <span class="co"># 당일 체결·최우선호가·체결강도</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>stock.volume_profile()                                      <span class="co"># 가격대별 거래량 분포(매물대)</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>stock.trade_amount_bands()                                  <span class="co"># 체결금액대별 매매비중</span></span>
 <span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>stock.daily_trade_volume(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240630"</span>)  <span class="co"># 일별 매수/매도 체결량</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 

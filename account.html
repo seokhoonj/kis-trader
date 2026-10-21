@@ -624,17 +624,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="미체결주문가능" class="level2" data-number="9.4">
 <h2 data-number="9.4" class="anchored" data-anchor-id="미체결주문가능"><span class="header-section-number">9.4</span> 미체결·주문가능</h2>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>account.open_orders()                                    <span class="co"># 미체결 / 정정취소 가능 주문</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>history <span class="op">=</span> account.combined_order_history(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240229"</span>)</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>history.orders                         <span class="co"># 최근·과거 조회를 결합한 주문·체결 행</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>history.recent.average_purchase_price  <span class="co"># 최근 조회의 원본 요약</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>history.historical.estimated_expenses  <span class="co"># 과거 조회의 원본 요약</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>account.order_history(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240229"</span>, older_than_three_months<span class="op">=</span><span class="va">True</span>)  <span class="co"># 과거 조회만</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>stock <span class="op">=</span> kis.domestic.stock(<span class="st">"005930"</span>)</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>stock.buyable()                       <span class="co"># 매수 가능 수량·금액</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>stock.sellable()                      <span class="co"># 매도 가능 수량</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><code>combined_order_history()</code> 는 지정한 기간을 최근·과거 조회 양쪽에 보내고, 각각의 연속조회를 끝까지 수행합니다. <code>StockOrderHistoryCollection</code> 의 <code>orders</code> 는 결합한 행이며, <code>recent</code> 와 <code>historical</code> 은 각 조회의 <code>StockOrderHistory</code> 를 그대로 보존합니다. 평균 매입가격·추정 비용은 합산하지 않습니다. 한쪽 조회가 실패하면 부분 결과를 성공으로 반환하지 않습니다. 날짜·주문번호·지점·조직 정보가 갖춰진 동일 주문의 관측 내용이 두 출처에서 다르면 결합 오류로 알립니다. 조회 사이의 정상적인 상태 변화일 수도 있으므로, 이 오류 자체가 증권사 데이터 손상을 뜻하지는 않습니다. 식별 정보가 부족한 행은 임의로 합쳐 없애지 않으며, 양쪽 조회에 모두 있으면 결합 목록에 함께 남을 수 있습니다.</p>
-<p>기존 <code>order_history()</code> 는 기본으로 최근 조회만 하며, <code>older_than_three_months=True</code> 이면 과거 조회만 합니다. 두 방식 모두 증권사의 조회 가능 기간·보관 범위 안에서 동작하며, 다년간의 완전한 보관을 보장하지 않습니다. 미체결·거부 주문도 포함하므로 체결된 주문만의 목록으로 해석하지 마세요.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> kis_trader <span class="im">import</span> StockOrderHistoryCollection, StockOrderHistorySeries</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>account.open_orders()  <span class="co"># 미체결 / 정정취소 가능 주문</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 365일 이내: 최근·과거 조회별 원본 요약</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>history <span class="op">=</span> account.combined_order_history(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240229"</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">isinstance</span>(history, StockOrderHistoryCollection):</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    history.orders                         <span class="co"># 최근·과거 조회를 결합한 주문·체결 행</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    history.recent.average_purchase_price  <span class="co"># 최근 조회의 원본 요약</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    history.historical.estimated_expenses  <span class="co"># 과거 조회의 원본 요약</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 365일 초과: 구간별 조회와 원본 요약</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>long_history <span class="op">=</span> account.combined_order_history(start<span class="op">=</span><span class="st">"20200509"</span>, end<span class="op">=</span><span class="st">"20261022"</span>)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">isinstance</span>(long_history, StockOrderHistorySeries):</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    long_history.orders  <span class="co"># 전체 기간의 주문·체결 행</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> period <span class="kw">in</span> long_history.periods:</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(period.start, period.end)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(period.history.recent.total_filled_quantity)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(period.history.historical.total_filled_quantity)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>account.order_history(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240229"</span>, older_than_three_months<span class="op">=</span><span class="va">True</span>)  <span class="co"># 과거 조회만</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>stock <span class="op">=</span> kis.domestic.stock(<span class="st">"005930"</span>)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>stock.buyable()                                                                        <span class="co"># 매수 가능 수량·금액</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>stock.sellable()                                                                       <span class="co"># 매도 가능 수량</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>combined_order_history()</code> 는 시작일·종료일을 포함해 최대 365일씩 기간을 나누고, 각 구간에서 최근·과거 조회와 각각의 연속조회를 끝까지 수행합니다. 날짜 사이에 빠지거나 겹치는 날은 없습니다. 365일 이내이면 기존 <code>StockOrderHistoryCollection</code> 을 반환하며, <code>recent</code> 와 <code>historical</code> 에 각 조회의 <code>StockOrderHistory</code> 를 그대로 보존합니다. 365일을 초과하면 <code>StockOrderHistorySeries</code> 를 반환합니다. <code>periods</code> 의 각 <code>StockOrderHistoryPeriod</code> 에는 시작일 <code>start</code>·종료일 <code>end</code> 와 해당 구간의 <code>history</code> 가 있고, <code>history.recent</code>·<code>history.historical</code> 에 원본 요약을 보존합니다. 두 결과 모두 <code>orders</code> 에 결합한 주문·체결 행을 담습니다. 장기 조회에서는 오래된 구간부터 나열하며, 각 구간 안에서는 최근 조회 다음 과거 조회 순서입니다. 평균 매입가격·추정 비용을 합쳐 전체 기간의 요약을 만들지는 않습니다.</p>
+<p>한 구간이나 페이지라도 실패하면 부분 결과를 성공으로 반환하지 않습니다. 장기 조회의 응답에 날짜가 없거나 요청 구간 밖의 날짜가 있으면 구간을 확인할 수 없으므로 오류를 반환합니다. 날짜·주문번호·지점·조직 정보가 갖춰진 동일 주문의 관측 내용이 두 출처에서 다르면 결합 오류로 알립니다. 조회 사이의 정상적인 상태 변화일 수도 있으므로, 이 오류 자체가 증권사 데이터 손상을 뜻하지는 않습니다. 식별 정보가 부족한 행은 임의로 합쳐 없애지 않으며, 양쪽 조회에 모두 있으면 결합 목록에 함께 남을 수 있습니다.</p>
+<p>기존 <code>order_history()</code> 는 기본으로 최근 조회만 하며, <code>older_than_three_months=True</code> 이면 과거 조회만 합니다. 이 단일 출처 조회는 기간을 자동 분할하지 않으므로 1년 이내의 기간을 지정하세요. 자동 분할은 증권사의 보관 범위를 늘리는 기능은 아닙니다. 두 방식 모두 다년간의 완전한 보관을 보장하지 않습니다. 미체결·거부 주문도 포함하므로 체결된 주문만의 목록으로 해석하지 마세요.</p>
 <p>각 <code>StockOrder</code> 는 주문·체결 상태(수량·단가·평균가·거래소)를 담고, 스톱지정가 체결이면 <code>.stop</code> 에 <code>StopTrigger</code>(조건가격·효력발생시각)를 싣습니다.</p>
 </section>
 <section id="권리증거금" class="level2" data-number="9.5">
@@ -646,14 +662,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="9.6" class="anchored" data-anchor-id="해외-계좌"><span class="header-section-number">9.6</span> 해외 계좌</h2>
 <p>해외는 통화·시장이 얽혀 있어 살짝 다릅니다.</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>account <span class="op">=</span> kis.account.overseas</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>account.positions(market<span class="op">=</span><span class="va">None</span>)                           <span class="co"># None = 전체 시장 합산</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>account.balance(market<span class="op">=</span><span class="st">"US"</span>)                             <span class="co"># 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>account.present_balance()                                <span class="co"># 체결기준 현재잔고</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>account.trade_profits(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240630"</span>)  <span class="co"># 기간 실현손익</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>account.transactions(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240630"</span>)   <span class="co"># 거래내역</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>account.foreign_margin()                                 <span class="co"># 통화별 외화 증거금</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>account.algo_orders()                                    <span class="co"># 미국 알고(twap/vwap) 주문 목록</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>account.algo_executions(order_id, order_date<span class="op">=</span><span class="st">"20240102"</span>) <span class="co"># 한 알고주문의 체결내역</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>account.positions(market<span class="op">=</span><span class="va">None</span>)                            <span class="co"># None = 전체 시장 합산</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>account.balance(market<span class="op">=</span><span class="st">"US"</span>)                              <span class="co"># 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>account.present_balance()                                 <span class="co"># 체결기준 현재잔고</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>account.trade_profits(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240630"</span>)   <span class="co"># 기간 실현손익</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>account.transactions(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240630"</span>)    <span class="co"># 거래내역</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>account.foreign_margin()                                  <span class="co"># 통화별 외화 증거금</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>account.algo_orders()                                     <span class="co"># 미국 알고(twap/vwap) 주문 목록</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>account.algo_executions(order_id, order_date<span class="op">=</span><span class="st">"20240102"</span>)  <span class="co"># 한 알고주문의 체결내역</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="채권-계좌" class="level2" data-number="9.7">
 <h2 data-number="9.7" class="anchored" data-anchor-id="채권-계좌"><span class="header-section-number">9.7</span> 채권 계좌</h2>

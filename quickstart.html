@@ -465,12 +465,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="설치" class="level2" data-number="2.1">
 <h2 data-number="2.1" class="anchored" data-anchor-id="설치"><span class="header-section-number">2.1</span> 설치</h2>
 <p><strong>파이썬에서 <code>import</code></strong> 하려면:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> pip install kis-trader     <span class="co"># 또는: pip install kis-trader</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> pip install kis-trader  <span class="co"># 또는: pip install kis-trader</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><strong>명령줄 <code>kis</code> 도구</strong>로 쓰려면:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> tool install kis-trader    <span class="co"># kis 명령 설치 (또는: pipx install kis-trader)</span></span>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> tool install kis-trader  <span class="co"># kis 명령 설치 (또는: pipx install kis-trader)</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> <span class="at">--version</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><strong>MCP 서버(<code>kis-mcp</code>, Claude Desktop 연결)까지</strong> 쓰려면 <code>[mcp]</code> 를 붙여 설치합니다(설정은 <a href="./mcp.html">MCP 서버</a>):</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> tool install <span class="st">'kis-trader[mcp]'</span>   <span class="co"># kis + kis-mcp 둘 다 설치</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> tool install <span class="st">'kis-trader[mcp]'</span>  <span class="co"># kis + kis-mcp 둘 다 설치</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="세션-만들기" class="level2" data-number="2.2">
 <h2 data-number="2.2" class="anchored" data-anchor-id="세션-만들기"><span class="header-section-number">2.2</span> 세션 만들기</h2>
@@ -497,11 +497,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><code>buy()</code> 는 동기로 주문을 전송하고, 접수 응답을 받으면 리포트를 돌려줍니다. 거부와 전송 시간초과는 예외이며, 시간초과는 접수 여부 불명을 뜻합니다. 접수 성공이 체결 완료를 뜻하지는 않습니다:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>report <span class="op">=</span> kis.domestic.stock(<span class="st">"005930"</span>).buy(quantity<span class="op">=</span><span class="dv">10</span>, limit_price<span class="op">=</span><span class="dv">70000</span>)  <span class="co"># 10주 지정가 매수 -- 바로 접수됨</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>report.order_id          <span class="co"># 거래소 주문번호(ODNO) -- 접수 성공</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>report.status            <span class="co"># 주문 상태 (NEW = 접수됨. 체결 여부는 별개)</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>report.client_order_id   <span class="co"># 이 주문의 고유 키 -- 정정·취소할 때 지목</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>report.order_id         <span class="co"># 거래소 주문번호(ODNO) -- 접수 성공</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>report.status           <span class="co"># 주문 상태 (NEW = 접수됨. 체결 여부는 별개)</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>report.client_order_id  <span class="co"># 이 주문의 고유 키 -- 정정·취소할 때 지목</span></span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>kis.orders.cancel(report.client_order_id)   <span class="co"># 정정·취소는 이 키로 지목</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>kis.orders.cancel(report.client_order_id)  <span class="co"># 정정·취소는 이 키로 지목</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><code>reconcile</code> 은 저장된 리포트를 반환하거나, 지원 자산군에서 저장된 유효한 증권사 주문번호가 있는 주문의 상태를 갱신합니다. 최초 타임아웃으로 그 번호가 없으면 경제 조건만으로 자동 연결하지 않고 <code>None</code> 과 처리 중 기록을 유지합니다. 재전송하지 말고 HTS/MTS나 해당 계좌의 주문·체결 조회로 확인하세요. 시간초과가 발생하면 <code>report</code> 변수가 없을 수 있으므로, 발주 전에 정한 <code>client_order_id</code> 나 예외의 <code>client_order_id</code> 를 사용하세요. <code>None</code> 은 미접수가 아니라 아직 불명이라는 뜻입니다. 이미 접수된 주문의 현재 체결 상태를 보려면 <code>refresh=True</code> 로 다시 조회합니다. 지원 자산군과 한계는 <a href="./orders.html">주문</a> 참고.</p>
 <div class="callout callout-style-default callout-warning callout-titled">
 <div class="callout-header d-flex align-content-center">

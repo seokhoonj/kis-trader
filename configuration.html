@@ -494,17 +494,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>KISConfig(profile<span class="op">=</span><span class="st">"general"</span>, app_key<span class="op">=</span><span class="st">"YOUR_APP_KEY"</span>, app_secret<span class="op">=</span><span class="st">"YOUR_APP_SECRET"</span>,</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>          account<span class="op">=</span><span class="st">"12345678-01"</span>, environment<span class="op">=</span><span class="st">"real"</span>).save()</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>KISClient(profile<span class="op">=</span><span class="st">"general"</span>, environment<span class="op">=</span><span class="st">"real"</span>)   <span class="co"># 저장된 자격증명을 자동으로 읽어 세션을 엽니다</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>KISClient(profile<span class="op">=</span><span class="st">"general"</span>, environment<span class="op">=</span><span class="st">"real"</span>)  <span class="co"># 저장된 자격증명을 자동으로 읽어 세션을 엽니다</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>이 장은 그 <strong>프로필</strong>과 <strong>환경</strong>을 다룹니다 – 각각이 무엇인지, 자격증명을 어떻게 넣는지 차례로 봅니다.</p>
 <section id="폴더-한눈에" class="level2" data-number="4.1">
 <h2 data-number="4.1" class="anchored" data-anchor-id="폴더-한눈에"><span class="header-section-number">4.1</span> 폴더 한눈에</h2>
 <p>패키지가 쓰는 폴더는 셋입니다 – 내가 저장한 <strong>설정</strong>, 자동으로 만들어지는 <strong>캐시</strong>, 그리고 CLI 주문·복구 명령이 사용하는 <strong>상태</strong>(주문 요청 ID별 중복방지 기록):</p>
 <pre><code>~/
-├── .config/kis-trader/credentials.json    # [설정] 내가 저장한 앱키·시크릿·계좌 (프로필별)
+├── .config/kis-trader/credentials.json  # [설정] 내가 저장한 앱키·시크릿·계좌 (프로필별)
 ├── .cache/kis-trader/
-│   ├── tokens/     # [캐시] 접속 토큰 -- 자동 발급·재사용 (real/paper 별로 생김)
-│   └── masters/    # [캐시] 종목마스터(이름↔코드) -- 처음 쓸 때 자동 다운로드
-└── .local/state/kis-trader/orders/         # [상태] CLI 주문 요청 ID별 기록 -- 세션 구성 시 생길 수 있음, 지우지 마세요</code></pre>
+│   ├── tokens/                          # [캐시] 접속 토큰 -- 자동 발급·재사용 (real/paper 별로 생김)
+│   └── masters/                         # [캐시] 종목마스터(이름↔코드) -- 처음 쓸 때 자동 다운로드
+└── .local/state/kis-trader/orders/      # [상태] CLI 주문 요청 ID별 기록 -- 세션 구성 시 생길 수 있음, 지우지 마세요</code></pre>
 <ul>
 <li><code>.config</code> 는 <strong>내가 넣은 값</strong>입니다. <code>tokens/</code> 와 <code>masters/</code> 는 다시 만들 수 있는 캐시지만, 이전 버전의 <code>orders/</code> 기록이 캐시 경로에 남아 있을 수 있으므로 캐시 폴더 전체를 지우지 마세요.</li>
 <li>CLI의 주문·정정·취소·복구 명령은 계좌별 파일 기반 주문 저장소를 사용하며, 세션 구성 중 폴더·잠금 파일이 생길 수 있습니다. 시세·시장·계좌 조회 명령은 주문 불가 메모리 세션을 사용하므로 주문 디렉터리를 열거나 이전하지 않습니다. 접속 토큰 등의 캐시는 조회에서도 사용합니다. 주문 저장소 오류가 난 주문 명령을 메모리로 재시도하지는 않습니다. 같은 <code>client_order_id</code> 의 재실행을 구별하는 기록이므로 <strong>지우면 안 됩니다</strong>. SDK와 MCP의 기본 저장소는 메모리이며, SDK에서 재시작 후에도 보존하려면 파일 경로를 지정한 <code>OrderStore</code> 를 주입합니다.</li>
@@ -531,8 +531,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="두-축-프로필계좌-종류과-환경실전모의" class="level2" data-number="4.2">
 <h2 data-number="4.2" class="anchored" data-anchor-id="두-축-프로필계좌-종류과-환경실전모의"><span class="header-section-number">4.2</span> 두 축 – 프로필(계좌 종류)과 환경(실전/모의)</h2>
 <p>세션은 <strong>두 가지</strong>로 정해집니다 – <strong>프로필</strong>은 어떤 <strong>계좌 종류</strong>를 여는지, <strong>환경</strong>은 <strong>실전이냐 모의냐</strong>를 고릅니다. 둘은 서로 다른 축이라, 같은 프로필을 환경만 바꿔 실전·모의로 각각 엽니다:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>KISClient(profile<span class="op">=</span><span class="st">"general"</span>, environment<span class="op">=</span><span class="st">"real"</span>)    <span class="co"># 종합위탁 실계좌</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>KISClient(profile<span class="op">=</span><span class="st">"general"</span>, environment<span class="op">=</span><span class="st">"paper"</span>)   <span class="co"># 같은 종합위탁, 모의</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>KISClient(profile<span class="op">=</span><span class="st">"general"</span>, environment<span class="op">=</span><span class="st">"real"</span>)   <span class="co"># 종합위탁 실계좌</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>KISClient(profile<span class="op">=</span><span class="st">"general"</span>, environment<span class="op">=</span><span class="st">"paper"</span>)  <span class="co"># 같은 종합위탁, 모의</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>프로필은 저장할 <strong>자격증명 묶음의 이름</strong>입니다. 각 <code>(프로필, 환경)</code> 슬롯에 앱키·앱시크릿·계좌번호를 둡니다. 같은 프로필 이름의 실전·모의 슬롯은 각각 다른 값을 가질 수 있고, 같은 유형의 계좌를 여러 프로필로 나눠 저장할 수도 있습니다. 앱키의 발급 단위나 연결 계좌는 KIS 신청 정보에서 확인해 입력하세요. 이름은 소문자·숫자·밑줄로 짓습니다. 계좌 용도를 이름에 담은 흔한 예:</p>
 <table class="caption-top table">
 <thead>
@@ -612,7 +612,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ol>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> kis_trader <span class="im">import</span> KISConfig</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>KISConfig.set_default_environment(<span class="st">"real"</span>)   <span class="co"># credentials.json 최상위에 "default_environment": "real" 기록</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>KISConfig.set_default_environment(<span class="st">"real"</span>)  <span class="co"># credentials.json 최상위에 "default_environment": "real" 기록</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -639,9 +639,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><strong>파일에 영구 기록</strong> (재시작해도 유지, 셸 설정 불필요) – 저장된 프로필 하나를 기본으로 지정합니다:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> kis_trader <span class="im">import</span> KISConfig</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>KISConfig.set_default_profile(<span class="st">"general"</span>)   <span class="co"># credentials.json 최상위에 "default_profile": "general" 기록</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>KISConfig.set_default_profile(<span class="st">"general"</span>)  <span class="co"># credentials.json 최상위에 "default_profile": "general" 기록</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><strong>환경변수</strong> (그 셸 세션에서만, 파일보다 우선) – <code>KIS_DEFAULT_PROFILE</code> 은 OS 환경변수라 셸에서 정합니다:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_DEFAULT_PROFILE</span><span class="op">=</span>general       <span class="co"># Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)</span></span>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_DEFAULT_PROFILE</span><span class="op">=</span>general  <span class="co"># Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># $env:KIS_DEFAULT_PROFILE="general"     # Windows PowerShell</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="이름은-계좌-종류-환경은-별도" class="level3">
@@ -759,7 +759,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> kis_trader.config <span class="im">import</span> list_profiles</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>list_profiles()                    <span class="co"># 두 환경 합집합</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>list_profiles(environment<span class="op">=</span><span class="st">"real"</span>) <span class="co"># 실전 환경에 저장된 프로필만</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>list_profiles(environment<span class="op">=</span><span class="st">"real"</span>)  <span class="co"># 실전 환경에 저장된 프로필만</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -782,9 +782,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>이 파일에는 비밀값이 없습니다. Linux·macOS에서 직접 만든 파일은 <code>chmod 600</code> 으로 권한을 제한하세요. 이제 터미널에서 다음 변수를 설정합니다. 환경변수 키는 <strong>프로필과 환경을 모두</strong> 담습니다 – <code>KIS_&lt;프로필대문자&gt;_&lt;환경대문자&gt;_&lt;필드&gt;</code>.</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_GENERAL_REAL_APP_KEY</span><span class="op">=</span>YOUR_APP_KEY</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_GENERAL_REAL_APP_SECRET</span><span class="op">=</span>YOUR_APP_SECRET</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_GENERAL_REAL_ACCOUNT</span><span class="op">=</span>12345678-01   <span class="co"># 종합계좌번호-상품코드 (시세만 볼 거면 생략 가능)</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_DEFAULT_PROFILE</span><span class="op">=</span>general            <span class="co"># 환경변수만으로 열 때는 기본 프로필을 지정</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_DEFAULT_ENVIRONMENT</span><span class="op">=</span>real           <span class="co"># (생략 시 모의)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_GENERAL_REAL_ACCOUNT</span><span class="op">=</span>12345678-01  <span class="co"># 종합계좌번호-상품코드 (시세만 볼 거면 생략 가능)</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_DEFAULT_PROFILE</span><span class="op">=</span>general           <span class="co"># 환경변수만으로 열 때는 기본 프로필을 지정</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">KIS_DEFAULT_ENVIRONMENT</span><span class="op">=</span>real          <span class="co"># (생략 시 모의)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>필드별 키의 모양과 공유·기본값 키:</p>
 <table class="caption-top table">
 <colgroup>
@@ -982,7 +982,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config setup <span class="at">--profile</span> isa</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="co"># [real]  실전 설정? → y, 앱키·시크릿·계좌번호 입력</span></span>
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="co"># [paper] ... APP KEY (없으면 Enter): → Enter (건너뜀)</span></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default environment real    <span class="co"># 단일 실전 계좌를 인자 없이 열리게 (아래 6번)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default environment real  <span class="co"># 단일 실전 계좌를 인자 없이 열리게 (아래 6번)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
 <li><p><strong>(B) 파일</strong> – <code>real</code> 블록만 둡니다(<code>paper</code> 블록 자체를 넣지 않음):</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"schema"</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
@@ -1028,7 +1028,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config setup <span class="at">--profile</span> general</span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config setup <span class="at">--profile</span> isa</span>
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config setup <span class="at">--profile</span> pension</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default profile general    <span class="co"># 이름 없이 열 때 여는 기본 계좌</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default profile general  <span class="co"># 이름 없이 열 때 여는 기본 계좌</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
 <li><p><strong>(B) 파일</strong> – 한 블록 안에 프로필을 나열:</p>
 <div class="sourceCode" id="cb24"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"schema"</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
@@ -1047,9 +1047,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>계좌가 하나뿐이어도 그 계좌가 <strong>실전</strong>이면, 실수로 실전 서버에 연결되지 않도록 환경을 한 번은 지정해야 합니다(모의만 있으면 기본이 모의라 그대로 열립니다).</p>
 <ul>
 <li><p><strong>(A) CLI</strong>:</p>
-<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default profile general     <span class="co"># (여러 개일 때) 어느 걸 열지</span></span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default environment real    <span class="co"># 실전을 인자 없이 열려면 한 번</span></span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default                     <span class="co"># 파일에 저장된 기본값 확인</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default profile general   <span class="co"># (여러 개일 때) 어느 걸 열지</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default environment real  <span class="co"># 실전을 인자 없이 열려면 한 번</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config default                   <span class="co"># 파일에 저장된 기본값 확인</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
 <li><p><strong>(B) 파일</strong> – 최상위에 마커 두 줄:</p>
 <div class="sourceCode" id="cb26"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span> <span class="dt">"schema"</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span> <span class="dt">"default_profile"</span><span class="fu">:</span> <span class="st">"general"</span><span class="fu">,</span> <span class="dt">"default_environment"</span><span class="fu">:</span> <span class="st">"real"</span><span class="fu">,</span> <span class="dt">"real"</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">"general"</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">"…"</span><span class="fu">:</span> <span class="st">"…"</span> <span class="fu">}</span> <span class="fu">}</span> <span class="fu">}</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
 <li><p><strong>(C) 환경변수</strong> – <code>export KIS_DEFAULT_PROFILE=general KIS_DEFAULT_ENVIRONMENT=real</code> (환경변수가 마커보다 우선).</p></li>
@@ -1059,8 +1059,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="schema-표시가-없는-예전-파일에서-올라온-경우" class="level3">
 <h3 class="anchored" data-anchor-id="schema-표시가-없는-예전-파일에서-올라온-경우">7. <code>schema</code> 표시가 없는 예전 파일에서 올라온 경우</h3>
 <p><code>schema</code> 표시가 없는 평평한 옛 파일은 런타임이 읽지 않고, 세션을 열 때 변환을 안내하며 멈춥니다. 한 번만 변환하세요. 손으로 고치는 것보다 변환기가 안전합니다(옛 형식을 읽어 블록 구조로 옮기고, 이름이 겹치면 덮어쓰지 않고 멈춤):</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config migrate         <span class="co"># 대화형: 병합을 확인</span></span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config show            <span class="co"># 변환 결과 확인(비밀값 마스킹)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config migrate  <span class="co"># 대화형: 병합을 확인</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">kis</span> config show     <span class="co"># 변환 결과 확인(비밀값 마스킹)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="계좌번호와-상품코드" class="level2" data-number="4.5">
@@ -1151,7 +1151,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ul>
 <p><strong>MCP(Claude Desktop)를 쓰면</strong> 설정 파일이 하나 더 있습니다 – 이건 kis-trader 가 아니라 <strong>Claude Desktop 이</strong> 쓰는 파일이라 위치가 다릅니다(<a href="./mcp.html">MCP 서버</a> 의 “Claude Desktop 에 연결” 단계에서 다룹니다):</p>
 <pre><code># macOS
-~/Library/Application Support/Claude/claude_desktop_config.json   # Claude Desktop 이 읽는 MCP 설정
+~/Library/Application Support/Claude/claude_desktop_config.json  # Claude Desktop 이 읽는 MCP 설정
 
 # Windows
 %APPDATA%\Claude\claude_desktop_config.json</code></pre>

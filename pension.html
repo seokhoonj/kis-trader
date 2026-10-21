@@ -453,7 +453,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 
 <p>개인형 퇴직연금(IRP, 상품코드 29) 계좌의 퇴직연금 전용 조회. <code>kis.account</code> 파사드의 <code>.pension</code> 렌즈로 접근합니다. 모두 <strong>모의투자 미지원</strong>(실전만).</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>pension <span class="op">=</span> kis.account.pension              <span class="co"># IRP(29) 전용 조회 렌즈</span></span>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>pension <span class="op">=</span> kis.account.pension  <span class="co"># IRP(29) 전용 조회 렌즈</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>pension.deposit()                                    <span class="co"># 예수금총액·정산예정</span></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>pension.balance()                                    <span class="co"># 보유종목 + 예수금 요약</span></span>

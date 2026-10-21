@@ -559,10 +559,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="6.3" class="anchored" data-anchor-id="호가"><span class="header-section-number">6.3</span> 호가</h2>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>order_book <span class="op">=</span> stock.order_book()</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> order_book.bids:</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    best_bid <span class="op">=</span> order_book.bids[<span class="dv">0</span>]                    <span class="co"># 최우선 매수호가</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    best_bid <span class="op">=</span> order_book.bids[<span class="dv">0</span>]  <span class="co"># 최우선 매수호가</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"매수"</span>, best_bid.price, best_bid.quantity)</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> order_book.asks:</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    best_ask <span class="op">=</span> order_book.asks[<span class="dv">0</span>]                    <span class="co"># 최우선 매도호가</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    best_ask <span class="op">=</span> order_book.asks[<span class="dv">0</span>]  <span class="co"># 최우선 매도호가</span></span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"매도"</span>, best_ask.price, best_ask.quantity)</span>
 <span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(order_book.total_bid_quantity, order_book.total_ask_quantity)  <span class="co"># 총 매수/매도 잔량</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><code>bids</code> · <code>asks</code> 는 각각 (가격 <code>price</code>, 잔량 <code>quantity</code>) 호가 단계 튜플입니다. 가격이 없는 단계는 제외하므로 한쪽 또는 양쪽이 빈 튜플일 수 있습니다.</p>
@@ -595,10 +595,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="시간외" class="level2" data-number="6.6">
 <h2 data-number="6.6" class="anchored" data-anchor-id="시간외"><span class="header-section-number">6.6</span> 시간외</h2>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>stock.after_hours_quote()         <span class="co"># 시간외 현재가</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>stock.after_hours_daily()         <span class="co"># 시간외 단일가 일자별 종가</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>stock.after_hours_trades()   <span class="co"># 시간외 시간별 체결</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>stock.after_hours_order_book()    <span class="co"># 시간외 호가창</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>stock.after_hours_quote()       <span class="co"># 시간외 현재가</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>stock.after_hours_daily()       <span class="co"># 시간외 단일가 일자별 종가</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>stock.after_hours_trades()      <span class="co"># 시간외 시간별 체결</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>stock.after_hours_order_book()  <span class="co"># 시간외 호가창</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="상태과거-분봉" class="level2" data-number="6.7">
 <h2 data-number="6.7" class="anchored" data-anchor-id="상태과거-분봉"><span class="header-section-number">6.7</span> 상태·과거 분봉</h2>

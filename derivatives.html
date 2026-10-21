@@ -465,12 +465,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="18.1" class="anchored" data-anchor-id="국내"><span class="header-section-number">18.1</span> 국내</h2>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>futures <span class="op">=</span> kis.domestic.futures(<span class="st">"101W09"</span>)  <span class="co"># 지수선물 계약 핸들</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>futures.quote()                           <span class="co"># 현재가</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>futures.underlying_quote()                <span class="co"># 선물 + 기초지수 나란히 (베이시스 판단)</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>futures.expected_execution_trend()        <span class="co"># 예상체결 요약·추이</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>futures.order_book()                      <span class="co"># 호가</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>futures.quote()                     <span class="co"># 현재가</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>futures.underlying_quote()          <span class="co"># 선물 + 기초지수 나란히 (베이시스 판단)</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>futures.expected_execution_trend()  <span class="co"># 예상체결 요약·추이</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>futures.order_book()                <span class="co"># 호가</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>option <span class="op">=</span> kis.domestic.option(<span class="st">"201W09350"</span>) <span class="co"># 지수옵션 계약 핸들</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>option <span class="op">=</span> kis.domestic.option(<span class="st">"201W09350"</span>)  <span class="co"># 지수옵션 계약 핸들</span></span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>option.quote()</span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>전광판·만기:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>kis.domestic.option_expiries()       <span class="co"># 상장된 옵션 만기월 목록</span></span>
@@ -479,10 +479,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="해외" class="level2" data-number="18.2">
 <h2 data-number="18.2" class="anchored" data-anchor-id="해외"><span class="header-section-number">18.2</span> 해외</h2>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>futures <span class="op">=</span> kis.overseas.futures(<span class="st">"ESZ25"</span>)                          <span class="co"># 해외 선물 (E-mini S&amp;P 2025.12 = 시리즈코드)</span></span>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>futures <span class="op">=</span> kis.overseas.futures(<span class="st">"ESZ25"</span>)  <span class="co"># 해외 선물 (E-mini S&amp;P 2025.12 = 시리즈코드)</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>futures.quote()                                                  <span class="co"># 현재가</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>futures.detail()                                                 <span class="co"># 계약 명세</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>futures.quote()   <span class="co"># 현재가</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>futures.detail()  <span class="co"># 계약 명세</span></span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>kis.overseas.futures_details([<span class="st">"ESZ25"</span>, <span class="st">"NQZ25"</span>])            <span class="co"># 여러 계약 명세 (최대 32)</span></span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>kis.overseas.futures_open_interest(<span class="st">"ES"</span>, as_of<span class="op">=</span><span class="st">"20240628"</span>)  <span class="co"># CFTC 미결제약정</span></span>
@@ -491,7 +491,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="계좌잔고-파생" class="level2" data-number="18.3">
 <h2 data-number="18.3" class="anchored" data-anchor-id="계좌잔고-파생"><span class="header-section-number">18.3</span> 계좌·잔고 (파생)</h2>
 <p>국내파생(03) 세션에서 <code>kis.account</code> 는 파생 계좌 뷰를 돌려줍니다. 금액은 원화, 수량은 계약수입니다.</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>account <span class="op">=</span> kis.account        <span class="co"># 03 세션</span></span>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>account <span class="op">=</span> kis.account  <span class="co"># 03 세션</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>balance <span class="op">=</span> account.balance()  <span class="co"># 잔고 (보유내역 + 예수금·증거금·손익 요약, 모의 지원)</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(balance.total_deposit, balance.orderable_cash, balance.total_unrealized_pnl)</span>
@@ -581,22 +581,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>나머지 조회는 <strong>실전투자 전용</strong>입니다.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>account.deposit()                      <span class="co"># 총자산현황 (DomesticDerivativeDeposit)</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>account.valuation_pnl()                 <span class="co"># 잔고평가손익 (종목별 평가/매매 손익)</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>account.settlement_pnl(base_date<span class="op">=</span><span class="st">"20240628"</span>)   <span class="co"># 잔고정산손익</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>account.base_date_fills(order_date<span class="op">=</span><span class="st">"20240628"</span>)  <span class="co"># 기준일 체결내역 (start_time/end_time 로 시각 구간)</span></span>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>account.deposit()                                      <span class="co"># 총자산현황 (DomesticDerivativeDeposit)</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>account.valuation_pnl()                                <span class="co"># 잔고평가손익 (종목별 평가/매매 손익)</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>account.settlement_pnl(base_date<span class="op">=</span><span class="st">"20240628"</span>)           <span class="co"># 잔고정산손익</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>account.base_date_fills(order_date<span class="op">=</span><span class="st">"20240628"</span>)         <span class="co"># 기준일 체결내역 (start_time/end_time 로 시각 구간)</span></span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>account.commissions(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240630"</span>)  <span class="co"># 기간약정수수료 일별</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>account.night_margin(margin_division<span class="op">=</span><span class="st">"consignment"</span>)  <span class="co"># 야간 증거금상세 (consignment/maintenance)</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>account.night_balance()                <span class="co"># 야간 잔고현황 -- 계좌비밀번호 필요(account_password, 아래 참조)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>account.night_margin(margin_division<span class="op">=</span><span class="st">"consignment"</span>)    <span class="co"># 야간 증거금상세 (consignment/maintenance)</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>account.night_balance()                                <span class="co"># 야간 잔고현황 -- 계좌비밀번호 필요(account_password, 아래 참조)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><code>night_balance()</code> 는 계좌비밀번호가 있어야 조회됩니다(와이어 <code>ACNT_PWD</code> 로만 쓰이고 로그·<code>_raw</code> 어디에도 담기지 않습니다). 최상위 자격증명 키 <code>account_password</code>(환경변수 <code>KIS_ACCOUNT_PASSWORD</code>)에 저장하며, <a href="./configuration.html">자격증명과 프로필</a>에 설정법이 있습니다.</p>
 <p>주문가능수량은 계약 핸들에서 봅니다. <code>side</code> 는 <code>"buy"</code>/<code>"sell"</code>, <code>limit_price</code> 를 주면 지정가 기준·없으면 시장가 기준입니다.</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>futures <span class="op">=</span> kis.domestic.futures(<span class="st">"101W09"</span>)</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>futures.orderable(<span class="st">"buy"</span>, limit_price<span class="op">=</span><span class="fl">340.0</span>)   <span class="co"># 주간 (모의 지원)</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>futures.night_orderable(<span class="st">"buy"</span>)                <span class="co"># 야간 주문가능 조회(STTN5105R, 실전투자 전용)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>futures.orderable(<span class="st">"buy"</span>, limit_price<span class="op">=</span><span class="fl">340.0</span>)  <span class="co"># 주간 (모의 지원)</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>futures.night_orderable(<span class="st">"buy"</span>)               <span class="co"># 야간 주문가능 조회(STTN5105R, 실전투자 전용)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><code>orderable()</code> 의 <code>DomesticDerivativeOrderable</code>: <code>orderable_quantity</code>(주문가능수량), <code>total_quantity</code>(총가능수량), <code>liquidatable_quantity</code>(청산가능수량), <code>base_index</code>(기준지수).</p>
 <p>증거금율 표는 계약이 아니라 시장 값이라 네임스페이스에 있습니다(<strong>실전투자 전용</strong>).</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>kis.domestic.derivative_margin_rates(<span class="st">"20240628"</span>)                  <span class="co"># 전체 기초자산</span></span>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>kis.domestic.derivative_margin_rates(<span class="st">"20240628"</span>)                       <span class="co"># 전체 기초자산</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>kis.domestic.derivative_margin_rates(<span class="st">"20240628"</span>, underlying_id<span class="op">=</span><span class="st">"101"</span>)  <span class="co"># 한 기초자산</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><code>DerivativeMarginRate</code>: <code>underlying_id</code>·<code>underlying_name</code>·<code>underlying_price</code>(기초자산), <code>brokerage_margin_rate</code>·<code>trading_margin_rate</code>(위탁·거래 증거금율), <code>trading_multiplier</code>(거래승수), <code>futures_margin_per_contract</code>(계약당 선물증거금).</p>
 <p>타입화하지 않은 벤더 필드는 각 결과의 <code>_raw</code> 로 접근합니다.</p>

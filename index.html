@@ -470,14 +470,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>한국투자증권(KIS) Open API를 파이썬에서 쉽게 쓰기 위한 클라이언트입니다. 시세 조회부터 주문·계좌·순위까지 <strong>자산군별로 정리된 메서드</strong>로 호출합니다.</p>
 <section id="설치" class="level2">
 <h2 class="anchored" data-anchor-id="설치">설치</h2>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install kis-trader   <span class="co"># 파이썬에서 import 할 때 (파이썬 3.11+)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install kis-trader  <span class="co"># 파이썬에서 import 할 때 (파이썬 3.11+)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>명령줄 <code>kis</code> 도구나 <strong>Claude Desktop MCP</strong> 로 쓰려면 <code>uv tool install 'kis-trader[mcp]'</code> 가 편합니다 (<a href="./quickstart.html">빠른 시작</a> · <a href="./mcp.html">MCP 서버</a>).</p>
 </section>
 <section id="예시" class="level2">
 <h2 class="anchored" data-anchor-id="예시">예시</h2>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> kis_trader <span class="im">import</span> KISClient</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>kis <span class="op">=</span> KISClient(app_key<span class="op">=</span><span class="st">"…"</span>, app_secret<span class="op">=</span><span class="st">"…"</span>, account<span class="op">=</span><span class="st">"12345678-01"</span>, environment<span class="op">=</span><span class="st">"paper"</span>)   <span class="co"># 세션 열기</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>kis <span class="op">=</span> KISClient(app_key<span class="op">=</span><span class="st">"…"</span>, app_secret<span class="op">=</span><span class="st">"…"</span>, account<span class="op">=</span><span class="st">"12345678-01"</span>, environment<span class="op">=</span><span class="st">"paper"</span>)  <span class="co"># 세션 열기</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>kis.domestic.stock(<span class="st">"005930"</span>).quote()                 <span class="co"># 삼성전자 현재가</span></span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>kis.overseas.stock(<span class="st">"AAPL"</span>).quote()                   <span class="co"># AAPL (거래소 자동)</span></span>

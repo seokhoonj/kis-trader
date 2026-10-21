@@ -472,8 +472,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>stock.other_ratios()                    <span class="co"># 기타 (EVA·EBITDA·EV/EBITDA)</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="추정의견" class="level2" data-number="7.1">
 <h2 data-number="7.1" class="anchored" data-anchor-id="추정의견"><span class="header-section-number">7.1</span> 추정·의견</h2>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>stock.earnings_estimate()                                 <span class="co"># 월간 추정 손익·투자지표 (리서치 추정 대상 종목만)</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>stock.investor_estimate()                                 <span class="co"># 장중 외국인/기관 순매수 추정 (확정 아닌 가추정)</span></span>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>stock.earnings_estimate()  <span class="co"># 월간 추정 손익·투자지표 (리서치 추정 대상 종목만)</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>stock.investor_estimate()  <span class="co"># 장중 외국인/기관 순매수 추정 (확정 아닌 가추정)</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>stock.analyst_opinions(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240630"</span>)  <span class="co"># 애널리스트 의견·목표주가·증권사명 시계열</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>넓은 의견 조회 기간은 창을 나눠 과거로 조회합니다. 응답 상한과 같은 날짜의 다수 기록 때문에 임의의 기간에서 모든 행을 빠짐없이 얻는다고 가정하지 말고 반환 기간·건수를 확인하세요.</p>

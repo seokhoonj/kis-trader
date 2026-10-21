@@ -469,16 +469,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 data-number="12.1" class="anchored" data-anchor-id="투자자-수급"><span class="header-section-number">12.1</span> 투자자 수급</h2>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>market <span class="op">=</span> kis.domestic.market</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>market.investor_flows()           <span class="co"># 시장 전체 투자자 동향</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>market.investor_net_buy_stocks()  <span class="co"># 투자자별 순매수 상위 종목</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>market.investor_flows()                                             <span class="co"># 시장 전체 투자자 동향</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>market.investor_net_buy_stocks()                                    <span class="co"># 투자자별 순매수 상위 종목</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>market.investor_snapshot(market_code<span class="op">=</span><span class="st">"0001"</span>, industry_code<span class="op">=</span><span class="st">"0001"</span>)  <span class="co"># 시장·업종별 세부 매수/매도/순매수</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="프로그램-매매" class="level2" data-number="12.2">
 <h2 data-number="12.2" class="anchored" data-anchor-id="프로그램-매매"><span class="header-section-number">12.2</span> 프로그램 매매</h2>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>market.program_trades()             <span class="co"># 일별 프로그램매매 종합(차익/비차익; KOSPI/KOSDAQ)</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>market.program_flow()               <span class="co"># 당일 시간대별 프로그램 순매수 대금</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>market.program_investor_trades()    <span class="co"># 당일 프로그램매매 투자자 집계</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>market.foreign_broker_trades()      <span class="co"># 외국계 창구 매매</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>market.program_trades()           <span class="co"># 일별 프로그램매매 종합(차익/비차익; KOSPI/KOSDAQ)</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>market.program_flow()             <span class="co"># 당일 시간대별 프로그램 순매수 대금</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>market.program_investor_trades()  <span class="co"># 당일 프로그램매매 투자자 집계</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>market.foreign_broker_trades()    <span class="co"># 외국계 창구 매매</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="자금금리" class="level2" data-number="12.3">
 <h2 data-number="12.3" class="anchored" data-anchor-id="자금금리"><span class="header-section-number">12.3</span> 자금·금리</h2>
@@ -496,7 +496,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="의견뉴스" class="level2" data-number="12.5">
 <h2 data-number="12.5" class="anchored" data-anchor-id="의견뉴스"><span class="header-section-number">12.5</span> 의견·뉴스</h2>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>market.broker_opinions(member_code<span class="op">=</span><span class="st">"003"</span>)  <span class="co"># 한 증권사(회원사 코드)가 낸 종목 투자의견·목표가</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>market.news()                         <span class="co"># 시황·공시 뉴스 제목 피드</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>market.news()                              <span class="co"># 시황·공시 뉴스 제목 피드</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="지수" class="level2" data-number="12.6">
 <h2 data-number="12.6" class="anchored" data-anchor-id="지수"><span class="header-section-number">12.6</span> 지수</h2>
@@ -516,9 +516,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="해외-지수환율국채금" class="level2" data-number="12.7">
 <h2 data-number="12.7" class="anchored" data-anchor-id="해외-지수환율국채금"><span class="header-section-number">12.7</span> 해외 지수·환율·국채·금</h2>
 <p>해외 지수류는 <code>kis.overseas.index(코드, kind=...)</code> 로 봅니다 – <code>kind</code> 는 <code>index</code>(지수)·<code>fx</code>(환율)· <code>bond</code>(국채)·<code>gold</code>(금선물). 모든 종류가 현재가 스냅샷을 주며, 지수·환율은 기간봉(일/주/월)과 분봉(<code>1m</code>)을, 국채·금은 기간봉만 줍니다.</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>kis.overseas.index(<span class="st">"SPX"</span>).quote()                                    <span class="co"># S&amp;P500 현재가</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>kis.overseas.index_quotes([<span class="st">"SPX"</span>, <span class="st">"NDX"</span>])                           <span class="co"># 여러 해외지수 현재가</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>kis.overseas.index(<span class="st">"SPX"</span>).bars(<span class="st">"1d"</span>, start<span class="op">=</span><span class="st">"20240101"</span>)              <span class="co"># S&amp;P500 기간봉</span></span>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>kis.overseas.index(<span class="st">"SPX"</span>).quote()                                     <span class="co"># S&amp;P500 현재가</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>kis.overseas.index_quotes([<span class="st">"SPX"</span>, <span class="st">"NDX"</span>])                             <span class="co"># 여러 해외지수 현재가</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>kis.overseas.index(<span class="st">"SPX"</span>).bars(<span class="st">"1d"</span>, start<span class="op">=</span><span class="st">"20240101"</span>)                <span class="co"># S&amp;P500 기간봉</span></span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>kis.overseas.index(<span class="st">"FX@KRW"</span>, kind<span class="op">=</span><span class="st">"fx"</span>).bars(<span class="st">"1d"</span>, start<span class="op">=</span><span class="st">"20240101"</span>)  <span class="co"># 환율(원/달러) 히스토리</span></span>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>kis.overseas.index(<span class="st">"FX@KRW"</span>, kind<span class="op">=</span><span class="st">"fx"</span>).bars(<span class="st">"1m"</span>, max_bars<span class="op">=</span><span class="dv">100</span>)      <span class="co"># 환율 당일 분봉</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>기간봉(<code>1d</code>/<code>1wk</code>/<code>1mo</code>)은 <code>start</code> 가 필요하고 <code>end</code> 는 생략 시 오늘까지입니다(분봉 <code>1m</code> 만 생략 가능).</p>

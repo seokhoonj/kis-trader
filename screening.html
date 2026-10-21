@@ -483,11 +483,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><code>kis.domestic.ranking.*</code> — 급등주·거래량·시총 같은 시장 전체 순위.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>ranking <span class="op">=</span> kis.domestic.ranking</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>ranking.by_change(direction<span class="op">=</span><span class="st">"gainers"</span>)  <span class="co"># 상승률 상위</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>ranking.by_change(direction<span class="op">=</span><span class="st">"losers"</span>)   <span class="co"># 하락률 상위</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>ranking.by_volume()           <span class="co"># 거래대금 상위(기본)</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>ranking.by_change(direction<span class="op">=</span><span class="st">"gainers"</span>)      <span class="co"># 상승률 상위</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>ranking.by_change(direction<span class="op">=</span><span class="st">"losers"</span>)       <span class="co"># 하락률 상위</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>ranking.by_volume()                         <span class="co"># 거래대금 상위(기본)</span></span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>ranking.by_volume(metric<span class="op">=</span><span class="st">"average_volume"</span>)  <span class="co"># 평균거래량 상위</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>ranking.by_market_cap()                 <span class="co"># 시가총액 상위</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>ranking.by_market_cap()                     <span class="co"># 시가총액 상위</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><code>by_change()</code> 의 각 행은 <code>DomesticRankedStock</code>, <code>by_volume()</code> 은 <code>VolumeRanking</code>, <code>by_market_cap()</code> 은 <code>MarketCapRanking</code> 입니다. 이 세 결과는 <code>rank / symbol / name / price / change / change_percent / volume</code> 필드를 함께 갖습니다:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> row <span class="kw">in</span> ranking.by_change(direction<span class="op">=</span><span class="st">"gainers"</span>)[:<span class="dv">10</span>]:</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>row<span class="sc">.</span>rank<span class="sc">:2d}</span><span class="ss">. </span><span class="sc">{</span>row<span class="sc">.</span>name<span class="sc">:10s}</span><span class="ss"> </span><span class="sc">{</span>row<span class="sc">.</span>price<span class="sc">:&gt;8,}</span><span class="ss">  </span><span class="sc">{</span>row<span class="sc">.</span>change_percent<span class="sc">:&gt;6}</span><span class="ss">%"</span>)</span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -498,7 +498,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>ranking.by_near_high_low()                             <span class="co"># 신고가/신저가 근접</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>ranking.by_dividend(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240630"</span>)  <span class="co"># 배당률 상위</span></span>
 <span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>ranking.by_disparity()                                 <span class="co"># 이격도</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>ranking.by_execution_strength()                              <span class="co"># 체결강도</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>ranking.by_execution_strength()                        <span class="co"># 체결강도</span></span>
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>ranking.by_views()                                     <span class="co"># HTS 조회 상위</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="조건검색-hts-저장조건" class="level2" data-number="11.3">
@@ -512,30 +512,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="관심종목" class="level2" data-number="11.4">
 <h2 data-number="11.4" class="anchored" data-anchor-id="관심종목"><span class="header-section-number">11.4</span> 관심종목</h2>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>kis.domestic.watchlist_groups()             <span class="co"># 관심종목 그룹 (user_id 는 최상위 공유 hts_id)</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>kis.domestic.watchlist(group_code<span class="op">=</span><span class="st">"…"</span>)      <span class="co"># 그룹 안 종목</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>kis.domestic.watchlist_groups()         <span class="co"># 관심종목 그룹 (user_id 는 최상위 공유 hts_id)</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>kis.domestic.watchlist(group_code<span class="op">=</span><span class="st">"…"</span>)  <span class="co"># 그룹 안 종목</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="재무가치-순위" class="level2" data-number="11.5">
 <h2 data-number="11.5" class="anchored" data-anchor-id="재무가치-순위"><span class="header-section-number">11.5</span> 재무·가치 순위</h2>
 <p>재무비율·밸류에이션으로 정렬된 순위도 있습니다.</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>ranking.by_financial_ratio(year<span class="op">=</span><span class="dv">2024</span>)  <span class="co"># 재무비율</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>ranking.by_valuation(year<span class="op">=</span><span class="dv">2024</span>)      <span class="co"># 밸류에이션(PER/PBR 등)</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>ranking.by_profit_asset(year<span class="op">=</span><span class="dv">2024</span>)   <span class="co"># 수익성·자산</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>ranking.by_valuation(year<span class="op">=</span><span class="dv">2024</span>)        <span class="co"># 밸류에이션(PER/PBR 등)</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>ranking.by_profit_asset(year<span class="op">=</span><span class="dv">2024</span>)     <span class="co"># 수익성·자산</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="시간외예상기타-순위" class="level2" data-number="11.6">
 <h2 data-number="11.6" class="anchored" data-anchor-id="시간외예상기타-순위"><span class="header-section-number">11.6</span> 시간외·예상·기타 순위</h2>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>ranking.by_bulk_trade_count(side<span class="op">=</span><span class="st">"buy"</span>)                     <span class="co"># 대량체결건수</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>ranking.by_quote_balance(metric<span class="op">=</span><span class="st">"net_buy"</span>)             <span class="co"># 호가잔량</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>ranking.by_watchlist_registrations()                                  <span class="co"># 관심종목 등록상위</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>ranking.by_preferred_share_disparity()                       <span class="co"># 우선주 괴리율</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>ranking.by_expected_close()                            <span class="co"># 장마감 예상체결</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>ranking.by_expected_execution_change(direction<span class="op">=</span><span class="st">"gainers"</span>)   <span class="co"># 장전 예상체결 등락</span></span>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>ranking.by_bulk_trade_count(side<span class="op">=</span><span class="st">"buy"</span>)                                      <span class="co"># 대량체결건수</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>ranking.by_quote_balance(metric<span class="op">=</span><span class="st">"net_buy"</span>)                                   <span class="co"># 호가잔량</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>ranking.by_watchlist_registrations()                                         <span class="co"># 관심종목 등록상위</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>ranking.by_preferred_share_disparity()                                       <span class="co"># 우선주 괴리율</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>ranking.by_expected_close()                                                  <span class="co"># 장마감 예상체결</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>ranking.by_expected_execution_change(direction<span class="op">=</span><span class="st">"gainers"</span>)                    <span class="co"># 장전 예상체결 등락</span></span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>ranking.by_house_trade_volume(side<span class="op">=</span><span class="st">"buy"</span>, start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240131"</span>)  <span class="co"># 당사매매 종목</span></span>
 <span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>ranking.by_after_hours_balance(side<span class="op">=</span><span class="st">"ask"</span>)              <span class="co"># 시간외 잔량</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>ranking.by_after_hours_change(direction<span class="op">=</span><span class="st">"gainers"</span>)          <span class="co"># 시간외 등락률</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>ranking.by_after_hours_expected_change(direction<span class="op">=</span><span class="st">"gainers"</span>) <span class="co"># 시간외 예상체결 등락</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>ranking.by_after_hours_volume()                             <span class="co"># 시간외 거래량</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>ranking.by_after_hours_balance(side<span class="op">=</span><span class="st">"ask"</span>)                   <span class="co"># 시간외 잔량</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>ranking.by_after_hours_change(direction<span class="op">=</span><span class="st">"gainers"</span>)           <span class="co"># 시간외 등락률</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>ranking.by_after_hours_expected_change(direction<span class="op">=</span><span class="st">"gainers"</span>)  <span class="co"># 시간외 예상체결 등락</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>ranking.by_after_hours_volume()                              <span class="co"># 시간외 거래량</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>(ELW 스크리너·순위는 <a href="./elw.html">ELW</a> 챕터에 있습니다.)</p>
 
 

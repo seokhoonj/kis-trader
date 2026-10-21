@@ -461,10 +461,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>ETF/ETN의 <strong>NAV(순자산가치)</strong>·구성종목·호가. 시장 체결가·차트는 일반 종목처럼 <code>quote()</code>·<code>bars()</code> 를 씁니다.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>stock <span class="op">=</span> kis.domestic.stock(<span class="st">"069500"</span>)  <span class="co"># KODEX 200</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>stock.nav()                           <span class="co"># NAV 스냅샷 (NAV·괴리율·추적오차율·순자산총액)</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>stock.nav_comparison()                <span class="co"># 당일 시장가 vs NAV OHLC 비교</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>stock.etf_components()                <span class="co"># 구성종목(PDF, 설정 구성내역) + ETF 요약</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>stock.etf_order_book()                <span class="co"># 10단계 호가 + LP(유동성공급자) 잔량·잔량증감·중간가</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>stock.nav()             <span class="co"># NAV 스냅샷 (NAV·괴리율·추적오차율·순자산총액)</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>stock.nav_comparison()  <span class="co"># 당일 시장가 vs NAV OHLC 비교</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>stock.etf_components()  <span class="co"># 구성종목(PDF, 설정 구성내역) + ETF 요약</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>stock.etf_order_book()  <span class="co"># 10단계 호가 + LP(유동성공급자) 잔량·잔량증감·중간가</span></span></code><button title="클립보드 복사" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="nav-추이" class="level2" data-number="16.1">
 <h2 data-number="16.1" class="anchored" data-anchor-id="nav-추이"><span class="header-section-number">16.1</span> NAV 추이</h2>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>stock.nav_history(start<span class="op">=</span><span class="st">"20240101"</span>, end<span class="op">=</span><span class="st">"20240630"</span>)  <span class="co"># 일별 NAV-가격 추이 (괴리율)</span></span>
