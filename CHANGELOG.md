@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve lock-file bytes and lifetime exclusion throughout offline journal migration
+  on Windows, including interrupted-migration recovery.
 - Prevent secret-bearing transport/configuration exception chains from exposing
   request credentials or malformed credential-file contents.
 - Enforce configured risk limits on domestic reserved placements/modifications and

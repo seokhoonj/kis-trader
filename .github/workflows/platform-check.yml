@@ -39,6 +39,7 @@ jobs:
         run: >-
           "${{ matrix.python }}" -m pytest -q
           tests/test_store_dir_fsync.py::test_native_windows_process_exclusion_and_recovery
+          tests/test_order_live_findings.py::test_native_windows_migration_preserves_locked_bytes_backup_and_pending
       - name: Portable refusal and root-isolation tests
         run: >-
           "${{ matrix.python }}" -m pytest -q
