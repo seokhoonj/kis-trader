@@ -3,6 +3,19 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.1 - 2026-10-21
+
+### Fixed
+
+- Support offline migration of legacy order journals into the physical state directory
+  on Windows and macOS, preserving pending records, scope, lock bytes and backups.
+- Resume Windows migrations after interruption before or after directory installation
+  and source cutover. All SDK/CLI users and automatic restarts must remain stopped;
+  destination and layout locks stay held during the source-lock handoff.
+- Use macOS exclusive rename semantics without overwriting existing destinations.
+- Reject unknown directory reparse points before opening their journals, while retaining
+  previously validated direct cache aliases.
+
 ## 0.12.0 - 2026-10-21
 
 ### Added
