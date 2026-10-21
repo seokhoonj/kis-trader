@@ -91,6 +91,43 @@ def check(site: Path, project: Path, artifacts: Path) -> None:
                             assert not broken, f"Broken images: {broken}"
                             overflow = page.evaluate("({width: innerWidth, scroll: document.documentElement.scrollWidth})")
                             assert overflow["scroll"] <= overflow["width"] + 2, f"Horizontal page overflow: {overflow}"
+                            if label == "mobile":
+                                tables = page.locator("main#quarto-document-content table")
+                                if relative == "configuration.html":
+                                    first_table = tables.first
+                                    assert first_table.locator("thead th").count() == 6
+                                    assert first_table.evaluate("element => element.scrollWidth > element.clientWidth + 2"), "Six-column mobile table must preserve readable cell widths and actually scroll"
+                                for table_index in range(tables.count()):
+                                    table = tables.nth(table_index)
+                                    metrics = table.evaluate("element => ({client: element.clientWidth, scroll: element.scrollWidth})")
+                                    if metrics["scroll"] <= metrics["client"] + 2:
+                                        continue
+                                    scrolling = table.evaluate("""async element => {
+                                        const overflow = getComputedStyle(element).overflowX;
+                                        element.scrollLeft = 0;
+                                        const start = element.scrollLeft;
+                                        element.scrollLeft = element.scrollWidth;
+                                        await new Promise(requestAnimationFrame);
+                                        const end = element.scrollLeft;
+                                        const rectangle = element.getBoundingClientRect();
+                                        const lastCell = element.querySelector('tr')?.lastElementChild;
+                                        const last = lastCell?.getBoundingClientRect();
+                                        return {overflow, start, end,
+                                            maximum: element.scrollWidth - element.clientWidth,
+                                            clipLeft: rectangle.left + element.clientLeft,
+                                            clipRight: rectangle.left + element.clientLeft + element.clientWidth,
+                                            lastRight: last?.right};
+                                    }""")
+                                    assert scrolling["overflow"] in {"auto", "scroll"}, scrolling
+                                    assert abs(scrolling["start"]) <= 2, scrolling
+                                    assert scrolling["end"] > 0 and abs(scrolling["end"] - scrolling["maximum"]) <= 2, scrolling
+                                    assert scrolling["lastRight"] is not None and scrolling["clipLeft"] < scrolling["lastRight"] <= scrolling["clipRight"] + 2, scrolling
+                                    if relative == "configuration.html" and table_index == 0:
+                                        table.screenshot(path=str(artifacts / "mobile-configuration-first-table-end.png"))
+                                    table.evaluate("element => { element.scrollLeft = 0; }")
+                                    assert abs(table.evaluate("element => element.scrollLeft")) <= 2
+                                    results.append({"viewport": label, "chapter": relative,
+                                                    "table_index": table_index, "horizontal_scroll": scrolling})
                             assert len(errors) == start_errors, errors[start_errors:]
                             results.append({"viewport": label, "chapter": relative, "checks": "passed"})
                         finally:

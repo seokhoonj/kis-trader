@@ -32,8 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Preserve lock-file bytes and lifetime exclusion throughout offline journal migration
-  on Windows, including interrupted-migration recovery.
+- Reject unsupported Windows legacy-directory migration and recovery before changing
+  files. Fresh-state initialization and ordinary Windows journal locking remain available.
+- Preserve locked journal bytes and reject changed recovery inventories before creating
+  new lock files during supported directory migrations.
 - Prevent secret-bearing transport/configuration exception chains from exposing
   request credentials or malformed credential-file contents.
 - Enforce configured risk limits on domestic reserved placements/modifications and

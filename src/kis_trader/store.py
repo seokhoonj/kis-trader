@@ -571,10 +571,6 @@ class OrderStore:
             ) from err
         self._process_lock_fd = fd
 
-    def _open_windows_lock_descriptor(self, lock_path: Path, backend: ModuleType) -> int:
-        """일반 저장소의 기존 CRT 열기 정책을 보존한다."""
-        return os.open(lock_path, os.O_CREAT | os.O_RDWR | getattr(os, "O_BINARY", 0), 0o644)
-
     def _acquire_windows_lock(self, backend: ModuleType) -> None:
         """정규 경로 예약 후 CRT 바이트 잠금을 확보한다. 실패한 시도의 자원만 해제한다."""
         assert self._path is not None
@@ -589,7 +585,7 @@ class OrderStore:
         acquired = False
         try:
             try:
-                descriptor = self._open_windows_lock_descriptor(lock_path, backend)
+                descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR | getattr(os, "O_BINARY", 0), 0o644)
                 os.lseek(descriptor, 0, os.SEEK_SET)
             except OSError as error:
                 raise KISError("주문 dedup 저장소 파일 잠금을 확보할 수 없다.") from error

@@ -12,7 +12,6 @@ import uuid
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
-from types import ModuleType
 from typing import BinaryIO, cast
 
 from . import store
@@ -59,10 +58,12 @@ def ensure_order_store_directory(state: Path, cache: Path) -> Path:
     읽지 못하는 구 버전은 같은 저장소에서 안전하게 거부될 수 있다.
     """
     _validate_roots(state, cache)
+    _check_migration_platform(state, cache)
     state.parent.mkdir(parents=True, exist_ok=True)
     # JSON은 만들지 않는다. 실제 OrderStore 수명 락을 재사용하되 읽기/스키마 검증만 한다.
     with store.OrderStore(path=state.parent / ".orders-layout", retention_days=0):
         _validate_roots(state, cache)
+        _check_migration_platform(state, cache)
         if _present(state.parent / ".orders-migration.json"):
             raise KISUsageError("완료되지 않은 주문 저장소 이전이 있습니다. " + _OFFLINE)
         if _present(cache):
@@ -105,75 +106,6 @@ def _journal_entries(directory: Path) -> list[Path]:
     return entries
 
 
-def _open_windows_migration_lock(lock_path: Path, backend: ModuleType) -> int:
-    """이전 중에도 락을 풀지 않고 디렉터리 rename을 허용하는 전용 핸들을 연다.
-
-    일반 OrderStore의 CRT 공유 정책은 바꾸지 않는다. 링크를 따라가지 않고 핸들의 정규 파일
-    속성을 확인한 뒤 CRT에 소유권을 넘긴다. 넘긴 뒤에는 descriptor만 닫는다.
-    https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
-    https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/open-osfhandle
-    """
-    import ctypes
-    import stat
-
-    class FileAttributeTagInfo(ctypes.Structure):
-        _fields_ = [("FileAttributes", ctypes.c_uint32), ("ReparseTag", ctypes.c_uint32)]
-
-    # ctypes의 Win32 심볼은 POSIX 타입 정의에는 없으나 이 경로는 Windows 백엔드에서만 호출된다.
-    windows_library = ctypes.WinDLL  # type: ignore[attr-defined]
-    windows_error = ctypes.WinError  # type: ignore[attr-defined]
-    last_error = ctypes.get_last_error  # type: ignore[attr-defined]
-    api = windows_library("kernel32", use_last_error=True)
-    api.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
-                               ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
-    api.CreateFileW.restype = ctypes.c_void_p
-    api.GetFileInformationByHandleEx.argtypes = [ctypes.c_void_p, ctypes.c_int,
-                                                ctypes.c_void_p, ctypes.c_uint32]
-    api.GetFileInformationByHandleEx.restype = ctypes.c_int
-    api.GetFileType.argtypes = [ctypes.c_void_p]
-    api.GetFileType.restype = ctypes.c_uint32
-    api.CloseHandle.argtypes = [ctypes.c_void_p]
-    api.CloseHandle.restype = ctypes.c_int
-    # READ|WRITE, SHARE_READ|WRITE|DELETE, OPEN_ALWAYS, NORMAL|OPEN_REPARSE_POINT.
-    handle = api.CreateFileW(str(lock_path), 0xC0000000, 0x7, None, 4, 0x00200080, None)
-    if handle is None or handle == ctypes.c_void_p(-1).value:
-        raise windows_error(last_error())
-    descriptor: int | None = None
-    transferred = False
-    accepted = False
-    try:
-        attributes = FileAttributeTagInfo()
-        if not api.GetFileInformationByHandleEx(handle, 9, ctypes.byref(attributes), ctypes.sizeof(attributes)):
-            raise windows_error(last_error())
-        if attributes.FileAttributes & (0x400 | 0x10) or api.GetFileType(handle) != 1:
-            raise KISUsageError("주문 잠금 파일은 링크가 아닌 정규 디스크 파일이어야 합니다.")
-        descriptor = backend.open_osfhandle(int(handle), os.O_RDWR | getattr(os, "O_BINARY", 0))
-        if descriptor < 0:
-            raise OSError("주문 잠금 핸들을 descriptor로 변환할 수 없습니다.")
-        transferred = True
-        details = os.fstat(descriptor)
-        current = lock_path.lstat()
-        if (not stat.S_ISREG(details.st_mode) or not stat.S_ISREG(current.st_mode)
-                or (details.st_dev, details.st_ino) != (current.st_dev, current.st_ino)):
-            raise KISUsageError("이전 중 주문 잠금 파일이 교체되었습니다. 모든 사본을 보존하세요.")
-        os.set_inheritable(descriptor, False)
-        accepted = True
-        return descriptor
-    finally:
-        if not transferred:
-            api.CloseHandle(handle)
-        elif not accepted:
-            assert descriptor is not None
-            os.close(descriptor)
-
-
-class _MigrationJournal(store.OrderStore):
-    """이전 대상의 Windows 핸들만 rename 공유를 허용하고 기존 수명 락은 그대로 쓴다."""
-
-    def _open_windows_lock_descriptor(self, lock_path: Path, backend: ModuleType) -> int:
-        return _open_windows_migration_lock(lock_path, backend)
-
-
 class _JournalLocks(ExitStack):
     """수명 락과 같은 파일 핸들로 잠긴 락 바이트를 읽으며 rename 뒤에도 inode로 연결한다."""
 
@@ -185,7 +117,7 @@ class _JournalLocks(ExitStack):
         names = {entry.name.removesuffix(".lock") if entry.name.endswith(".json.lock") else entry.name
                  for entry in _journal_entries(directory)}
         for name in sorted(names):
-            journal = self.enter_context(_MigrationJournal(path=directory / name, retention_days=0))
+            journal = self.enter_context(store.OrderStore(path=directory / name, retention_days=0))
             descriptor = journal._process_lock_fd
             assert descriptor is not None
             details = os.fstat(descriptor)
@@ -479,22 +411,41 @@ def _resume_migration(
     store._fsync_dir(marker.parent)
 
 
+def _check_migration_platform(state: Path, cache: Path) -> None:
+    """Windows의 디렉터리 이동 경로만 변경 전에 거부한다.
+
+    열린 자식 파일 핸들을 유지하는 디렉터리 rename은 이 이전 절차로 지원하지 않는다.
+    https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information
+    """
+    marker = state.parent / ".orders-migration.json"
+    if store._WINDOWS and (_present(marker) or (_present(cache) and not cache.is_symlink())):
+        raise KISUsageError(
+            "현재 Windows에서는 자식 파일 잠금을 유지하는 구 주문 디렉터리 자동 이전·재개를 "
+            "지원하지 않습니다. 원본·임시·백업 디렉터리와 이전 기록을 모두 보존하고, "
+            "모든 사용 프로세스를 중지한 상태에서 별도 복구 절차를 검토하세요."
+        )
+
+
 def migrate_order_store_directory(state: Path, cache: Path, *, offline: bool) -> None:
     """모든 사용자를 중지한 운영자의 명시적 선언 아래에만 디렉터리를 이전·복구한다.
 
     이 선언은 구 프로세스의 재시작을 기술적으로 막지 않는다. 완료할 때까지 모든 계좌의
     구·신 프로세스와 자동 재시작을 중지해야 한다. 백업은 자동 삭제하지 않으며, 스키마나
     계좌 귀속을 바꾸지 않는다. 알 수 없는 중단 상태는 사본을 보존하고 거부한다.
+    Windows의 구 디렉터리 이전·재개는 자식 파일 잠금을 유지하는 이 프로토콜로 지원하지
+    않으며, 어떠한 파일·디렉터리를 변경하기 전에 거부한다. 기존 state 검증은 유지한다.
     """
     if offline is not True:
         raise KISUsageError("--offline 은 모든 주문 저장소 사용자와 자동 재시작을 중지했다는 선언입니다.")
     _validate_roots(state, cache)
+    marker = state.parent / ".orders-migration.json"
+    _check_migration_platform(state, cache)
     state.parent.mkdir(parents=True, exist_ok=True)
     cache.parent.mkdir(parents=True, exist_ok=True)
-    marker = state.parent / ".orders-migration.json"
     with _JournalLocks() as stack:
         stack.enter_context(store.OrderStore(path=state.parent / ".orders-layout", retention_days=0))
         _validate_roots(state, cache)
+        _check_migration_platform(state, cache)
         if _present(marker):
             transaction = _load_transaction(marker, state, cache)
             _resume_migration(state, cache, marker, transaction, stack)

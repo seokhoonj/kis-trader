@@ -1057,160 +1057,138 @@ def test_resume_tampered_destination_does_not_create_locks(tmp_path, monkeypatch
     assert not windows_locked_reads
 
 
-@pytest.fixture
-def windows_migration_api(monkeypatch):
-    """Win32 호출·소유권 계약만 POSIX 실제 descriptor로 검증한다."""
-    import ctypes
-    import errno
+def _migration_tree_snapshot(directory):
+    """합성 디렉터리의 이름·inode·모드·전체 바이트를 비교한다."""
+    import stat
 
-    backend = types.SimpleNamespace(LK_NBLCK=20, LK_UNLCK=21)
-    locked = set()
-    shared_delete = set()
-    handles = {}
-    transferred = []
-    closed = []
-    behavior = {"failure": None}
-    calls = []
-    original_open = os.open
-    original_rename = layout._rename_no_replace
-    original_inheritable = os.set_inheritable
-
-    def locking(descriptor, operation, count):
-        assert os.lseek(descriptor, 0, os.SEEK_CUR) == 0 and count == 1
-        if operation == backend.LK_NBLCK:
-            if behavior["failure"] == "lock" and descriptor in shared_delete:
-                raise OSError(errno.EACCES, "synthetic byte lock failure")
-            locked.add(descriptor)
-        else:
-            assert operation == backend.LK_UNLCK
-            locked.remove(descriptor)
-
-    def create(path, access, sharing, security, disposition, flags, template):
-        assert access == 0xC0000000 and sharing == 0x7
-        assert security is None and disposition == 4 and template is None
-        assert flags & 0x00200000 and not flags & 0x04000000
-        calls.append(path)
-        if behavior["failure"] == "create":
-            return ctypes.c_void_p(-1).value
-        descriptor = original_open(path, os.O_RDWR | os.O_CREAT, 0o644)
-        handle = descriptor + 100000
-        handles[handle] = descriptor
-        shared_delete.add(descriptor)
-        return handle
-
-    def information(handle, kind, buffer, size):
-        assert kind == 9 and size == 8
-        buffer._obj.FileAttributes = {"reparse": 0x400, "directory": 0x10}.get(behavior["failure"], 0)
-        return behavior["failure"] != "information"
-
-    def close_handle(handle):
-        assert handle not in closed
-        closed.append(handle)
-        os.close(handles[handle])
-        return 1
-
-    def transfer(handle, flags):
-        assert flags & os.O_RDWR and not flags & (os.O_CREAT | os.O_TRUNC)
-        if behavior["failure"] == "transfer":
-            raise OSError("synthetic handle transfer failure")
-        transferred.append(handle)
-        return handles[handle]
-
-    class Function:
-        def __init__(self, function):
-            self.function = function
-
-        def __call__(self, *args):
-            return self.function(*args)
-
-    api = types.SimpleNamespace(
-        CreateFileW=Function(create), GetFileInformationByHandleEx=Function(information),
-        GetFileType=Function(lambda handle: 1), CloseHandle=Function(close_handle),
-    )
-
-    def rename(source, destination):
-        identities = {(path.stat().st_dev, path.stat().st_ino) for path in source.iterdir()}
-        for descriptor in locked:
-            details = os.fstat(descriptor)
-            if (details.st_dev, details.st_ino) in identities and descriptor not in shared_delete:
-                raise PermissionError(13, "synthetic Windows rename requires FILE_SHARE_DELETE")
-        return original_rename(source, destination)
-
-    def set_inheritable(descriptor, inheritable):
-        if behavior["failure"] == "inheritable" and descriptor in shared_delete:
-            raise OSError("synthetic descriptor validation failure")
-        return original_inheritable(descriptor, inheritable)
-
-    backend.locking = locking
-    backend.open_osfhandle = transfer
-    monkeypatch.setattr(os, "set_inheritable", set_inheritable)
-    monkeypatch.setattr(layout.store, "_WINDOWS", True)
-    monkeypatch.setattr(layout.store, "msvcrt", backend)
-    monkeypatch.setattr(layout, "_requires_legacy_alias", lambda: False)
-    monkeypatch.setattr(layout, "_rename_no_replace", rename)
-    monkeypatch.setattr(ctypes, "WinDLL", lambda name, use_last_error: api, raising=False)
-    monkeypatch.setattr(ctypes, "get_last_error", lambda: 5, raising=False)
-    monkeypatch.setattr(ctypes, "WinError", lambda code: OSError(code, "synthetic Win32 failure"), raising=False)
-    return behavior, calls, handles, transferred, closed, locked
+    snapshot = {}
+    for path in [directory, *sorted(directory.rglob('*'))]:
+        details = path.lstat()
+        snapshot[str(path.relative_to(directory))] = (
+            details.st_dev, details.st_ino, stat.S_IMODE(details.st_mode),
+            path.read_bytes() if stat.S_ISREG(details.st_mode) else None,
+        )
+    return snapshot
 
 
-@pytest.mark.skipif(os.name == "nt", reason="portable Win32 ABI fake uses POSIX handles; native migration has a separate test")
-def test_windows_migration_renames_with_continuously_held_shared_delete_locks(tmp_path, windows_migration_api):
-    _behavior, calls, handles, transferred, closed, locked = windows_migration_api
-    state, cache = _windows_migration_layout(tmp_path, b"synthetic-byte-zero")
-    before = {path.name: path.read_bytes() for path in cache.iterdir()}
-    layout.migrate_order_store_directory(state, cache, offline=True)
-    assert calls and transferred and not closed and not locked
-    assert {path.name: path.read_bytes() for path in state.iterdir()} == before
-    for descriptor in handles.values():
-        with pytest.raises(OSError):
-            os.fstat(descriptor)
-
-
-@pytest.mark.skipif(os.name == "nt", reason="portable Win32 ABI fake uses POSIX handles; native migration has a separate test")
-@pytest.mark.parametrize("failure", ["create", "information", "reparse", "directory", "transfer", "inheritable", "lock"])
-def test_windows_migration_opener_failure_releases_handle_and_registry(tmp_path, windows_migration_api, failure):
-    behavior, calls, handles, transferred, closed, locked = windows_migration_api
-    state, cache = _windows_migration_layout(tmp_path, b"synthetic-byte-zero")
-    before = {path.name: path.read_bytes() for path in cache.iterdir()}
-    behavior["failure"] = failure
-    with pytest.raises(KISError):
-        layout.migrate_order_store_directory(state, cache, offline=True)
-    assert calls and not locked
-    assert len(transferred) == (1 if failure in {"inheritable", "lock"} else 0)
-    assert len(closed) == (0 if failure in {"create", "inheritable", "lock"} else 1)
-    assert {path.name: path.read_bytes() for path in cache.iterdir()} == before
-    assert not state.exists() and not layout.store._locked_paths
-    for descriptor in handles.values():
-        with pytest.raises(OSError):
-            os.fstat(descriptor)
-
-
-@pytest.mark.skipif(os.name == "nt", reason="portable Win32 ABI fake uses POSIX handles; native migration has a separate test")
-def test_ordinary_windows_store_keeps_existing_opener(tmp_path, windows_migration_api):
-    _behavior, calls, handles, transferred, closed, locked = windows_migration_api
-    with OrderStore(tmp_path / "synthetic.json", retention_days=0):
-        assert not calls and not handles and not transferred and locked
-    assert not locked and not closed
-
-
-@pytest.mark.skipif(os.name != "nt", reason="actual Win32 sharing and byte-lock behavior requires native Windows")
-@pytest.mark.parametrize("payload", [b"", b"synthetic-byte-zero"])
-def test_native_windows_migration_preserves_locked_bytes_backup_and_pending(tmp_path, payload):
+@pytest.mark.parametrize('state_kind', ['absent', 'empty', 'equal', 'different'])
+@pytest.mark.parametrize('payload', [b'', b'synthetic-byte-zero'])
+def test_windows_legacy_migration_refuses_before_any_mutation(tmp_path, monkeypatch, state_kind, payload):
     state, cache = _windows_migration_layout(tmp_path, payload)
-    journal_path = cache / "synthetic.json"
-    before = journal_path.read_bytes()
-    lock_identity = layout._identity(cache / "synthetic.json.lock")
-    with OrderStore(journal_path, retention_days=0):
-        with pytest.raises(KISError):
+    if state_kind != 'absent':
+        state.mkdir(parents=True)
+    if state_kind in ('equal', 'different'):
+        (state/'synthetic.json').write_bytes((cache/'synthetic.json').read_bytes() if state_kind == 'equal' else b'synthetic-conflict')
+    before = _migration_tree_snapshot(tmp_path)
+    def forbidden(*args, **kwargs):
+        pytest.fail('Windows legacy refusal must precede mkdir, lock, inventory, marker and rename')
+    with monkeypatch.context() as patch:
+        patch.setattr(layout.store, '_WINDOWS', True)
+        patch.setattr(Path, 'mkdir', forbidden)
+        patch.setattr(layout, '_lock_inventory', forbidden)
+        patch.setattr(layout, '_write_transaction', forbidden)
+        patch.setattr(layout, '_rename_no_replace', forbidden)
+        patch.setattr(OrderStore, '_acquire_single_writer_lock', forbidden)
+        with pytest.raises(KISUsageError, match='Windows'):
             layout.migrate_order_store_directory(state, cache, offline=True)
-        assert journal_path.read_bytes() == before and not state.exists()
-    layout.migrate_order_store_directory(state, cache, offline=True)
-    assert not cache.exists()
-    backup = next(cache.parent.glob(".orders-backup-*"))
-    for directory in (state, backup):
-        assert (directory / "synthetic.json").read_bytes() == before
-        assert (directory / "synthetic.json.lock").read_bytes() == payload
-    assert layout._identity(backup / "synthetic.json.lock") == lock_identity
-    with OrderStore(state / "synthetic.json", retention_days=0) as reopened:
-        assert reopened.is_in_flight("pending")
+    assert _migration_tree_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize('marker_bytes', [b'{}', b'synthetic-invalid-marker'])
+def test_windows_unfinished_migration_refuses_before_marker_read_or_mutation(tmp_path, monkeypatch, marker_bytes):
+    state = tmp_path/'state'/'kis-trader'/'orders'
+    cache = tmp_path/'cache'/'kis-trader'/'orders'
+    state.parent.mkdir(parents=True)
+    marker = state.parent/'.orders-migration.json'
+    marker.write_bytes(marker_bytes)
+    for name in ('.orders-stage-synthetic', '.orders-backup-synthetic'):
+        directory = state.parent/name
+        directory.mkdir()
+        (directory/'synthetic.json').write_bytes(b'synthetic-preserved')
+    before = _migration_tree_snapshot(tmp_path)
+    def forbidden(*args, **kwargs):
+        pytest.fail('Windows unfinished migration refusal must precede all reads and writes')
+    with monkeypatch.context() as patch:
+        patch.setattr(layout.store, '_WINDOWS', True)
+        patch.setattr(Path, 'mkdir', forbidden)
+        patch.setattr(layout, '_load_transaction', forbidden)
+        patch.setattr(OrderStore, '_acquire_single_writer_lock', forbidden)
+        with pytest.raises(KISUsageError, match='Windows'):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+    assert _migration_tree_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize('state_exists', [False, True])
+def test_windows_empty_legacy_directory_refuses_without_mutation(tmp_path, monkeypatch, state_exists):
+    state = tmp_path/'state'/'kis-trader'/'orders'
+    cache = tmp_path/'cache'/'kis-trader'/'orders'
+    cache.mkdir(parents=True)
+    if state_exists:
+        state.mkdir(parents=True)
+    before = _migration_tree_snapshot(tmp_path)
+    with monkeypatch.context() as patch:
+        patch.setattr(layout.store, '_WINDOWS', True)
+        with pytest.raises(KISUsageError, match='Windows'):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+    assert _migration_tree_snapshot(tmp_path) == before
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='native Windows early refusal and ordinary byte-lock controls')
+@pytest.mark.parametrize('payload', [b'', b'synthetic-byte-zero'])
+def test_native_windows_legacy_migration_refuses_preserving_all_entries(tmp_path, payload):
+    state, cache = _windows_migration_layout(tmp_path, payload)
+    before = _migration_tree_snapshot(tmp_path)
+    with OrderStore(cache/'synthetic.json', retention_days=0) as holder:
+        with pytest.raises(KISUsageError, match='Windows'):
+            layout.migrate_order_store_directory(state, cache, offline=True)
+        assert holder.is_in_flight('pending')
+        assert not state.parent.exists()
+    assert _migration_tree_snapshot(tmp_path) == before
+    with pytest.raises(KISUsageError, match='Windows'):
+        layout.migrate_order_store_directory(state, cache, offline=True)
+    assert _migration_tree_snapshot(tmp_path) == before
+    # 별도 새 배치와 기존 state의 무이동 검증은 계속 지원한다.
+    fresh_state = tmp_path/'fresh-state'/'kis-trader'/'orders'
+    fresh_cache = tmp_path/'fresh-cache'/'kis-trader'/'orders'
+    assert layout.ensure_order_store_directory(fresh_state, fresh_cache) == fresh_state
+    with OrderStore(fresh_state/'synthetic.json', retention_days=0) as instance:
+        instance.try_claim('pending', Order.market('005930', side='buy', quantity=1).fingerprint)
+    fresh_before = _migration_tree_snapshot(fresh_state)
+    layout.migrate_order_store_directory(fresh_state, fresh_cache, offline=True)
+    assert _migration_tree_snapshot(fresh_state) == fresh_before
+    with OrderStore(fresh_state/'synthetic.json', retention_days=0) as reopened:
+        assert reopened.is_in_flight('pending')
+
+
+@pytest.mark.parametrize('kind', ['legacy-empty', 'legacy-json', 'unfinished-marker'])
+def test_public_windows_config_path_has_actionable_supported_guidance(tmp_path, monkeypatch, kind):
+    state = tmp_path/'state'/'kis-trader'/'orders'
+    cache = tmp_path/'cache'/'kis-trader'/'orders'
+    monkeypatch.setenv('XDG_STATE_HOME', str(tmp_path/'state'))
+    monkeypatch.setenv('XDG_CACHE_HOME', str(tmp_path/'cache'))
+    if kind == 'unfinished-marker':
+        state.parent.mkdir(parents=True)
+        (state.parent/'.orders-migration.json').write_bytes(b'{}')
+    else:
+        cache.mkdir(parents=True)
+        if kind == 'legacy-json':
+            (cache/'synthetic.json').write_bytes(b'synthetic-preserved')
+    original_acquire = OrderStore._acquire_single_writer_lock
+    def acquire(instance):
+        # Keep a REAL host lock for baseline entry, without pretending Linux has msvcrt.
+        if os.name == 'nt':
+            return original_acquire(instance)
+        layout.store._WINDOWS = False
+        try:
+            return original_acquire(instance)
+        finally:
+            layout.store._WINDOWS = True
+    monkeypatch.setattr(OrderStore, '_acquire_single_writer_lock', acquire)
+    monkeypatch.setattr(layout.store, '_WINDOWS', True)
+    before = _migration_tree_snapshot(tmp_path)
+    with pytest.raises(KISUsageError) as caught:
+        order_store_path(account='synthetic-01', environment='paper')
+    message = str(caught.value)
+    assert 'Windows' in message and '지원하지 않습니다' in message
+    assert 'migrate-orders --offline' not in message
+    assert _migration_tree_snapshot(tmp_path) == before

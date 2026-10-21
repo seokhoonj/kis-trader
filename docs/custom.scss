@@ -180,3 +180,18 @@ pre:not(.sourceCode) > code {
 // 사이드바 상단 GitHub 아이콘 숨김 -- 우측 "소스 보기"(repo-action, .toc-action) 가 이미
 // 같은 저장소를 가리켜 중복이다. repo-url 은 그 source 링크에 필요해 그대로 둔다.
 .quarto-navigation-tool:has(.bi-github) { display: none; }
+
+// 좁은 화면의 표는 셀의 읽기 폭을 유지하고 표 안에서 가로 스크롤한다.
+@media (max-width: 767.98px) {
+  #quarto-document-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  #quarto-document-content table th,
+  #quarto-document-content table td {
+    min-width: 7em;
+    max-width: 24em;
+    white-space: normal;
+  }
+}
