@@ -47,6 +47,45 @@ jobs:
           tests/test_order_live_findings.py::test_order_layout_rejects_cache_nested_inside_state_without_mutation
           tests/test_order_live_findings.py::test_offline_migration_never_merges_independent_journals
           tests/test_order_live_findings.py::test_offline_constructor_failure_leaves_bytes_and_releases_all_previous_locks
+      - name: Native Windows lock handle and rename diagnostics
+        if: runner.os == 'Windows'
+        run: |
+          "${{ matrix.python }}" - <<'PY'
+          """Synthetic native probe: no user paths or credential reads."""
+          import json
+          import os
+          from pathlib import Path
+          import sys
+          import tempfile
+          from kis_trader import OrderStore
+
+          assert sys.platform == 'win32', 'native Windows required'
+          result = {}
+          with tempfile.TemporaryDirectory(prefix='kis-lock-handles-') as temporary:
+              source = Path(temporary) / 'source'
+              source.mkdir()
+              journal = source / 'synthetic.json'
+              lock = source / 'synthetic.json.lock'
+              lock.write_bytes(b'synthetic-byte-zero')
+              with OrderStore(journal, retention_days=0) as held:
+                  descriptor = held._process_lock_fd
+                  os.lseek(descriptor, 0, os.SEEK_SET)
+                  try:
+                      result['owner_read_preserves_bytes'] = os.read(descriptor, 4096) == b'synthetic-byte-zero'
+                  except OSError as error:
+                      result['owner_read_error'] = [type(error).__name__, error.errno, getattr(error, 'winerror', None)]
+                  try:
+                      lock.read_bytes()
+                      result['different_handle_read'] = 'allowed'
+                  except OSError as error:
+                      result['different_handle_read_error'] = [type(error).__name__, error.errno, getattr(error, 'winerror', None)]
+                  try:
+                      os.rename(source, Path(temporary) / 'renamed')
+                      result['rename_with_owned_lock'] = 'allowed'
+                  except OSError as error:
+                      result['rename_with_owned_lock_error'] = [type(error).__name__, error.errno, getattr(error, 'winerror', None)]
+          print(json.dumps(result, sort_keys=True))
+          PY
       - name: Actual native layout and migration boundary
         run: |
           "${{ matrix.python }}" - <<'PY'

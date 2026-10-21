@@ -65,7 +65,7 @@ def check(site: Path, project: Path, artifacts: Path) -> None:
                     context = browser.new_context(viewport=viewport, permissions=["clipboard-read", "clipboard-write"])
                     # Local corpus plus its declared public font stylesheets/files; no account session or external navigation.
                     font_hosts = {"fonts.googleapis.com", "fonts.gstatic.com", "cdn.jsdelivr.net"}
-                    context.route("**/*", lambda route, font_hosts=font_hosts: route.continue_() if (
+                    context.route("**/*", lambda route, _request, *, font_hosts=font_hosts: route.continue_() if (
                         route.request.url.startswith(origin + "/") or (
                             urlparse(route.request.url).scheme == "https"
                             and urlparse(route.request.url).hostname in font_hosts
