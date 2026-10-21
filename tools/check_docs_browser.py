@@ -12,7 +12,7 @@ import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import yaml
 from playwright.sync_api import expect, sync_playwright
@@ -99,7 +99,7 @@ def check(site: Path, project: Path, artifacts: Path) -> None:
                     page.goto(origin + "/index.html", wait_until="networkidle")
                     if label == "mobile":
                         page.locator("button.quarto-btn-toggle").click()
-                    link = page.locator('#quarto-sidebar a.sidebar-link[href="./quickstart.html"]')
+                    link = page.locator('#quarto-sidebar a.sidebar-link[href$="/quickstart.html"]')
                     expect(link).to_be_visible()
                     link.click()
                     expect(page).to_have_url(origin + "/quickstart.html")
@@ -119,7 +119,9 @@ def check(site: Path, project: Path, artifacts: Path) -> None:
                     result = page.locator("#quarto-search-results a.search-result-link:visible").first
                     expect(result).to_be_visible()
                     destination = result.get_attribute("href")
-                    assert destination and not urlparse(destination).netloc, f"Nonlocal search target: {destination}"
+                    assert destination, "Search result has no destination"
+                    resolved = urlparse(urljoin(origin + "/", destination))
+                    assert (resolved.scheme, resolved.netloc) == ("http", urlparse(origin).netloc), f"Nonlocal search target: {destination}"
                     result.click()
                     page.wait_for_load_state("networkidle")
                     assert page.url.startswith(origin + "/") and ".html" in page.url
